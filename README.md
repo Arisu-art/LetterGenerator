@@ -1,6 +1,20 @@
 # LetterGenerator
 
-Credit report extraction website for PDF-to-TXT processing using the locked extraction process.
+A precision DOCX automation website for connecting uploaded Word templates to pasted or uploaded TXT source data.
+
+## What this app does
+
+- Upload DOCX templates.
+- Paste or upload structured TXT source data.
+- Parse consumer information, dispute accounts, late payments, open accounts, and hard inquiries.
+- Generate separate bureau-specific DOCX letters only when matching bureau data exists.
+- Preserve the DOCX template exactly except for approved placeholder replacement.
+
+## Template preservation rule
+
+The uploaded DOCX file is the source of truth. The app does not rewrite legal content, colors, borders, fonts, spacing, images, tables, headers, footers, or static wording.
+
+Only placeholders such as `{{consumer.name}}`, `{{bureau.name}}`, `{{accounts_block}}`, and `{{today.us_long}}` are replaced.
 
 ## Local setup
 
@@ -11,14 +25,14 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-## Core workflow
+## Generation logic
 
-1. Upload one credit report PDF.
-2. The app creates a fresh extraction session.
-3. The parser extracts text and detects bureau order.
-4. The rule engine classifies open accounts, late payments, dispute accounts, collections, public records, and hard inquiries.
-5. The output generator creates a TXT file with the locked section order.
+Dispute data creates one file per bureau:
 
-## Important rule
+- TRANSUNION data creates a TransUnion dispute letter.
+- EQUIFAX data creates an Equifax dispute letter.
+- EXPERIAN data creates an Experian dispute letter.
 
-Every extraction must use the current uploaded PDF only. Never reuse prior output or prior client data.
+Late-payment data follows the same per-bureau logic.
+
+Empty bureau sections are skipped.
