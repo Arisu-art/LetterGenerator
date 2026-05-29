@@ -1,0 +1,265 @@
+/* Operational dashboard and navigation differentiation layer */
+.sidebar nav button { order: initial !important; }
+.sidebar nav button:nth-child(1)::before { content: "⌂"; }
+.sidebar nav button:nth-child(2)::before { content: "⇅"; }
+.sidebar nav button:nth-child(3)::before { content: "▦"; }
+.sidebar nav button:nth-child(4)::before { content: "▶"; font-size: 11px; }
+.sidebar nav button:nth-child(5)::before { content: "↓"; }
+.sidebar nav button:nth-child(6)::before { content: "⚙"; }
+
+/* Workflow navigation: concise process track for the four operating screens. */
+.workflow-rail {
+  position: relative;
+  width: min(100%, 720px);
+  margin: 0 0 26px;
+  padding: 4px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: var(--shadow-card);
+}
+.workflow-rail button {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
+}
+.workflow-rail button:hover {
+  color: var(--accent-strong);
+  border-color: var(--accent-line);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(17, 24, 39, .04);
+}
+.workflow-rail button.current {
+  color: var(--accent-strong);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.workflow-rail i {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--text-muted);
+  background: #f3f4f6;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 720;
+}
+.workflow-rail button.current i {
+  color: #fff;
+  background: var(--accent);
+}
+.workflow-rail button.complete i {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+.workflow-rail span { font-size: 13px; font-weight: 650; white-space: nowrap; }
+
+/* Round selection: a reference-library switcher, not another workflow stepper. */
+.round-selector {
+  margin: 0 0 22px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.round-selector button {
+  min-width: 0;
+  min-height: 88px;
+  padding: 13px 12px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  text-align: left;
+  color: var(--text-muted);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
+}
+.round-selector button:hover {
+  color: var(--accent-strong);
+  border-color: var(--accent-line);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(17, 24, 39, .055);
+}
+.round-selector button.selected {
+  color: var(--accent-strong);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(85,124,167,.05);
+}
+.round-index {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--text-muted);
+  background: #f3f4f6;
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: .05em;
+}
+.round-selector button.selected .round-index {
+  color: #fff;
+  background: var(--accent);
+}
+.round-copy { min-width: 0; display: grid; gap: 5px; }
+.round-copy strong {
+  color: inherit;
+  font-size: 13px;
+  line-height: 1.25;
+  font-weight: 690;
+}
+.round-copy small {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.round-selector button.selected .round-copy small { color: var(--accent); }
+
+/* Dashboard: 12-column operations landing surface. */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+.dashboard-hero {
+  grid-column: span 8;
+  min-height: 264px;
+  padding: 34px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fbfe 100%);
+}
+.dashboard-hero h2 {
+  max-width: 640px;
+  margin-bottom: 12px;
+  color: var(--text);
+  font-size: clamp(26px, 3vw, 34px);
+  line-height: 1.13;
+  letter-spacing: -.052em;
+}
+.dashboard-hero > p:not(.eyebrow) {
+  max-width: 570px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.dashboard-actions {
+  margin-top: 26px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.dashboard-actions .action-button { width: auto; margin-top: 0; }
+.dashboard-readiness {
+  grid-column: span 4;
+  min-height: 264px;
+}
+.status-stack { display: grid; gap: 2px; }
+.status-stack > div {
+  min-height: 43px;
+  padding: 7px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.status-stack > div:last-child { border-bottom: 0; }
+.status-stack span { color: var(--text-muted); font-size: 13px; font-weight: 560; }
+.status-stack strong { color: var(--text); font-size: 18px; letter-spacing: -.035em; }
+.metric-tile {
+  grid-column: span 3;
+  min-height: 116px;
+  padding: 18px;
+  display: grid;
+  align-content: space-between;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-card);
+  transition: border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease), box-shadow var(--duration-fast) ease;
+}
+.metric-tile:hover {
+  border-color: var(--accent-line);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+.metric-tile small {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.metric-tile strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: 26px;
+  line-height: 1.1;
+  letter-spacing: -.05em;
+}
+.metric-tile:first-of-type strong { font-size: 18px; letter-spacing: -.03em; }
+.metric-tile em {
+  margin-left: 2px;
+  color: var(--text-muted);
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 560;
+}
+.metric-tile span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.dashboard-routes { grid-column: 1 / -1; }
+.dashboard-routes .route-list { max-width: none; }
+.text-action {
+  padding: 8px 10px;
+  color: var(--accent-strong);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 660;
+  transition: border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease), box-shadow var(--duration-fast) ease;
+}
+.text-action:hover {
+  border-color: var(--accent-line);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(17,24,39,.04);
+}
+
+@media (max-width: 1180px) {
+  .round-selector { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-hero, .dashboard-readiness { grid-column: 1 / -1; }
+  .metric-tile { grid-column: span 6; }
+}
+@media (max-width: 720px) {
+  .workflow-rail { grid-template-columns: repeat(4, max-content); overflow-x: auto; }
+  .workflow-rail span { display: none; }
+  .round-selector { grid-template-columns: 1fr; }
+  .dashboard-hero { padding: 22px; }
+  .dashboard-actions { flex-direction: column; align-items: stretch; }
+  .dashboard-actions .action-button, .dashboard-actions .secondary-button { width: 100%; }
+  .metric-tile { grid-column: 1 / -1; }
+}
