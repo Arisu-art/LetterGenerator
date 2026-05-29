@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateOnlyOfficeSession, readOnlyOfficeDocument } from '../../../../../../lib/onlyoffice-session';
+import { authenticateOnlyOfficeSession, readOnlyOfficeDocument } from '../../../../../lib/onlyoffice-session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
