@@ -1,5 +1,6 @@
 import PizZip from 'pizzip';
 import { DOCX_MIME } from './docx-renderer';
+import { applyLetterFlowRules } from './docx-flow';
 
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const XML_NS = 'http://www.w3.org/XML/1998/namespace';
@@ -76,9 +77,6 @@ function replaceHeaderFromReference(header: Element[], values: LateReferenceValu
 
   header.forEach((paragraph) => {
     const key = normalizedLabel(text(paragraph));
-
-    // Word frequently stores a visible multiline block such as NAME / ADDRESS / DOB / SSN
-    // as one paragraph containing line-break runs. text() joins those runs, so replace it as one block.
     if (!clientBlockReplaced && /NAME/.test(key) && /ADDRESS/.test(key) && /DOB/.test(key) && /SSN/.test(key)) {
       replaceParagraph(paragraph, [values.consumerName, ...values.addressLines, `DOB: ${values.dob}`, `SSN: ${values.ssn}`]);
       clientBlockReplaced = true;
@@ -89,38 +87,26 @@ function replaceHeaderFromReference(header: Element[], values: LateReferenceValu
       recipientBlockReplaced = true;
       return;
     }
-
     if (/^(NAME|CLIENT NAME|CONSUMER NAME)$/.test(key)) {
-      replaceParagraph(paragraph, [values.consumerName]);
-      individualMatches += 1;
+      replaceParagraph(paragraph, [values.consumerName]); individualMatches += 1;
     } else if (/^(ADDRESS|STREET ADDRESS)$/.test(key)) {
-      replaceParagraph(paragraph, [values.addressLines[0] || '']);
-      individualMatches += 1;
+      replaceParagraph(paragraph, [values.addressLines[0] || '']); individualMatches += 1;
     } else if (/^(CITY,? STATE ZIP|CITY,? STATE,? ZIP|CITY STATE ZIP)$/.test(key)) {
-      replaceParagraph(paragraph, [values.addressLines.slice(1).join(' ') || '']);
-      individualMatches += 1;
+      replaceParagraph(paragraph, [values.addressLines.slice(1).join(' ') || '']); individualMatches += 1;
     } else if (/^DOB$/.test(key)) {
-      replaceParagraph(paragraph, [`DOB: ${values.dob}`]);
-      individualMatches += 1;
+      replaceParagraph(paragraph, [`DOB: ${values.dob}`]); individualMatches += 1;
     } else if (/^SSN$/.test(key)) {
-      replaceParagraph(paragraph, [`SSN: ${values.ssn}`]);
-      individualMatches += 1;
+      replaceParagraph(paragraph, [`SSN: ${values.ssn}`]); individualMatches += 1;
     } else if (/^(DATE|LETTER DATE)$/.test(key)) {
-      replaceParagraph(paragraph, [values.letterDate]);
-      dateReplaced = true;
+      replaceParagraph(paragraph, [values.letterDate]); dateReplaced = true;
     } else if (/^(CREDIT BUREAU NAME|BUREAU NAME)$/.test(key)) {
-      replaceParagraph(paragraph, [values.bureauName]);
-      individualMatches += 1;
+      replaceParagraph(paragraph, [values.bureauName]); individualMatches += 1;
     } else if (/^(DISPUTE ADDRESS|BUREAU ADDRESS|CREDIT BUREAU ADDRESS)$/.test(key)) {
-      replaceParagraph(paragraph, values.bureauAddressLines);
-      individualMatches += 1;
+      replaceParagraph(paragraph, values.bureauAddressLines); individualMatches += 1;
     }
   });
 
-  // A blank reference can use grouped multiline blocks or separate field paragraphs.
   if ((clientBlockReplaced && dateReplaced && recipientBlockReplaced) || individualMatches >= 5) return;
-
-  // Completed references may contain one populated paragraph per field.
   if (header.length >= 9) {
     replaceParagraph(header[0], [values.consumerName]);
     replaceParagraph(header[1], [values.addressLines[0] || '']);
@@ -133,24 +119,16 @@ function replaceHeaderFromReference(header: Element[], values: LateReferenceValu
     replaceParagraph(header[8], [values.bureauAddressLines.slice(1).join(' ') || '']);
     return;
   }
-
-  // Completed references may group identity and recipient values into three multiline paragraphs.
   if (header.length >= 3 && individualMatches === 0 && !clientBlockReplaced && !recipientBlockReplaced) {
     replaceParagraph(header[0], [values.consumerName, ...values.addressLines, `DOB: ${values.dob}`, `SSN: ${values.ssn}`]);
     replaceParagraph(header[1], [values.letterDate]);
     replaceParagraph(header[2], [values.bureauName, ...values.bureauAddressLines]);
     return;
   }
-
   throw new Error(`Late Payment reference header mapping incomplete: client block=${clientBlockReplaced ? 'found' : 'missing'}, date=${dateReplaced ? 'found' : 'missing'}, bureau block=${recipientBlockReplaced ? 'found' : 'missing'}, separate fields=${individualMatches}.`);
 }
 function sourceItemLines(value: string, accountNameLabel: string) {
-  return value
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .filter((line) => !/^Late\s*Payment\s*:/i.test(line))
-    .map((line) => line.replace(/^(Account|Creditor)\s+Name\s*:/i, accountNameLabel));
+  return value.split('\n').map((line) => line.trim()).filter(Boolean).filter((line) => !/^Late\s*Payment\s*:/i.test(line)).map((line) => line.replace(/^(Account|Creditor)\s+Name\s*:/i, accountNameLabel));
 }
 
 /** Blank or completed-reference renderer for a Late Payment letter. */
@@ -205,6 +183,11 @@ export async function renderLatePaymentReference(reference: File, values: LateRe
     const signature = all.slice(all.indexOf(sincerely) + 1).find((paragraph) => text(paragraph).length > 0);
     if (signature) replaceParagraph(signature, [values.consumerName]);
   }
+
+  // Use the same pagination protections as dispute letters: avoid stranded headings,
+  // split legal paragraphs and oversized visual gaps after dynamic item insertion.
+  applyLetterFlowRules(body);
+
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
   return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
