@@ -1,0 +1,126 @@
+/* Contextual attention states: visible, purposeful and motion-safe guidance for document production. */
+:root {
+  --review-ink: #8a5a0a;
+  --review-bg: #fff8ea;
+  --review-line: #e8bd63;
+  --review-soft: #fff2d7;
+  --review-ring: rgba(216, 151, 35, .15);
+  --blocked-ink: #9d2b23;
+  --blocked-bg: #fff3f2;
+  --blocked-line: #ebc0bc;
+}
+
+/* A detected record that needs review is a key decision state, not a quiet note. */
+.source-results-panel:has(.source-review) {
+  position: relative;
+  border-color: var(--review-line);
+  box-shadow: 0 1px 2px rgba(15,23,42,.03), 0 14px 34px rgba(135,93,22,.07);
+}
+.source-results-panel:has(.source-review)::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 var(--review-ring);
+  animation: attentionPulse 2.1s var(--ease) 2;
+}
+.source-results-panel:has(.source-review) .panel-heading {
+  padding-bottom: 15px;
+  border-bottom: 1px solid #edf0f3;
+}
+.source-results-panel:has(.source-review) .pill.accent {
+  color: var(--review-ink);
+  background: var(--review-soft);
+  border-color: #eccb8c;
+}
+
+.source-review {
+  position: relative;
+  margin: 18px 0;
+  padding: 17px 17px 17px 53px;
+  gap: 9px;
+  border: 1px solid var(--review-line);
+  border-left-width: 4px;
+  border-radius: 14px;
+  background: linear-gradient(112deg, var(--review-bg), #fffdf8);
+  box-shadow: 0 5px 14px rgba(120,80,15,.04);
+}
+.source-review::before {
+  content: "!";
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: #cf8713;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 800;
+}
+.source-review strong {
+  color: var(--review-ink);
+  font-size: 14px;
+  letter-spacing: -.01em;
+}
+.source-review p {
+  position: relative;
+  padding: 8px 10px;
+  color: #73531e;
+  background: rgba(255,255,255,.6);
+  border: 1px solid rgba(232,189,99,.36);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.source-results-panel:has(.source-review) .action-button {
+  background: #142034;
+  border-color: var(--review-line);
+}
+
+/* A consistent vocabulary across Templates, Generate and Outputs. */
+.pill.warning {
+  border: 1px solid #ebcb8c;
+  box-shadow: 0 0 0 3px rgba(232,189,99,.08);
+}
+.document:has(.pill.warning):hover,
+.document:has(.pill.warning).selected {
+  border-color: var(--review-line);
+}
+.readiness-checks > div.review {
+  color: var(--review-ink);
+  background: var(--review-bg);
+  border-color: #edd49e;
+}
+.readiness-checks > div.blocked,
+.alert.error,
+.failed-output {
+  background: var(--blocked-bg);
+  border-color: var(--blocked-line);
+}
+.failed-output {
+  box-shadow: 0 4px 12px rgba(157,43,35,.04);
+}
+
+/* Give generated/validated success states definition without using oversized alerts. */
+.alert.success,
+.readiness-checks > div.checked {
+  border-color: #c9e3d6;
+  background: #edf8f2;
+}
+
+@keyframes attentionPulse {
+  0% { box-shadow: 0 0 0 0 rgba(216,151,35,.2); }
+  45% { box-shadow: 0 0 0 7px rgba(216,151,35,.08); }
+  100% { box-shadow: 0 0 0 0 rgba(216,151,35,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .source-results-panel:has(.source-review)::before { animation: none; }
+}
+@media (max-width: 720px) {
+  .source-review { padding: 15px 13px 15px 48px; }
+  .source-review::before { left: 13px; top: 14px; }
+}
