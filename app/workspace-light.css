@@ -2,20 +2,24 @@
   --bg: #f5f6f8;
   --surface: #ffffff;
   --surface-subtle: #f8f9fb;
-  --surface-hover: #f1f3f6;
-  --surface-active: #eceff3;
+  --surface-hover: #ffffff;
+  --surface-active: #edf4fb;
   --text: #111827;
   --text-soft: #374151;
   --text-muted: #667085;
   --line: #e4e7ec;
   --line-strong: #cfd5dd;
-  --line-hover: #aeb7c5;
+  --line-hover: #b8c5d5;
   --nav: #ffffff;
-  --nav-hover: #f3f4f6;
+  --nav-hover: #ffffff;
   --primary: #374151;
   --primary-strong: #111827;
   --primary-soft: #f3f4f6;
-  --focus: rgba(55, 65, 81, .16);
+  --accent: #557ca7;
+  --accent-strong: #385d84;
+  --accent-soft: #edf4fb;
+  --accent-line: #cdddec;
+  --accent-focus: rgba(85, 124, 167, .16);
   --success: #087443;
   --success-soft: #e9f7ef;
   --warning: #936100;
@@ -23,18 +27,18 @@
   --danger: #b42318;
   --danger-soft: #fff2f1;
   --shadow-card: 0 1px 2px rgba(17, 24, 39, .03), 0 8px 24px rgba(17, 24, 39, .04);
-  --shadow-hover: 0 1px 3px rgba(17, 24, 39, .04), 0 18px 40px rgba(17, 24, 39, .075);
+  --shadow-hover: 0 2px 5px rgba(17, 24, 39, .05), 0 18px 40px rgba(17, 24, 39, .075);
   --shadow-control: 0 1px 2px rgba(17, 24, 39, .05);
 }
 
 body {
-  background: linear-gradient(180deg, #fafbfc 0, var(--bg) 180px);
+  background: linear-gradient(180deg, #fbfcfd 0, var(--bg) 180px);
 }
 
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline-color: var(--focus);
+  outline-color: var(--accent-focus);
 }
 
 /* Navigation reserves its width and pushes the workspace when intentionally opened. */
@@ -71,7 +75,7 @@ textarea:focus-visible {
   transform: translateX(-8px);
 }
 .brand > span {
-  background: linear-gradient(145deg, #1f2937, #6b7280);
+  background: linear-gradient(145deg, #253243, #667085);
   box-shadow: 0 10px 22px rgba(17, 24, 39, .12);
   transition: transform var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
 }
@@ -84,32 +88,33 @@ textarea:focus-visible {
 .sidebar nav button {
   color: var(--text-muted);
   border: 1px solid transparent;
-  transition: color var(--duration-fast) ease, background var(--duration-fast) ease, border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
+  transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease), box-shadow var(--duration-fast) ease;
 }
 .sidebar nav button::before {
   color: var(--text-muted);
   background: #f3f4f6;
-  transition: color var(--duration-fast) ease, background var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
+  transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
 }
 .sidebar nav button:hover {
-  color: var(--text);
-  background: var(--nav-hover);
-  border-color: var(--line);
-  transform: translateX(1px);
+  color: var(--accent-strong);
+  background: transparent;
+  border-color: var(--accent-line);
+  transform: translateX(2px);
+  box-shadow: 0 8px 18px rgba(17, 24, 39, .045);
 }
 .sidebar nav button:hover::before {
-  color: var(--text);
-  background: #e8ebef;
+  color: var(--accent-strong);
+  background: #f3f4f6;
 }
 .sidebar nav button.active {
-  color: var(--text);
-  background: #f3f4f6;
-  border-color: #e1e5ea;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
 }
-.sidebar nav button.active::after { background: #4b5563; }
+.sidebar nav button.active::after { background: var(--accent); }
 .sidebar nav button.active::before {
-  color: #fff;
-  background: #374151;
+  color: #ffffff;
+  background: var(--accent);
 }
 /* Source Data is the first operational step; Templates remains directly below it. */
 .sidebar nav button:nth-child(1) { order: 2; }
@@ -123,9 +128,9 @@ textarea:focus-visible {
   min-width: 0;
   transition: opacity var(--duration-fast) ease;
 }
-.eyebrow { color: #4b5563; }
+.eyebrow { color: var(--accent-strong); }
 
-/* Primary controls remain dominant and respond immediately to interaction. */
+/* Primary controls stay strong; hover uses lift and border emphasis rather than a fill swap. */
 .header-action,
 .action-button {
   position: relative;
@@ -135,11 +140,11 @@ textarea:focus-visible {
 }
 .header-action:hover,
 .action-button:hover {
-  color: #fff;
-  background: #374151;
-  border-color: #374151;
+  color: #ffffff;
+  background: #111827;
+  border-color: var(--accent);
   transform: translateY(-2px);
-  box-shadow: 0 12px 26px rgba(17, 24, 39, .18);
+  box-shadow: 0 12px 26px rgba(17, 24, 39, .18), 0 0 0 1px var(--accent-line);
 }
 .header-action:active,
 .action-button:active {
@@ -147,134 +152,144 @@ textarea:focus-visible {
   box-shadow: var(--shadow-control);
 }
 
-/* Workflow tabs are clear, tactile selectors rather than static labels. */
+/* Active selections receive the single light-blue sub color; hover remains clean and transparent. */
 .stepper {
   border: 1px solid #e6e9ef;
   background: #f0f2f5;
 }
 .stepper button {
   border: 1px solid transparent;
-  transition: color var(--duration-fast) ease, background var(--duration-fast) ease, border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease), box-shadow var(--duration-fast) ease;
+  transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease), box-shadow var(--duration-fast) ease;
 }
 .stepper button:hover {
-  color: var(--text);
-  background: #fafafa;
-  border-color: #e1e5ea;
+  color: var(--accent-strong);
+  background: transparent;
+  border-color: var(--accent-line);
   transform: translateY(-1px);
+  box-shadow: 0 7px 14px rgba(17, 24, 39, .04);
 }
 .stepper button:hover i {
-  color: var(--text);
-  background: #e7eaee;
+  color: var(--accent-strong);
+  background: rgba(255,255,255,.72);
 }
 .stepper button.current {
-  border-color: #e2e6ec;
-  background: #fff;
+  color: var(--accent-strong);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
 }
-.stepper button.current i { background: #374151; }
-.stepper button.current:hover i { color: #fff; background: #111827; }
+.stepper button.current i { color: #ffffff; background: var(--accent); }
+.stepper button.current:hover {
+  background: var(--accent-soft);
+}
+.stepper button.current:hover i { color: #ffffff; background: var(--accent); }
+.stepper button.complete i { color: var(--accent-strong); background: var(--accent-soft); }
 
-/* Modules use balanced elevation and visible hover state without excessive motion. */
+/* Modules use balanced elevation and visible borders without hover color wash. */
 .panel {
   border-color: var(--line);
   background: var(--surface);
   box-shadow: var(--shadow-card);
 }
 .panel:hover {
+  background: var(--surface);
   border-color: var(--line-strong);
   box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
 }
-.panel-heading h2 {
-  transition: color var(--duration-fast) ease;
-}
+.panel-heading h2 { transition: color var(--duration-fast) ease; }
 .panel:hover .panel-heading h2 { color: #0b1220; }
 .pill {
   border: 1px solid transparent;
-  transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease, color var(--duration-fast) ease;
+  transition: border-color var(--duration-fast) ease, color var(--duration-fast) ease;
 }
 .pill.accent {
-  color: #374151;
-  background: #f3f4f6;
-  border-color: #e5e7eb;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
 }
 .pill.success { border-color: #d9ede1; }
 .pill.warning { border-color: #f1e1b4; }
 
-.document {
-  border-color: transparent;
-}
+.document { border-color: transparent; }
 .document:hover {
-  color: var(--text);
-  background: #f2f4f7;
-  border-color: var(--line-strong);
-  transform: translateY(-1px);
+  color: var(--accent-strong);
+  background: var(--surface-subtle);
+  border-color: var(--accent-line);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(17, 24, 39, .055);
 }
-.document:hover strong { color: #0b1220; }
+.document:hover strong { color: var(--accent-strong); }
 .document:hover i {
-  color: var(--text);
-  background: #fff;
+  color: var(--accent-strong);
+  background: #ffffff;
   box-shadow: var(--shadow-control);
 }
 .document.selected {
-  border-color: #cfd5dd;
-  background: #eef1f4;
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
 }
-.document.selected i { color: #374151; }
+.document.selected strong,
+.document.selected i { color: var(--accent-strong); }
 
 .saved-file {
   background: #f6faf8;
   border-color: #ddebe4;
-  transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease;
+  transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
 }
 .saved-file:hover {
+  background: #f6faf8;
   border-color: #c5dfd2;
-  background: #f1f8f4;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(17, 24, 39, .035);
 }
 .upload-empty {
-  transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease, color var(--duration-fast) ease;
+  transition: border-color var(--duration-fast) ease, color var(--duration-fast) ease, box-shadow var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
 }
 .upload-empty:hover {
-  color: var(--text-soft);
-  background: #f4f6f8;
-  border-color: var(--line-hover);
+  color: var(--accent-strong);
+  background: var(--surface-subtle);
+  border-color: var(--accent-line);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(17, 24, 39, .035);
 }
 
-/* Field highlighting is applied globally to visible inputs and source editor. */
-.field-label {
-  transition: color var(--duration-fast) ease;
-}
-.field-label:hover { color: var(--text); }
+/* Fields emphasize outline and text on interaction while their base fill stays stable. */
+.field-label { transition: color var(--duration-fast) ease; }
+.field-label:hover { color: var(--accent-strong); }
 .file-input,
 .code-area,
 .source-area {
   background: #fbfcfd;
   border-color: var(--line);
-  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease, color var(--duration-fast) ease;
+  transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease, color var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
 }
 .file-input:hover,
 .code-area:hover,
 .source-area:hover {
   color: var(--text);
-  background: #fff;
-  border-color: var(--line-hover);
-  box-shadow: 0 1px 2px rgba(17, 24, 39, .04);
+  background: #fbfcfd;
+  border-color: var(--accent-line);
+  box-shadow: 0 7px 16px rgba(17, 24, 39, .035);
 }
 .file-input:focus,
 .code-area:focus,
 .source-area:focus {
-  background: #fff;
-  border-color: #9aa4b2;
-  box-shadow: 0 0 0 4px var(--focus);
+  background: #ffffff;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-focus);
 }
 .file-input::file-selector-button {
-  color: #374151;
-  background: #f1f3f6;
-  border: 1px solid #e2e6eb;
-  transition: color var(--duration-fast) ease, background var(--duration-fast) ease, border-color var(--duration-fast) ease;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease), box-shadow var(--duration-fast) ease;
 }
 .file-input:hover::file-selector-button {
-  color: #111827;
-  background: #e8ebef;
-  border-color: #cfd5dd;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 12px rgba(17, 24, 39, .05);
 }
 
 .route-table,
@@ -286,31 +301,36 @@ textarea:focus-visible {
 .route-table:hover,
 .route-list:hover {
   border-color: var(--line-strong);
-  box-shadow: 0 6px 18px rgba(17, 24, 39, .04);
+  box-shadow: 0 8px 20px rgba(17, 24, 39, .04);
 }
 .bureau,
 .route-card {
-  transition: background var(--duration-fast) ease, color var(--duration-fast) ease;
+  transition: color var(--duration-fast) ease, box-shadow var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
 }
 .bureau:hover,
 .route-card:hover {
-  background: #f8f9fb;
+  background: transparent;
+  color: var(--accent-strong);
+  transform: translateY(-1px);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
 }
 .bureau:hover strong,
-.route-card:hover strong { color: #0b1220; }
-.route-card span { color: #374151; }
+.route-card:hover strong { color: var(--accent-strong); }
+.route-card span { color: var(--accent-strong); }
 
 .info-card {
-  color: #374151;
+  color: var(--text-soft);
   background: #f7f8fa;
   border-color: var(--line);
-  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+  transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
 }
 .info-card p { color: var(--text-muted); }
 .info-card:hover {
-  background: #f3f5f7;
-  border-color: var(--line-strong);
-  box-shadow: 0 6px 18px rgba(17, 24, 39, .035);
+  color: var(--accent-strong);
+  background: #f7f8fa;
+  border-color: var(--accent-line);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(17, 24, 39, .035);
 }
 .alert {
   transition: border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease), box-shadow var(--duration-fast) ease;
@@ -321,49 +341,53 @@ textarea:focus-visible {
 }
 .pending-list span {
   border: 1px solid #f0e4c6;
-  transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease, background var(--duration-fast) ease;
+  transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
 }
 .pending-list span:hover {
   color: #724900;
+  background: var(--warning-soft);
   border-color: #e2cd96;
-  background: #fff3d2;
+  transform: translateY(-1px);
+  box-shadow: 0 7px 16px rgba(17, 24, 39, .035);
 }
 
 .output {
-  background: #fff;
+  background: #ffffff;
   border-color: var(--line);
 }
 .output:hover {
-  background: #fafbfc;
-  border-color: var(--line-strong);
+  background: #ffffff;
+  border-color: var(--accent-line);
   transform: translateY(-2px);
   box-shadow: var(--shadow-hover);
 }
-.output:hover h3 { color: #0b1220; }
+.output:hover h3 { color: var(--accent-strong); }
 .secondary-button {
   border-color: var(--line);
-  background: #fff;
+  background: #ffffff;
 }
 .secondary-button:hover {
-  color: #111827;
-  background: #f3f4f6;
-  border-color: var(--line-hover);
+  color: var(--accent-strong);
+  background: #ffffff;
+  border-color: var(--accent-line);
   transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(17, 24, 39, .045);
 }
 .setting {
-  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+  transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
 }
 .setting:hover {
-  background: #f3f5f7;
-  border-color: var(--line-strong);
-  box-shadow: 0 6px 16px rgba(17, 24, 39, .035);
+  background: var(--surface-subtle);
+  border-color: var(--accent-line);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(17, 24, 39, .035);
 }
 .toast {
   border-color: var(--line);
   transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
 }
 .toast:hover {
-  border-color: var(--line-strong);
+  border-color: var(--accent-line);
   box-shadow: 0 20px 48px rgba(17, 24, 39, .13);
 }
 
