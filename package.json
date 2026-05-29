@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@onlyoffice/document-editor-react": "^2.2.0",
     "docx-preview": "^0.3.6",
     "docxtemplater": "^3.68.7",
     "jszip": "^3.10.1",
