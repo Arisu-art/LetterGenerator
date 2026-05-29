@@ -3,17 +3,27 @@ export type LetterType = 'DISPUTE' | 'LATE_PAYMENT';
 export type ItemType = 'DISPUTE_ACCOUNT' | 'HARD_INQUIRY' | 'LATE_PAYMENT';
 export type SourceItem = { type: ItemType; displayText: string };
 export type ParseDiagnostic = { level: 'warning' | 'info'; message: string; line?: number };
+export type PreservedSourceLine = { line: number; text: string; reason: string };
 export type ParsedSource = {
   name: string;
   address: string[];
   dob: string;
   ssn: string;
+  phone: string;
+  email: string;
   dispute: Record<Bureau, SourceItem[]>;
   inquiry: Record<Bureau, SourceItem[]>;
   late: Record<Bureau, SourceItem[]>;
+  preserved: PreservedSourceLine[];
   diagnostics: ParseDiagnostic[];
 };
 export type LetterRoute = { bureau: Bureau; type: LetterType; items: SourceItem[]; reason: string };
+export type NormalizedSourceCopy = {
+  text: string;
+  usedFields: string[];
+  reservedFields: string[];
+  preservedLines: PreservedSourceLine[];
+};
 
 export const bureaus: Bureau[] = ['TRANSUNION', 'EQUIFAX', 'EXPERIAN'];
 export const bureauInfo: Record<Bureau, { name: string; address: string }> = {
@@ -27,6 +37,8 @@ type ItemStore = Record<Bureau, SourceItem[]>;
 const DATE_PATTERN = /\b(?:0?[1-9]|1[0-2])[\/-](?:0?[1-9]|[12]\d|3[01])[\/-](?:\d{2}|\d{4})\b/;
 const ACCOUNT_NAME = /^(?:ACCOUNT|CREDITOR|FURNISHER|COMPANY)\s*(?:NAME)?\s*[:#-]\s*(.+)$/i;
 const ACCOUNT_NUMBER = /^(?:ACCOUNT|ACCT)\s*(?:NUMBER|NO\.?|#)\s*[:#-]\s*(.+)$/i;
+const KNOWN_HEADER = /^(NAME|CLIENT|CONSUMER(?:\s+NAME)?|ADDRESS|DOB|SSN|PHONE|TELEPHONE|MOBILE|EMAIL|E-?MAIL)\s*:/i;
+const RESERVED_HEADER = /^(PHONE|TELEPHONE|MOBILE|EMAIL|E-?MAIL)\s*:/i;
 
 function itemMap(): ItemStore { return { TRANSUNION: [], EQUIFAX: [], EXPERIAN: [] }; }
 function normalized(value: string) {
@@ -49,7 +61,7 @@ function sectionOf(value: string): Section | '' {
   if (/\b(HARD\s*(INQ|INQUIRY|INQUIRIES)|INQUIRY\s+REMOVAL)\b/.test(key)) return 'inquiry';
   if (/\b(LATE\s*(PAY|PAYMENT|PAYMENTS)|PAYMENT\s+HISTORY\s+DISPUTE)\b/.test(key)) return 'late';
   if (/\b(FOR\s+DISPUTE|DISPUTE\s+(ACCOUNTS?|ITEMS?|RECORDS?|LETTERS?)|FRAUDULENT\s+ACCOUNTS?|IDENTITY\s+THEFT\s+ACCOUNTS?)\b/.test(key) || /^(DISPUTE|DISPUTES)$/.test(key)) return 'dispute';
-  if (/^(OPEN\s+ACCOUNTS?|PERSONAL\s+INFORMATION|PHONE|EMAIL|EMPLOYMENT|SUMMARY)$/.test(key)) return 'ignore';
+  if (/^(OPEN\s+ACCOUNTS?|PERSONAL\s+INFORMATION|EMPLOYMENT|SUMMARY|NOTES?)$/.test(key)) return 'ignore';
   return '';
 }
 function isSectionHeading(value: string, section: Section) {
@@ -106,15 +118,17 @@ function headerField(lines: string[], label: RegExp) {
   return line ? line.replace(label, '').trim() : '';
 }
 function looksLikeRecord(line: string) { return ACCOUNT_NAME.test(line) || ACCOUNT_NUMBER.test(line) || DATE_PATTERN.test(line); }
+function pushPreserved(parsed: ParsedSource, line: number, text: string, reason: string) {
+  if (!parsed.preserved.some((item) => item.line === line && item.text === text)) parsed.preserved.push({ line, text, reason });
+}
 
 /**
- * Parses both the recommended TXT format and common variants:
- * section-first, bureau-first, and combined headings such as "EQUIFAX - DISPUTE ACCOUNTS".
- * Records are never routed without an active bureau and category, which prevents false letters.
+ * Parses both the recommended TXT format and common variants. Supplemental data is retained for
+ * possible supporting documents but never inserted into dispute or late-payment letters unless mapped.
  */
 export function parseSource(text: string): ParsedSource {
-  const parsed: ParsedSource = { name: '', address: [], dob: '', ssn: '', dispute: itemMap(), inquiry: itemMap(), late: itemMap(), diagnostics: [] };
-  const header: string[] = [];
+  const parsed: ParsedSource = { name: '', address: [], dob: '', ssn: '', phone: '', email: '', dispute: itemMap(), inquiry: itemMap(), late: itemMap(), preserved: [], diagnostics: [] };
+  const header: Array<{ text: string; line: number }> = [];
   let section: Section = 'header';
   let bureau: Bureau | '' = '';
   let buffer: string[] = [];
@@ -147,14 +161,16 @@ export function parseSource(text: string): ParsedSource {
       if (bureauHeading) bureau = detectedBureau;
       return;
     }
-    if (section === 'header' && !bureau) { header.push(line); return; }
+    if (section === 'header' && !bureau) { header.push({ text: line, line: lineNumber }); return; }
+    if (section === 'ignore') { pushPreserved(parsed, lineNumber, line, 'Supplemental section: not mapped to generated letters.'); return; }
     if (section === 'inquiry') {
       if (!bureau) {
         if (DATE_PATTERN.test(line)) parsed.diagnostics.push({ level: 'warning', message: 'Hard inquiry ignored because no bureau heading was identified.', line: lineNumber });
+        else pushPreserved(parsed, lineNumber, line, 'Unrecognized hard-inquiry text.');
         return;
       }
       if (DATE_PATTERN.test(line)) appendUnique(parsed.inquiry[bureau], createItem('HARD_INQUIRY', [line]), parsed.diagnostics, bureau);
-      else if (!isNoData(line)) parsed.diagnostics.push({ level: 'warning', message: `Hard inquiry in ${bureau} must include a date on the same line: COMPANY - MM/DD/YYYY.`, line: lineNumber });
+      else if (!isNoData(line)) { parsed.diagnostics.push({ level: 'warning', message: `Hard inquiry in ${bureau} must include a date on the same line: COMPANY - MM/DD/YYYY.`, line: lineNumber }); pushPreserved(parsed, lineNumber, line, 'Inquiry retained for manual review.'); }
       return;
     }
     if ((section === 'dispute' || section === 'late') && bureau) {
@@ -164,14 +180,20 @@ export function parseSource(text: string): ParsedSource {
       return;
     }
     if (looksLikeRecord(line)) parsed.diagnostics.push({ level: 'warning', message: 'Record-like text was not assigned to an output. Use a category and bureau heading.', line: lineNumber });
+    else pushPreserved(parsed, lineNumber, line, 'Text not mapped to a standard output field.');
   });
   flush();
 
-  const firstUnlabelled = header.find((line) => !/^(NAME|CLIENT|CONSUMER|ADDRESS|DOB|SSN)\s*:/i.test(line));
-  parsed.name = headerField(header, /^(?:NAME|CLIENT|CONSUMER(?:\s+NAME)?)\s*:\s*/i) || firstUnlabelled || '';
-  parsed.dob = headerField(header, /^DOB\s*:\s*/i);
-  parsed.ssn = headerField(header, /^SSN\s*:\s*/i);
-  parsed.address = header.filter((line) => line !== parsed.name && !/^(NAME|CLIENT|CONSUMER(?:\s+NAME)?|DOB|SSN)\s*:/i.test(line)).map((line) => line.replace(/^ADDRESS\s*:\s*/i, '')).filter(Boolean);
+  const headerLines = header.map((item) => item.text);
+  const firstUnlabelled = header.find((item) => !KNOWN_HEADER.test(item.text));
+  parsed.name = headerField(headerLines, /^(?:NAME|CLIENT|CONSUMER(?:\s+NAME)?)\s*:\s*/i) || firstUnlabelled?.text || '';
+  parsed.dob = headerField(headerLines, /^DOB\s*:\s*/i);
+  parsed.ssn = headerField(headerLines, /^SSN\s*:\s*/i);
+  parsed.phone = headerField(headerLines, /^(?:PHONE|TELEPHONE|MOBILE)\s*:\s*/i);
+  parsed.email = headerField(headerLines, /^(?:EMAIL|E-?MAIL)\s*:\s*/i);
+  parsed.address = header.filter((item) => item.text !== parsed.name && !KNOWN_HEADER.test(item.text)).map((item) => item.text.replace(/^ADDRESS\s*:\s*/i, '')).filter(Boolean);
+  header.filter((item) => RESERVED_HEADER.test(item.text)).forEach((item) => pushPreserved(parsed, item.line, item.text, 'Supplemental client field: reserved for a mapped supporting document.'));
+  header.filter((item) => !KNOWN_HEADER.test(item.text) && item.text !== parsed.name && !parsed.address.includes(item.text)).forEach((item) => pushPreserved(parsed, item.line, item.text, 'Header text not assigned to the dispute letter.'));
   if (!parsed.name) parsed.diagnostics.push({ level: 'warning', message: 'Client name could not be identified in the source header.' });
   return parsed;
 }
@@ -191,6 +213,34 @@ export function detectRoutes(parsed: ParsedSource): LetterRoute[] {
     if (lateItems.length) routes.push({ bureau, type: 'LATE_PAYMENT', items: lateItems, reason: `${lateItems.length} late-payment item(s).` });
     return routes;
   });
+}
+
+export function createNormalizedSourceCopy(source: string): NormalizedSourceCopy {
+  const parsed = parseSource(source);
+  const sections: string[] = [
+    `NAME: ${parsed.name}`,
+    ...parsed.address.map((line, index) => `${index === 0 ? 'ADDRESS: ' : ''}${line}`),
+    `DOB: ${parsed.dob}`,
+    `SSN: ${parsed.ssn}`
+  ];
+  const disputeLines = bureaus.flatMap((bureau) => parsed.dispute[bureau].length ? ['', bureau, ...parsed.dispute[bureau].map((item) => item.displayText).join('\n\n').split('\n')] : []);
+  const inquiryLines = bureaus.flatMap((bureau) => parsed.inquiry[bureau].length ? ['', bureau, ...parsed.inquiry[bureau].map((item) => item.displayText)] : []);
+  const lateLines = bureaus.flatMap((bureau) => parsed.late[bureau].length ? ['', bureau, ...parsed.late[bureau].map((item) => item.displayText).join('\n\n').split('\n')] : []);
+  if (disputeLines.length) sections.push('', 'DISPUTE ACCOUNTS', ...disputeLines);
+  if (inquiryLines.length) sections.push('', 'HARD INQUIRIES', ...inquiryLines);
+  if (lateLines.length) sections.push('', 'LATE PAYMENTS', ...lateLines);
+  if (parsed.phone || parsed.email || parsed.preserved.length) {
+    sections.push('', 'PRESERVED SOURCE DATA - NOT INSERTED UNLESS A TEMPLATE MAPS IT');
+    if (parsed.phone) sections.push(`PHONE: ${parsed.phone}`);
+    if (parsed.email) sections.push(`EMAIL: ${parsed.email}`);
+    parsed.preserved.filter((item) => !/^(PHONE|TELEPHONE|MOBILE|EMAIL|E-?MAIL)\s*:/i.test(item.text)).forEach((item) => sections.push(`[LINE ${item.line}] ${item.text}`));
+  }
+  return {
+    text: sections.filter((line, index, all) => line || all[index - 1] !== '').join('\n').trim(),
+    usedFields: ['Name', 'Address', 'DOB', 'SSN', 'Dispute accounts', 'Hard inquiries', 'Late payments'],
+    reservedFields: [parsed.phone ? 'Phone' : '', parsed.email ? 'Email' : ''].filter(Boolean),
+    preservedLines: parsed.preserved
+  };
 }
 
 export const recommendedSourceFormat = `NAME: CLIENT FULL NAME\nADDRESS: STREET ADDRESS\nCITY, STATE ZIP\nDOB: MM/DD/YYYY\nSSN: XXX-XX-1234\n\nDISPUTE ACCOUNTS\nTRANSUNION\nAccount Name: EXAMPLE BANK\nAccount Number: XXXX1234\n\nEQUIFAX\nNONE\n\nEXPERIAN\nAccount Name: EXAMPLE CARD\nAccount Number: XXXX9876\n\nHARD INQUIRIES\nTRANSUNION\nEXAMPLE LENDER - 08/08/2024\n\nLATE PAYMENTS\nEQUIFAX\nAccount Name: EXAMPLE AUTO\nAccount Number: XXXX5678\nLate Payment: 30 Days Late - 01/2025`;
