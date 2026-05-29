@@ -66,8 +66,14 @@ function bureauGreeting(bureauName: string) {
   return 'Experian';
 }
 function sourceItemLines(value: string) {
-  const lines = value.split('\n').map((line) => line.trim()).filter(Boolean);
-  return lines.map((line) => line.replace(/^Account\s+Name\s*:/i, 'Creditor Name:'));
+  return value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    // The generated letter follows the completed reference: it prints creditor and account
+    // identification only, not source status/history lines such as "Late Payment: 30 Days Late - 01/2025".
+    .filter((line) => !/^Late\s*Payment\s*:/i.test(line))
+    .map((line) => line.replace(/^Account\s+Name\s*:/i, 'Creditor Name:'));
 }
 
 /**
