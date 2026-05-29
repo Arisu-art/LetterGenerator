@@ -1,0 +1,147 @@
+/* Visible operations navigation: labelled rail for a document-production workspace */
+:root {
+  --sidebar-visible-width: 268px;
+  --sidebar-panel: #f3f6fa;
+  --sidebar-card: #ffffff;
+  --sidebar-divider: #dce5ef;
+  --sidebar-ink: #111827;
+  --sidebar-muted: #5f7189;
+  --sidebar-accent: #3b82d0;
+  --sidebar-accent-soft: #e8f2fc;
+  --sidebar-accent-border: #bad7f2;
+}
+
+@media (min-width: 881px) {
+  .app-shell,
+  .app-shell:has(.sidebar:hover) {
+    padding-left: var(--sidebar-visible-width) !important;
+  }
+  .sidebar,
+  .sidebar:hover,
+  .sidebar:focus-within,
+  .sidebar:focus-within:not(:hover) {
+    width: var(--sidebar-visible-width) !important;
+    padding: 17px 13px 15px;
+    color: var(--sidebar-ink);
+    background: linear-gradient(180deg, #f8fafc 0%, var(--sidebar-panel) 100%);
+    border-right: 1px solid var(--sidebar-divider);
+    box-shadow: 8px 0 25px rgba(15,23,42,.035);
+  }
+  .sidebar .brand {
+    min-width: 0;
+    height: 66px;
+    margin: 0 0 22px;
+    padding: 8px 9px;
+    gap: 12px;
+    border: 1px solid var(--sidebar-divider);
+    border-radius: 17px;
+    background: var(--sidebar-card);
+    box-shadow: 0 1px 2px rgba(15,23,42,.025);
+  }
+  .sidebar .brand > span {
+    width: 43px;
+    height: 43px;
+    border-radius: 13px;
+    background: linear-gradient(145deg, #4c98e2, #79b7ee);
+    box-shadow: 0 9px 20px rgba(59,130,208,.19);
+  }
+  .sidebar .brand > div,
+  .sidebar:focus-within:not(:hover) .brand > div {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  .sidebar .brand strong { color: var(--sidebar-ink); font-size: 15px; }
+  .sidebar .brand small { color: var(--sidebar-muted); font-size: 11px; }
+  .sidebar nav {
+    position: relative;
+    padding-top: 28px;
+    display: grid;
+    gap: 6px;
+  }
+  .sidebar nav::before {
+    content: "OPERATIONS";
+    position: absolute;
+    top: 2px;
+    left: 11px;
+    color: #7d8ea5;
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 760;
+    letter-spacing: .12em;
+  }
+  .sidebar nav button,
+  .sidebar:focus-within:not(:hover) nav button {
+    min-width: 0;
+    width: 100%;
+    height: 52px;
+    padding: 0 10px;
+    grid-template-columns: 35px minmax(0, 1fr);
+    gap: 11px;
+    color: var(--sidebar-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    box-shadow: none;
+    transform: none;
+  }
+  .sidebar nav button strong,
+  .sidebar:focus-within:not(:hover) nav button strong {
+    opacity: 1;
+    transform: translateX(0);
+    color: inherit;
+    font-size: 13px;
+    font-weight: 640;
+  }
+  .sidebar nav button::before {
+    width: 35px;
+    height: 35px;
+    color: #657990;
+    background: #e9eef4;
+    border: 1px solid transparent;
+    border-radius: 11px;
+  }
+  .sidebar nav button:hover {
+    color: var(--sidebar-accent);
+    background: var(--sidebar-card);
+    border-color: var(--sidebar-divider);
+    transform: translateX(0);
+    box-shadow: 0 7px 15px rgba(15,23,42,.045);
+  }
+  .sidebar nav button:hover::before {
+    color: var(--sidebar-accent);
+    background: var(--sidebar-accent-soft);
+    border-color: var(--sidebar-accent-border);
+  }
+  .sidebar nav button.active {
+    color: #2367ad;
+    background: var(--sidebar-card);
+    border-color: var(--sidebar-accent-border);
+    box-shadow: 0 6px 16px rgba(59,130,208,.075);
+  }
+  .sidebar nav button.active::after {
+    content: "";
+    position: absolute;
+    left: -14px;
+    top: 13px;
+    width: 4px;
+    height: 26px;
+    border-radius: 0 5px 5px 0;
+    background: var(--sidebar-accent);
+  }
+  .sidebar nav button.active::before {
+    color: #ffffff;
+    background: var(--sidebar-accent);
+    border-color: var(--sidebar-accent);
+  }
+  .sidebar nav button:disabled {
+    opacity: .46;
+    background: transparent;
+  }
+  .main-area { padding-left: 0; }
+}
+
+@media (max-width: 880px) {
+  .sidebar { background: #f6f8fb; border-right-color: var(--line); }
+  .sidebar nav button::before { color: var(--text-muted); background: #e9eef4; }
+  .sidebar nav button.active::before { color: #fff; background: var(--accent); }
+}
