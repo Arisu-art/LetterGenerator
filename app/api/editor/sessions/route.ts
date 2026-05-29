@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'DOCX exceeds the 25 MB editing limit.' }, { status: 413 });
     }
     const appUrl = required('LETTERGENERATOR_PUBLIC_URL');
-    const editorUrl = required('NEXT_PUBLIC_ONLYOFFICE_URL');
+    const documentServerUrl = required('NEXT_PUBLIC_ONLYOFFICE_URL');
     const secret = required('ONLYOFFICE_JWT_SECRET');
     const title = String(data.get('title') || document.name);
     const session = await createOnlyOfficeSession(Buffer.from(await document.arrayBuffer()), title);
@@ -48,12 +48,7 @@ export async function POST(request: NextRequest) {
       width: '100%'
     };
     config.token = signOnlyOfficeConfig(config, secret);
-    return NextResponse.json({
-      id: session.id,
-      resultUrl,
-      editorScriptUrl: `${editorUrl}/web-apps/apps/api/documents/api.js`,
-      config
-    });
+    return NextResponse.json({ id: session.id, resultUrl, documentServerUrl, config });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to start the DOCX editor.' }, { status: 500 });
   }
