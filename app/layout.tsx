@@ -5,6 +5,7 @@ import './workspace-polish.css';
 import './sidebar-visible.css';
 import './output-review.css';
 import './live-editor.css';
+import './experience-upgrade.css';
 
 export const metadata = {
   title: 'LetterGenerator',
