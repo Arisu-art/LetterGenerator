@@ -1,5 +1,6 @@
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
+import { applyLetterFlowRules } from './docx-flow';
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -132,7 +133,7 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   if (!values.fraudItems.length) throw new Error('No dispute or hard-inquiry items were supplied for this dispute output.');
 
   sampleRegion.forEach((paragraph) => body.removeChild(paragraph));
-  let insertionPoint: ChildNode = legalHeading;
+  const insertionPoint: ChildNode = legalHeading;
   const insertBeforeLegal = (node: Node) => body.insertBefore(node, insertionPoint);
   if (blankTemplate) insertBeforeLegal(blankTemplate.cloneNode(true));
   values.fraudItems.forEach((item) => {
@@ -147,6 +148,10 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   const sincerely = findParagraph(paragraphs, 'Sincerely,');
   const signature = firstNonEmptyAfter(paragraphs, paragraphs.indexOf(sincerely));
   setParagraphLines(signature, [values.consumerName]);
+
+  // Native Word pagination protection: headings travel with body content, paragraphs do not split,
+  // and each fraud-item/legal statement block remains intact wherever page capacity allows.
+  applyLetterFlowRules(body);
 
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
   return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
