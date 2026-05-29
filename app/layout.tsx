@@ -2,6 +2,7 @@ import './globals.css';
 import './workspace-light.css';
 import './workspace-dashboard.css';
 import './workspace-polish.css';
+import './sidebar-visible.css';
 import './output-review.css';
 import './live-editor.css';
 
