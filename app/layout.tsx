@@ -3,6 +3,7 @@ import './workspace-light.css';
 import './workspace-dashboard.css';
 import './workspace-polish.css';
 import './output-review.css';
+import './live-editor.css';
 
 export const metadata = {
   title: 'LetterGenerator',
