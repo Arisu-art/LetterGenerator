@@ -3,7 +3,8 @@ import PizZip from 'pizzip';
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
-export type PlaceholderValues = Record<string, string>;
+export type TemplateValue = string | number | boolean | Array<Record<string, string>>;
+export type PlaceholderValues = Record<string, TemplateValue>;
 
 export async function renderDocxTemplate(template: File, values: PlaceholderValues): Promise<Blob> {
   const content = await template.arrayBuffer();
