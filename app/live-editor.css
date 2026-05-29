@@ -1,4 +1,4 @@
-/* Lightweight DOCX editor: controlled paragraph editing with package save */
+/* Preview-matched DOCX editing workspace: document remains visually faithful until edited */
 .review-actions .edit-document {
   width: 100%;
   min-height: 43px;
@@ -6,9 +6,7 @@
   background: var(--accent);
   border-color: var(--accent);
 }
-.review-actions .edit-document:hover {
-  box-shadow: 0 10px 20px rgba(47,116,186,.16);
-}
+.review-actions .edit-document:hover { box-shadow: 0 10px 20px rgba(47,116,186,.16); }
 .simple-editor-backdrop {
   position: fixed;
   inset: 0;
@@ -106,40 +104,38 @@
 .simple-editor-stage {
   min-height: 0;
   overflow: auto;
-  padding: 30px;
+  padding: 24px;
   background: #edf1f5;
 }
-.simple-editor-page {
-  width: min(816px, 100%);
-  min-height: 1056px;
-  margin: 0 auto;
-  padding: 84px 86px;
-  background: #fff;
+.simple-editor-visual-host { min-height: 100%; }
+.simple-editor-visual-host .docx-wrapper {
+  padding: 0;
+  background: transparent;
+}
+.simple-editor-visual-host .docx {
+  margin: 0 auto 22px;
   box-shadow: 0 8px 27px rgba(15,23,42,.14);
 }
-.simple-editor-paragraph {
-  display: block;
-  width: 100%;
-  min-height: 24px;
-  overflow: hidden;
-  resize: vertical;
-  padding: 3px 4px;
-  font: inherit;
-  font-size: 13px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+.simple-editor-visual-host .simple-visual-docx p[contenteditable="true"] {
+  cursor: text;
+  border-radius: 4px;
+  outline: 1px solid transparent;
+  outline-offset: 3px;
+  transition: outline-color var(--duration-fast) ease, background-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
 }
-.simple-editor-paragraph:hover { border-color: #e0e8f1; background: #fafcff; }
-.simple-editor-paragraph.selected,
-.simple-editor-paragraph:focus { outline: none; border-color: var(--accent-line); background: #f7fbff; box-shadow: 0 0 0 3px rgba(98,167,235,.12); }
+.simple-editor-visual-host .simple-visual-docx p[contenteditable="true"]:hover {
+  outline-color: rgba(98,167,235,.24);
+}
+.simple-editor-visual-host .simple-visual-docx p[contenteditable="true"]:focus {
+  outline: 1px solid var(--accent-line);
+  background: rgba(239,248,255,.55);
+  box-shadow: 0 0 0 4px rgba(98,167,235,.08);
+}
 @media (max-width: 760px) {
   .simple-editor-backdrop { padding: 0; }
   .simple-editor-modal { border-radius: 0; }
   .simple-editor-header { align-items: flex-start; flex-direction: column; }
   .simple-editor-header > div:last-child { width: 100%; }
   .save-edits { flex: 1; }
-  .simple-editor-stage { padding: 12px; }
-  .simple-editor-page { min-height: 100%; padding: 38px 22px; }
+  .simple-editor-stage { padding: 10px; }
 }
