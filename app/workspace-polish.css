@@ -1,25 +1,26 @@
-/* Final workspace polish: compact header workflow, lighter accent, and softened navigation rail. */
+/* Final workspace polish: compact header workflow, luminous active states, and softened navigation rail. */
 :root {
-  --accent: #7ba6ca;
-  --accent-strong: #52799d;
-  --accent-soft: #f1f7fc;
-  --accent-line: #d4e4f2;
-  --accent-focus: rgba(123, 166, 202, .19);
+  --accent: #62a7eb;
+  --accent-strong: #2f74ba;
+  --accent-soft: #eef7ff;
+  --accent-line: #c5def7;
+  --accent-focus: rgba(73, 145, 218, .22);
+  --accent-glow: rgba(91, 163, 233, .34);
 }
 
-/* The sidebar is a smooth neutral-grey rail; active state uses the single light-blue accent. */
+/* The sidebar is a smooth neutral-grey rail; active state uses the light-blue accent. */
 .sidebar {
-  background: #f3f5f7;
-  border-right-color: #e0e5eb;
+  background: #eff2f6;
+  border-right-color: #dde4eb;
 }
 .sidebar:hover {
-  background: #f3f5f7;
-  border-right-color: #d6dde5;
+  background: #eff2f6;
+  border-right-color: #d2dbe5;
   box-shadow: 14px 0 34px rgba(17, 24, 39, .055);
 }
 .brand > span {
-  background: linear-gradient(145deg, #c4ced8, #eef1f5);
-  border: 1px solid #d5dce4;
+  background: linear-gradient(145deg, #c6d2dd, #f4f6f9);
+  border: 1px solid #d2dbe4;
   box-shadow: 0 8px 20px rgba(17, 24, 39, .07);
 }
 .sidebar:hover .brand > span {
@@ -27,8 +28,8 @@
 }
 .sidebar nav button::before {
   color: #637083;
-  background: rgba(255, 255, 255, .7);
-  border: 1px solid #e4e8ed;
+  background: rgba(255, 255, 255, .72);
+  border: 1px solid #e1e7ed;
 }
 .sidebar nav button:hover {
   color: var(--accent-strong);
@@ -42,12 +43,17 @@
 }
 .sidebar nav button.active {
   color: var(--accent-strong);
-  background: rgba(255,255,255,.8);
+  background: #fff;
   border-color: var(--accent-line);
+  box-shadow: 0 4px 12px rgba(47, 116, 186, .07);
 }
 .sidebar nav button.active::before {
   background: var(--accent);
   border-color: var(--accent);
+}
+.sidebar nav button:disabled {
+  opacity: .38;
+  pointer-events: none;
 }
 
 /* Remove redundant page-header call to action; the active module contains the only primary action. */
@@ -78,6 +84,16 @@
   padding: 5px 10px 5px 7px;
   border-radius: 10px;
 }
+.workflow-rail button:disabled {
+  cursor: default;
+  opacity: .43;
+}
+.workflow-rail button:disabled:hover {
+  transform: none;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
 .workflow-rail i {
   width: 27px;
   height: 27px;
@@ -94,6 +110,7 @@
 }
 .workflow-rail button.current i {
   background: var(--accent);
+  box-shadow: 0 5px 12px var(--accent-glow);
 }
 
 /* The round selector remains the larger contextual library selector. */
@@ -104,6 +121,66 @@
 }
 .round-selector button.selected .round-index {
   background: var(--accent);
+  box-shadow: 0 5px 12px var(--accent-glow);
+}
+
+/* A restrained moving border identifies the single primary action in each active step. */
+.action-button:not(:disabled) {
+  isolation: isolate;
+  border: 1px solid rgba(98, 167, 235, .4);
+  box-shadow: 0 8px 20px rgba(17, 24, 39, .1), 0 0 0 1px rgba(98, 167, 235, .13);
+}
+.action-button:not(:disabled)::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: 2;
+  padding: 1.5px;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(112deg, transparent 14%, transparent 35%, #d9eeff 45%, var(--accent) 52%, #d9eeff 59%, transparent 69%, transparent 100%);
+  background-size: 240% 100%;
+  animation: actionBorderSweep 2.65s linear infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.action-button:not(:disabled):hover {
+  border-color: var(--accent);
+  box-shadow: 0 14px 30px rgba(17, 24, 39, .17), 0 0 0 2px rgba(98, 167, 235, .18);
+}
+@keyframes actionBorderSweep {
+  from { background-position: 130% 0; }
+  to { background-position: -120% 0; }
+}
+
+/* Suppress secondary/idle decision detail until the source has an active assessed state. */
+.idle-panel {
+  min-height: 280px;
+  display: grid;
+  align-content: center;
+}
+.failed-output-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+.failed-output {
+  padding: 14px 16px;
+  border: 1px solid #f0c7c2;
+  border-radius: 14px;
+  background: #fff7f6;
+}
+.failed-output strong {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--danger);
+  font-size: 13px;
+}
+.failed-output p {
+  color: #7a3530;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 @media (max-width: 1180px) {
@@ -118,5 +195,5 @@
 }
 
 @media (max-width: 860px) {
-  .sidebar, .sidebar:hover { background: #f3f5f7; }
+  .sidebar, .sidebar:hover { background: #eff2f6; }
 }
