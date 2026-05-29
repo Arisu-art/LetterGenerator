@@ -24,7 +24,15 @@ function directParagraphs(body: Element) {
   return Array.from(body.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'p') as Element[];
 }
 function paragraphText(paragraph: Element) {
-  return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't')).map((node) => node.textContent || '').join('').trim();
+  const read = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+    if (node instanceof Element && node.namespaceURI === WORD_NS) {
+      if (node.localName === 'br' || node.localName === 'cr') return '\n';
+      if (node.localName === 'tab') return '\t';
+    }
+    return Array.from(node.childNodes).map(read).join('');
+  };
+  return read(paragraph).replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 function childrenByName(parent: Element | null, localName: string) {
   if (!parent) return [];
@@ -39,6 +47,9 @@ function attribute(element: Element | null, localName: string) {
 function firstRun(paragraph: Element) {
   return firstByName(paragraph, 'r');
 }
+function normalizedColor(value: string) {
+  return /^[0-9a-f]{6}$/i.test(value) ? `#${value}` : '#111827';
+}
 function readFormatting(paragraph: Element) {
   const pPr = firstByName(paragraph, 'pPr');
   const rPr = firstByName(firstRun(paragraph), 'rPr');
@@ -51,7 +62,7 @@ function readFormatting(paragraph: Element) {
     bold: Boolean(firstByName(rPr, 'b')),
     italic: Boolean(firstByName(rPr, 'i')),
     underline: Boolean(firstByName(rPr, 'u')),
-    color: `#${attribute(firstByName(rPr, 'color'), 'val') || '111827'}`,
+    color: normalizedColor(attribute(firstByName(rPr, 'color'), 'val')),
     alignment,
     lineSpacing: line ? Math.max(1, Number((line / 240).toFixed(2))) : 1.15,
     spacingAfter: after ? Math.round(after / 20) : 8
