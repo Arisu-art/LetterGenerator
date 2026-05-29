@@ -8,48 +8,37 @@ A DOCX automation workspace for connecting uploaded Word references to uploaded 
 - Paste or upload structured TXT source data.
 - Parse consumer information, dispute records, late payments and hard inquiries by bureau.
 - Generate bureau-specific DOCX letters only when matching data exists.
-- Review and edit each generated DOCX in an embedded word-processing workspace.
-- Apply saved edits back into one final ZIP delivery package.
+- Open a generated DOCX in a simple built-in editor for correction and formatting changes.
+- Save edited DOCX files back into one final ZIP delivery package.
 
 ## Reference preservation rule
 
-The uploaded DOCX reference is the source of truth for the generated document format. The generator changes detected variable regions while preserving the surrounding document layout and styling.
+The uploaded DOCX reference is the source of truth for the generated document format. The generator changes detected variable regions while preserving surrounding document content and styling wherever it is not directly edited.
 
-## Live DOCX editing
+## Simple document editor
 
-Generated output cards open the embedded ONLYOFFICE Docs editor. The user can edit document text, formatting, spacing, alignment and colors directly in the browser.
+The output screen contains one primary **Edit Document** action for each generated letter. No external document server is required.
+
+Editable controls:
+
+- Paragraph text.
+- Bold, italic and underline.
+- Text color.
+- Left, center, right and justified alignment.
+- Single, 1.15, 1.5 and double line spacing.
+- Add or delete paragraphs.
 
 Workflow:
 
 1. Generate the output package.
-2. Open **Outputs** and select **Edit Document**.
-3. Edit the DOCX inside the live editor.
-4. Use the editor save command.
-5. Select **Apply Saved Edits to Package**.
-6. Download the updated ZIP package.
+2. Open **Outputs** and select **Edit Document** for a letter.
+3. Select a paragraph, modify text or basic formatting, and add/delete paragraphs when required.
+4. Select **Save to Package**.
+5. Download the updated ZIP package.
 
-The document list does not provide per-document replacement or download controls; document corrections are performed inside the live editor.
+### Editing boundary
 
-## ONLYOFFICE configuration
-
-The website requires an accessible ONLYOFFICE Docs Community Edition server. Configure a local `.env.local` file from `.env.example`:
-
-```bash
-cp .env.example .env.local
-```
-
-Required values:
-
-```bash
-LETTERGENERATOR_PUBLIC_URL=https://YOUR-LETTERGENERATOR-APP-URL
-NEXT_PUBLIC_ONLYOFFICE_URL=https://YOUR-ONLYOFFICE-DOCS-URL
-ONLYOFFICE_INTERNAL_URL=https://YOUR-ONLYOFFICE-DOCS-URL
-ONLYOFFICE_JWT_SECRET=replace-with-a-long-random-secret
-```
-
-`LETTERGENERATOR_PUBLIC_URL` must be reachable by the ONLYOFFICE document server, because the editor loads a generated DOCX and posts saved document callbacks to this application. `ONLYOFFICE_JWT_SECRET` must match the JWT secret configured on the ONLYOFFICE server.
-
-For local or Codespaces testing, run ONLYOFFICE Docs Community Edition on a second available port and expose both the application port and the document-server port before testing document editing.
+This is a lightweight paragraph-level DOCX editor, not a Microsoft Word replacement. It is designed for corrections to generated letter text and basic paragraph styling. Complex Word elements such as tables, shapes, images, headers, footers, comments and tracked changes are not directly edited in this workspace.
 
 ## Local application setup
 
