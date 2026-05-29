@@ -5,6 +5,9 @@ import { applyLetterFlowRules } from './docx-flow';
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const XML_NS = 'http://www.w3.org/XML/1998/namespace';
+const ACCOUNTS_HEADING = ['FRAUDULENT ACCOUNTS', ' FOR IMMEDIATE BLOCKING AND DELETION'].join('');
+const LEGAL_HEADING = ['LEGAL DEMAND', ' AND NOTICE OF DUTY'].join('');
+const STATEMENT_PREFIX = ['Pursuant to ', '15 USC'].join('');
 
 export type TemplateValue = string | number | boolean | Array<Record<string, string>>;
 export type PlaceholderValues = Record<string, TemplateValue>;
@@ -16,140 +19,103 @@ export type ReferenceDisputeValues = {
   letterDate: string;
   bureauName: string;
   bureauAddressLines: string[];
-  disputeItems: string[];
-  hardInquiryItems: string[];
+  disputeItems?: string[];
+  hardInquiryItems?: string[];
+  fraudItems?: string[];
 };
 
 export async function renderDocxTemplate(template: File, values: PlaceholderValues): Promise<Blob> {
-  const content = await template.arrayBuffer();
-  const zip = new PizZip(content);
-  const document = new Docxtemplater(zip, {
-    delimiters: { start: '{{', end: '}}' },
-    paragraphLoop: true,
-    linebreaks: true,
-    nullGetter: () => ''
-  });
+  const zip = new PizZip(await template.arrayBuffer());
+  const document = new Docxtemplater(zip, { delimiters: { start: '{{', end: '}}' }, paragraphLoop: true, linebreaks: true, nullGetter: () => '' });
   document.render(values);
   return document.getZip().generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
-
-function directParagraphs(body: Element): Element[] {
-  return Array.from(body.children).filter((child) => child.namespaceURI === WORD_NS && child.localName === 'p');
-}
-function paragraphText(paragraph: Element): string {
-  return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't')).map((node) => node.textContent || '').join('').trim();
-}
-function findParagraph(paragraphs: Element[], exactText: string): Element {
-  const found = paragraphs.find((paragraph) => paragraphText(paragraph) === exactText);
-  if (!found) throw new Error(`Reference DOCX is missing the required section: ${exactText}`);
+function paragraphs(body: Element) { return Array.from(body.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'p'); }
+function content(paragraph: Element) { return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't')).map((node) => node.textContent || '').join('').trim(); }
+function required(all: Element[], target: string) {
+  const found = all.find((paragraph) => content(paragraph) === target);
+  if (!found) throw new Error(`Reference DOCX is missing section: ${target}`);
   return found;
 }
-function firstFormattedRun(paragraph: Element): Element {
-  const runs = Array.from(paragraph.children).filter((child) => child.namespaceURI === WORD_NS && child.localName === 'r');
-  return (runs.find((run) => paragraphText(run).length > 0) || runs[0] || paragraph.ownerDocument.createElementNS(WORD_NS, 'w:r')).cloneNode(true) as Element;
+function styleOf(paragraph: Element) {
+  const runs = Array.from(paragraph.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'r');
+  return (runs.find((run) => content(run).length > 0) || runs[0] || paragraph.ownerDocument.createElementNS(WORD_NS, 'w:r')).cloneNode(true) as Element;
 }
-function cleanedRun(templateRun: Element): Element {
-  const run = templateRun.cloneNode(true) as Element;
-  Array.from(run.children).forEach((child) => { if (!(child.namespaceURI === WORD_NS && child.localName === 'rPr')) run.removeChild(child); });
+function blankRun(source: Element) {
+  const run = source.cloneNode(true) as Element;
+  Array.from(run.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'rPr')) run.removeChild(node); });
   return run;
 }
-function setParagraphLines(paragraph: Element, lines: string[]) {
+function writeLines(paragraph: Element, lines: string[]) {
   const doc = paragraph.ownerDocument;
-  const templateRun = firstFormattedRun(paragraph);
-  Array.from(paragraph.children).forEach((child) => { if (!(child.namespaceURI === WORD_NS && child.localName === 'pPr')) paragraph.removeChild(child); });
+  const style = styleOf(paragraph);
+  Array.from(paragraph.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'pPr')) paragraph.removeChild(node); });
   lines.forEach((line, index) => {
-    if (index > 0) {
-      const breakRun = cleanedRun(templateRun);
-      breakRun.appendChild(doc.createElementNS(WORD_NS, 'w:br'));
-      paragraph.appendChild(breakRun);
-    }
-    const run = cleanedRun(templateRun);
-    const text = doc.createElementNS(WORD_NS, 'w:t');
-    if (/^\s|\s$/.test(line)) text.setAttributeNS(XML_NS, 'xml:space', 'preserve');
-    text.textContent = line;
-    run.appendChild(text);
+    if (index) { const run = blankRun(style); run.appendChild(doc.createElementNS(WORD_NS, 'w:br')); paragraph.appendChild(run); }
+    const run = blankRun(style);
+    const value = doc.createElementNS(WORD_NS, 'w:t');
+    if (/^\s|\s$/.test(line)) value.setAttributeNS(XML_NS, 'xml:space', 'preserve');
+    value.textContent = line;
+    run.appendChild(value);
     paragraph.appendChild(run);
   });
 }
-function firstNonEmptyAfter(paragraphs: Element[], startIndex: number): Element {
-  const found = paragraphs.slice(startIndex + 1).find((paragraph) => paragraphText(paragraph).length > 0);
-  if (!found) throw new Error('Reference DOCX is missing the expected signature name paragraph.');
-  return found;
-}
-function insertBlank(body: Element, insertionPoint: ChildNode, blankTemplate?: Element) {
-  if (blankTemplate) body.insertBefore(blankTemplate.cloneNode(true), insertionPoint);
+function resolved(values: ReferenceDisputeValues) {
+  if (values.disputeItems || values.hardInquiryItems) return { accounts: values.disputeItems || [], inquiries: values.hardInquiryItems || [] };
+  const combined = values.fraudItems || [];
+  return {
+    accounts: combined.filter((entry) => /^(Account|Creditor)\s+Name\s*:/i.test(entry.trim())),
+    inquiries: combined.filter((entry) => !/^(Account|Creditor)\s+Name\s*:/i.test(entry.trim()))
+  };
 }
 
-/**
- * Creates a dispute letter from a completed visual reference DOCX.
- * Dispute accounts use the formatted account + identity-theft statement block.
- * Hard inquiries are inserted once below those account blocks for the same bureau only.
- */
 export async function renderReferenceDisputeDocx(reference: File, values: ReferenceDisputeValues): Promise<Blob> {
   const zip = new PizZip(await reference.arrayBuffer());
-  const documentFile = zip.file('word/document.xml');
-  if (!documentFile) throw new Error('Uploaded DOCX does not contain word/document.xml.');
-  const xml = new DOMParser().parseFromString(documentFile.asText(), 'application/xml');
-  if (xml.getElementsByTagName('parsererror').length) throw new Error('Uploaded DOCX document XML could not be read.');
+  const file = zip.file('word/document.xml');
+  if (!file) throw new Error('DOCX document XML is unavailable.');
+  const xml = new DOMParser().parseFromString(file.asText(), 'application/xml');
+  if (xml.getElementsByTagName('parsererror').length) throw new Error('DOCX content could not be read.');
   const body = xml.getElementsByTagNameNS(WORD_NS, 'body')[0];
-  if (!body) throw new Error('Uploaded DOCX is missing its document body.');
-
-  let paragraphs = directParagraphs(body);
-  const nonEmpty = paragraphs.filter((paragraph) => paragraphText(paragraph).length > 0);
-  if (nonEmpty.length < 3) throw new Error('Dispute reference DOCX is missing its consumer, date or bureau layout blocks.');
-  setParagraphLines(nonEmpty[0], [values.consumerName, ...values.addressLines, `DOB: ${values.dob}`, `SSN: ${values.ssn}`]);
-  setParagraphLines(nonEmpty[1], [values.letterDate]);
-  setParagraphLines(nonEmpty[2], [values.bureauName, ...values.bureauAddressLines]);
-
-  paragraphs = directParagraphs(body);
-  const fraudHeading = findParagraph(paragraphs, 'FRAUDULENT ACCOUNTS FOR IMMEDIATE BLOCKING AND DELETION');
-  const legalHeading = findParagraph(paragraphs, 'LEGAL DEMAND AND NOTICE OF DUTY');
-  const headingIndex = paragraphs.indexOf(fraudHeading);
-  const legalIndex = paragraphs.indexOf(legalHeading);
-  if (legalIndex <= headingIndex + 1) throw new Error('Dispute reference DOCX is missing a formatted fraud-item sample block.');
-
-  const sampleRegion = paragraphs.slice(headingIndex + 1, legalIndex);
-  const itemTemplate = sampleRegion.find((paragraph) => {
-    const content = paragraphText(paragraph);
-    return content.length > 0 && !content.startsWith('Pursuant to 15 USC');
+  if (!body) throw new Error('DOCX body is unavailable.');
+  const source = resolved(values);
+  let all = paragraphs(body);
+  const nonEmpty = all.filter((paragraph) => content(paragraph));
+  if (nonEmpty.length < 3) throw new Error('Reference header layout is incomplete.');
+  writeLines(nonEmpty[0], [values.consumerName, ...values.addressLines, `DOB: ${values.dob}`, `SSN: ${values.ssn}`]);
+  writeLines(nonEmpty[1], [values.letterDate]);
+  writeLines(nonEmpty[2], [values.bureauName, ...values.bureauAddressLines]);
+  all = paragraphs(body);
+  const accountHeading = required(all, ACCOUNTS_HEADING);
+  const legalHeading = required(all, LEGAL_HEADING);
+  const region = all.slice(all.indexOf(accountHeading) + 1, all.indexOf(legalHeading));
+  const itemStyle = region.find((paragraph) => content(paragraph) && !content(paragraph).startsWith(STATEMENT_PREFIX));
+  const statementStyle = region.find((paragraph) => content(paragraph).startsWith(STATEMENT_PREFIX));
+  const spacer = region.find((paragraph) => !content(paragraph));
+  if (!itemStyle || !statementStyle) throw new Error('Reference item layout is incomplete.');
+  if (!source.accounts.length && !source.inquiries.length) throw new Error('No matching account or inquiry records were found.');
+  region.forEach((paragraph) => body.removeChild(paragraph));
+  const insert = (node: Node) => body.insertBefore(node, legalHeading);
+  const addSpace = () => { if (spacer) insert(spacer.cloneNode(true)); };
+  addSpace();
+  source.accounts.forEach((account) => {
+    const node = itemStyle.cloneNode(true) as Element;
+    writeLines(node, account.split('\n'));
+    insert(node);
+    insert(statementStyle.cloneNode(true));
+    addSpace();
   });
-  const statementTemplate = sampleRegion.find((paragraph) => paragraphText(paragraph).startsWith('Pursuant to 15 USC'));
-  const blankTemplate = sampleRegion.find((paragraph) => paragraphText(paragraph).length === 0);
-  if (!itemTemplate || !statementTemplate) throw new Error('Reference DOCX must include one formatted account item and the red identity-theft statement.');
-  if (!values.disputeItems.length && !values.hardInquiryItems.length) throw new Error('No dispute accounts or hard inquiries were supplied for this dispute output.');
-
-  sampleRegion.forEach((paragraph) => body.removeChild(paragraph));
-  const insertionPoint: ChildNode = legalHeading;
-  const insert = (node: Node) => body.insertBefore(node, insertionPoint);
-  insertBlank(body, insertionPoint, blankTemplate);
-
-  // Account blocks: only account name and account number arrive here from source parsing.
-  values.disputeItems.forEach((item) => {
-    const itemParagraph = itemTemplate.cloneNode(true) as Element;
-    setParagraphLines(itemParagraph, item.split('\n'));
-    insert(itemParagraph);
-    insert(statementTemplate.cloneNode(true));
-    insertBlank(body, insertionPoint, blankTemplate);
-  });
-
-  // Inquiry blocks: no identity-theft statement is repeated. Use the red formatted paragraph
-  // style from the reference and place bureau-specific company/date lines below the accounts.
-  if (values.hardInquiryItems.length) {
-    const inquiryParagraph = statementTemplate.cloneNode(true) as Element;
-    setParagraphLines(inquiryParagraph, values.hardInquiryItems);
-    insert(inquiryParagraph);
-    insertBlank(body, insertionPoint, blankTemplate);
+  if (source.inquiries.length) {
+    const node = statementStyle.cloneNode(true) as Element;
+    writeLines(node, source.inquiries);
+    insert(node);
+    addSpace();
   }
-
-  paragraphs = directParagraphs(body);
-  const sincerely = findParagraph(paragraphs, 'Sincerely,');
-  const signature = firstNonEmptyAfter(paragraphs, paragraphs.indexOf(sincerely));
-  setParagraphLines(signature, [values.consumerName]);
+  all = paragraphs(body);
+  const close = required(all, 'Sincerely,');
+  const signature = all.slice(all.indexOf(close) + 1).find((paragraph) => content(paragraph));
+  if (signature) writeLines(signature, [values.consumerName]);
   applyLetterFlowRules(body);
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
   return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
-
-export function isDocx(filename: string): boolean {
-  return /\.docx$/i.test(filename);
-}
+export function isDocx(filename: string) { return /\.docx$/i.test(filename); }
