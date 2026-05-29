@@ -24,7 +24,7 @@ function itemMap(): Record<Bureau, SourceItem[]> {
   return { TRANSUNION: [], EQUIFAX: [], EXPERIAN: [] };
 }
 function normalized(value: string) {
-  return value.replace(/:$/, '').replace(/\s+/g, ' ').trim().toUpperCase();
+  return value.replace(/:$/, '').replace(/[\-_]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
 }
 function bureauOf(value: string): Bureau | '' {
   const key = normalized(value);
@@ -36,9 +36,12 @@ function bureauOf(value: string): Bureau | '' {
 type Section = 'header' | 'dispute' | 'inquiry' | 'late' | 'ignore';
 function sectionOf(value: string): Section | '' {
   const key = normalized(value);
-  if (/^(FOR\s+)?DISPUTE(\s+(ACCOUNT|ACCOUNTS|ITEM|ITEMS|LETTER|LETTERS))?S?$/.test(key)) return 'dispute';
-  if (/^HARD\s*(INQ|INQUIRY|INQUIRIES)/.test(key)) return 'inquiry';
-  if (/^LATE\s*PAYMENTS?(\s+(ACCOUNT|ACCOUNTS|ITEM|ITEMS|LETTER|LETTERS))?S?$/.test(key)) return 'late';
+  const headerLike = !value.includes(':') || /:\s*$/.test(value);
+  if (/^(FOR\s+)?DISPUTE(\s+(ACCOUNT|ACCOUNTS|ITEM|ITEMS|LETTER|LETTERS|RECORD|RECORDS|SECTION))?S?$/.test(key)) return 'dispute';
+  if (/^HARD\s*(INQ|INQUIRY|INQUIRIES)(\s+(ACCOUNT|ACCOUNTS|ITEM|ITEMS|RECORD|RECORDS|SECTION))?S?$/.test(key)) return 'inquiry';
+  // TXT files can label this category as LATE PAYMENT, LATE PAYMENTS, FOR LATE PAYMENT,
+  // LATE PAYMENT ACCOUNTS, or LATE PAYMENT RECORDS. All belong to one letter type.
+  if (headerLike && /^(FOR\s+)?LATE\s*(PAY|PAYMENT|PAYMENTS)(\s+(ACCOUNT|ACCOUNTS|ITEM|ITEMS|LETTER|LETTERS|RECORD|RECORDS|SECTION|HISTORY|ONLY))?S?$/.test(key)) return 'late';
   if (/^OPEN\s+ACCOUNT/.test(key) || /^PHONE/.test(key) || /^EMAIL/.test(key)) return 'ignore';
   return '';
 }
@@ -78,7 +81,7 @@ export function parseSource(text: string): ParsedSource {
       continue;
     }
     if ((section === 'dispute' || section === 'late') && bureau) {
-      if (/^ACCOUNT\s+NAME:/i.test(line) && buffer.length) flush();
+      if (/^(ACCOUNT|CREDITOR)\s+NAME\s*:/i.test(line) && buffer.length) flush();
       buffer.push(line);
     }
   }
