@@ -1,37 +1,49 @@
 :root {
-  --bg: #f6f7f9;
+  --bg: #f5f6f8;
   --surface: #ffffff;
-  --surface-subtle: #f7f8fa;
+  --surface-subtle: #f8f9fb;
   --surface-hover: #f1f3f6;
+  --surface-active: #eceff3;
   --text: #111827;
   --text-soft: #374151;
-  --text-muted: #6b7280;
-  --line: #e5e7eb;
-  --line-strong: #d1d5db;
+  --text-muted: #667085;
+  --line: #e4e7ec;
+  --line-strong: #cfd5dd;
+  --line-hover: #aeb7c5;
   --nav: #ffffff;
   --nav-hover: #f3f4f6;
   --primary: #374151;
   --primary-strong: #111827;
   --primary-soft: #f3f4f6;
-  --shadow-card: 0 1px 2px rgba(17, 24, 39, .03), 0 10px 28px rgba(17, 24, 39, .045);
-  --shadow-hover: 0 2px 4px rgba(17, 24, 39, .04), 0 16px 34px rgba(17, 24, 39, .075);
+  --focus: rgba(55, 65, 81, .16);
+  --success: #087443;
+  --success-soft: #e9f7ef;
+  --warning: #936100;
+  --warning-soft: #fff7e2;
+  --danger: #b42318;
+  --danger-soft: #fff2f1;
+  --shadow-card: 0 1px 2px rgba(17, 24, 39, .03), 0 8px 24px rgba(17, 24, 39, .04);
+  --shadow-hover: 0 1px 3px rgba(17, 24, 39, .04), 0 18px 40px rgba(17, 24, 39, .075);
+  --shadow-control: 0 1px 2px rgba(17, 24, 39, .05);
+}
+
+body {
+  background: linear-gradient(180deg, #fafbfc 0, var(--bg) 180px);
 }
 
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline-color: rgba(55, 65, 81, .2);
+  outline-color: var(--focus);
 }
 
-/* Reserve the visible rail; when it opens, the workspace moves with it instead of being covered. */
+/* Navigation reserves its width and pushes the workspace when intentionally opened. */
 .app-shell {
   display: block;
   padding-left: var(--sidebar-collapsed);
   transition: padding-left var(--duration) var(--ease);
 }
-.app-shell:has(.sidebar:hover) {
-  padding-left: var(--sidebar-expanded);
-}
+.app-shell:has(.sidebar:hover) { padding-left: var(--sidebar-expanded); }
 
 .sidebar {
   position: fixed;
@@ -42,13 +54,13 @@ textarea:focus-visible {
   background: var(--surface);
   border-right: 1px solid var(--line);
   box-shadow: none;
-  transition: width var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+  transition: width var(--duration) var(--ease), box-shadow var(--duration) var(--ease), border-color var(--duration) ease;
 }
 .sidebar:hover {
   width: var(--sidebar-expanded);
-  box-shadow: 18px 0 38px rgba(17, 24, 39, .08);
+  border-right-color: var(--line-strong);
+  box-shadow: 16px 0 36px rgba(17, 24, 39, .065);
 }
-/* Keep labels strictly hover-revealed on desktop; keyboard focus stays visible through focus rings. */
 .sidebar:focus-within:not(:hover) {
   width: var(--sidebar-collapsed);
   box-shadow: none;
@@ -58,34 +70,48 @@ textarea:focus-visible {
   opacity: 0;
   transform: translateX(-8px);
 }
-
 .brand > span {
-  background: linear-gradient(145deg, #111827, #6b7280);
-  box-shadow: 0 10px 22px rgba(17, 24, 39, .14);
+  background: linear-gradient(145deg, #1f2937, #6b7280);
+  box-shadow: 0 10px 22px rgba(17, 24, 39, .12);
+  transition: transform var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+.sidebar:hover .brand > span {
+  transform: scale(1.035);
+  box-shadow: 0 13px 28px rgba(17, 24, 39, .17);
 }
 .brand strong { color: var(--text); }
 .brand small { color: var(--text-muted); }
-
-.sidebar nav button { color: var(--text-muted); }
+.sidebar nav button {
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  transition: color var(--duration-fast) ease, background var(--duration-fast) ease, border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
+}
 .sidebar nav button::before {
   color: var(--text-muted);
   background: #f3f4f6;
+  transition: color var(--duration-fast) ease, background var(--duration-fast) ease, transform var(--duration-fast) var(--ease);
 }
 .sidebar nav button:hover {
   color: var(--text);
   background: var(--nav-hover);
+  border-color: var(--line);
+  transform: translateX(1px);
+}
+.sidebar nav button:hover::before {
+  color: var(--text);
+  background: #e8ebef;
 }
 .sidebar nav button.active {
   color: var(--text);
   background: #f3f4f6;
+  border-color: #e1e5ea;
 }
 .sidebar nav button.active::after { background: #4b5563; }
 .sidebar nav button.active::before {
-  color: #ffffff;
+  color: #fff;
   background: #374151;
 }
-
-/* Source import is the first operational step; Templates follows it in the side navigation. */
+/* Source Data is the first operational step; Templates remains directly below it. */
 .sidebar nav button:nth-child(1) { order: 2; }
 .sidebar nav button:nth-child(2) { order: 1; }
 .sidebar nav button:nth-child(3) { order: 3; }
@@ -98,36 +124,252 @@ textarea:focus-visible {
   transition: opacity var(--duration-fast) ease;
 }
 .eyebrow { color: #4b5563; }
+
+/* Primary controls remain dominant and respond immediately to interaction. */
 .header-action,
-.action-button { background: #111827; }
+.action-button {
+  position: relative;
+  overflow: hidden;
+  background: #111827;
+  border: 1px solid #111827;
+}
 .header-action:hover,
-.action-button:hover { background: #374151; }
+.action-button:hover {
+  color: #fff;
+  background: #374151;
+  border-color: #374151;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(17, 24, 39, .18);
+}
+.header-action:active,
+.action-button:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-control);
+}
+
+/* Workflow tabs are clear, tactile selectors rather than static labels. */
+.stepper {
+  border: 1px solid #e6e9ef;
+  background: #f0f2f5;
+}
+.stepper button {
+  border: 1px solid transparent;
+  transition: color var(--duration-fast) ease, background var(--duration-fast) ease, border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease), box-shadow var(--duration-fast) ease;
+}
+.stepper button:hover {
+  color: var(--text);
+  background: #fafafa;
+  border-color: #e1e5ea;
+  transform: translateY(-1px);
+}
+.stepper button:hover i {
+  color: var(--text);
+  background: #e7eaee;
+}
+.stepper button.current {
+  border-color: #e2e6ec;
+  background: #fff;
+}
 .stepper button.current i { background: #374151; }
+.stepper button.current:hover i { color: #fff; background: #111827; }
+
+/* Modules use balanced elevation and visible hover state without excessive motion. */
+.panel {
+  border-color: var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.panel:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-hover);
+}
+.panel-heading h2 {
+  transition: color var(--duration-fast) ease;
+}
+.panel:hover .panel-heading h2 { color: #0b1220; }
+.pill {
+  border: 1px solid transparent;
+  transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease, color var(--duration-fast) ease;
+}
 .pill.accent {
   color: #374151;
   background: #f3f4f6;
+  border-color: #e5e7eb;
 }
+.pill.success { border-color: #d9ede1; }
+.pill.warning { border-color: #f1e1b4; }
+
+.document {
+  border-color: transparent;
+}
+.document:hover {
+  color: var(--text);
+  background: #f2f4f7;
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+}
+.document:hover strong { color: #0b1220; }
+.document:hover i {
+  color: var(--text);
+  background: #fff;
+  box-shadow: var(--shadow-control);
+}
+.document.selected {
+  border-color: #cfd5dd;
+  background: #eef1f4;
+}
+.document.selected i { color: #374151; }
+
+.saved-file {
+  background: #f6faf8;
+  border-color: #ddebe4;
+  transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease;
+}
+.saved-file:hover {
+  border-color: #c5dfd2;
+  background: #f1f8f4;
+}
+.upload-empty {
+  transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+.upload-empty:hover {
+  color: var(--text-soft);
+  background: #f4f6f8;
+  border-color: var(--line-hover);
+}
+
+/* Field highlighting is applied globally to visible inputs and source editor. */
+.field-label {
+  transition: color var(--duration-fast) ease;
+}
+.field-label:hover { color: var(--text); }
+.file-input,
+.code-area,
+.source-area {
+  background: #fbfcfd;
+  border-color: var(--line);
+  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+.file-input:hover,
+.code-area:hover,
+.source-area:hover {
+  color: var(--text);
+  background: #fff;
+  border-color: var(--line-hover);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, .04);
+}
+.file-input:focus,
+.code-area:focus,
+.source-area:focus {
+  background: #fff;
+  border-color: #9aa4b2;
+  box-shadow: 0 0 0 4px var(--focus);
+}
+.file-input::file-selector-button {
+  color: #374151;
+  background: #f1f3f6;
+  border: 1px solid #e2e6eb;
+  transition: color var(--duration-fast) ease, background var(--duration-fast) ease, border-color var(--duration-fast) ease;
+}
+.file-input:hover::file-selector-button {
+  color: #111827;
+  background: #e8ebef;
+  border-color: #cfd5dd;
+}
+
+.route-table,
+.route-list {
+  border-color: var(--line);
+  background: var(--surface);
+  transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+}
+.route-table:hover,
+.route-list:hover {
+  border-color: var(--line-strong);
+  box-shadow: 0 6px 18px rgba(17, 24, 39, .04);
+}
+.bureau,
+.route-card {
+  transition: background var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+.bureau:hover,
+.route-card:hover {
+  background: #f8f9fb;
+}
+.bureau:hover strong,
+.route-card:hover strong { color: #0b1220; }
+.route-card span { color: #374151; }
+
 .info-card {
   color: #374151;
   background: #f7f8fa;
   border-color: var(--line);
+  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
 }
 .info-card p { color: var(--text-muted); }
-.file-input::file-selector-button {
-  color: #374151;
-  background: #f3f4f6;
+.info-card:hover {
+  background: #f3f5f7;
+  border-color: var(--line-strong);
+  box-shadow: 0 6px 18px rgba(17, 24, 39, .035);
 }
-.document.selected {
-  border-color: #d1d5db;
-  background: #f3f4f6;
+.alert {
+  transition: border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease), box-shadow var(--duration-fast) ease;
 }
-.document.selected i,
-.route-card span { color: #374151; }
+.alert:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(17, 24, 39, .04);
+}
+.pending-list span {
+  border: 1px solid #f0e4c6;
+  transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease, background var(--duration-fast) ease;
+}
+.pending-list span:hover {
+  color: #724900;
+  border-color: #e2cd96;
+  background: #fff3d2;
+}
+
+.output {
+  background: #fff;
+  border-color: var(--line);
+}
+.output:hover {
+  background: #fafbfc;
+  border-color: var(--line-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+.output:hover h3 { color: #0b1220; }
+.secondary-button {
+  border-color: var(--line);
+  background: #fff;
+}
+.secondary-button:hover {
+  color: #111827;
+  background: #f3f4f6;
+  border-color: var(--line-hover);
+  transform: translateY(-1px);
+}
+.setting {
+  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+}
+.setting:hover {
+  background: #f3f5f7;
+  border-color: var(--line-strong);
+  box-shadow: 0 6px 16px rgba(17, 24, 39, .035);
+}
+.toast {
+  border-color: var(--line);
+  transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+}
+.toast:hover {
+  border-color: var(--line-strong);
+  box-shadow: 0 20px 48px rgba(17, 24, 39, .13);
+}
 
 @media (max-width: 860px) {
   .app-shell,
   .app-shell:has(.sidebar:hover) { padding-left: 0; }
-
   .sidebar,
   .sidebar:hover,
   .sidebar:focus-within,
