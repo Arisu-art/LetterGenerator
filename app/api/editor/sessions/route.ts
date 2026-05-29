@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
     const session = await createOnlyOfficeSession(Buffer.from(await document.arrayBuffer()), title);
     const fileUrl = `${appUrl}/api/editor/sessions/${session.id}/file?access=${session.accessKey}`;
     const callbackUrl = `${appUrl}/api/editor/sessions/${session.id}/callback?access=${session.accessKey}`;
+    const resultUrl = `/api/editor/sessions/${session.id}/result?access=${session.accessKey}`;
     const config: Record<string, unknown> = {
       document: {
         fileType: 'docx',
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
     config.token = signOnlyOfficeConfig(config, secret);
     return NextResponse.json({
       id: session.id,
+      resultUrl,
       editorScriptUrl: `${editorUrl}/web-apps/apps/api/documents/api.js`,
       config
     });
