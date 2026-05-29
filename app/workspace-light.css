@@ -23,10 +23,14 @@ textarea:focus-visible {
   outline-color: rgba(55, 65, 81, .2);
 }
 
-/* A fixed rail prevents any page reflow when navigation labels are revealed. */
+/* Reserve the visible rail; when it opens, the workspace moves with it instead of being covered. */
 .app-shell {
   display: block;
   padding-left: var(--sidebar-collapsed);
+  transition: padding-left var(--duration) var(--ease);
+}
+.app-shell:has(.sidebar:hover) {
+  padding-left: var(--sidebar-expanded);
 }
 
 .sidebar {
@@ -40,66 +44,65 @@ textarea:focus-visible {
   box-shadow: none;
   transition: width var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
 }
-
-.sidebar:hover,
-.sidebar:focus-within {
+.sidebar:hover {
   width: var(--sidebar-expanded);
   box-shadow: 18px 0 38px rgba(17, 24, 39, .08);
+}
+/* Keep labels strictly hover-revealed on desktop; keyboard focus stays visible through focus rings. */
+.sidebar:focus-within:not(:hover) {
+  width: var(--sidebar-collapsed);
+  box-shadow: none;
+}
+.sidebar:focus-within:not(:hover) .brand > div,
+.sidebar:focus-within:not(:hover) nav button strong {
+  opacity: 0;
+  transform: translateX(-8px);
 }
 
 .brand > span {
   background: linear-gradient(145deg, #111827, #6b7280);
   box-shadow: 0 10px 22px rgba(17, 24, 39, .14);
 }
-
 .brand strong { color: var(--text); }
 .brand small { color: var(--text-muted); }
 
-.sidebar nav button {
-  color: var(--text-muted);
-}
-
+.sidebar nav button { color: var(--text-muted); }
 .sidebar nav button::before {
   color: var(--text-muted);
   background: #f3f4f6;
 }
-
 .sidebar nav button:hover {
   color: var(--text);
   background: var(--nav-hover);
 }
-
 .sidebar nav button.active {
   color: var(--text);
   background: #f3f4f6;
 }
-
-.sidebar nav button.active::after {
-  background: #4b5563;
-}
-
+.sidebar nav button.active::after { background: #4b5563; }
 .sidebar nav button.active::before {
   color: #ffffff;
   background: #374151;
 }
 
+/* Source import is the first operational step; Templates follows it in the side navigation. */
+.sidebar nav button:nth-child(1) { order: 2; }
+.sidebar nav button:nth-child(2) { order: 1; }
+.sidebar nav button:nth-child(3) { order: 3; }
+.sidebar nav button:nth-child(4) { order: 4; }
+.sidebar nav button:nth-child(5) { order: 5; }
+
 .main-area {
   width: 100%;
   min-width: 0;
+  transition: opacity var(--duration-fast) ease;
 }
-
 .eyebrow { color: #4b5563; }
 .header-action,
-.action-button {
-  background: #111827;
-}
+.action-button { background: #111827; }
 .header-action:hover,
-.action-button:hover {
-  background: #374151;
-}
-.stepper button.current i {
-  background: #374151;
-}
+.action-button:hover { background: #374151; }
+.stepper button.current i { background: #374151; }
 .pill.accent {
   color: #374151;
   background: #f3f4f6;
@@ -119,20 +122,25 @@ textarea:focus-visible {
   background: #f3f4f6;
 }
 .document.selected i,
-.route-card span {
-  color: #374151;
-}
+.route-card span { color: #374151; }
 
 @media (max-width: 860px) {
-  .app-shell { padding-left: 0; }
+  .app-shell,
+  .app-shell:has(.sidebar:hover) { padding-left: 0; }
 
   .sidebar,
   .sidebar:hover,
-  .sidebar:focus-within {
+  .sidebar:focus-within,
+  .sidebar:focus-within:not(:hover) {
     position: static;
     inset: auto;
     width: 100%;
     height: auto;
     box-shadow: none;
+  }
+  .sidebar:focus-within:not(:hover) .brand > div,
+  .sidebar:focus-within:not(:hover) nav button strong {
+    opacity: 1;
+    transform: none;
   }
 }
