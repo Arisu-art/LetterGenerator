@@ -1,0 +1,138 @@
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-subtle: #f7f8fa;
+  --surface-hover: #f1f3f6;
+  --text: #111827;
+  --text-soft: #374151;
+  --text-muted: #6b7280;
+  --line: #e5e7eb;
+  --line-strong: #d1d5db;
+  --nav: #ffffff;
+  --nav-hover: #f3f4f6;
+  --primary: #374151;
+  --primary-strong: #111827;
+  --primary-soft: #f3f4f6;
+  --shadow-card: 0 1px 2px rgba(17, 24, 39, .03), 0 10px 28px rgba(17, 24, 39, .045);
+  --shadow-hover: 0 2px 4px rgba(17, 24, 39, .04), 0 16px 34px rgba(17, 24, 39, .075);
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline-color: rgba(55, 65, 81, .2);
+}
+
+/* A fixed rail prevents any page reflow when navigation labels are revealed. */
+.app-shell {
+  display: block;
+  padding-left: var(--sidebar-collapsed);
+}
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--sidebar-collapsed);
+  height: 100vh;
+  color: var(--text);
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  box-shadow: none;
+  transition: width var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+
+.sidebar:hover,
+.sidebar:focus-within {
+  width: var(--sidebar-expanded);
+  box-shadow: 18px 0 38px rgba(17, 24, 39, .08);
+}
+
+.brand > span {
+  background: linear-gradient(145deg, #111827, #6b7280);
+  box-shadow: 0 10px 22px rgba(17, 24, 39, .14);
+}
+
+.brand strong { color: var(--text); }
+.brand small { color: var(--text-muted); }
+
+.sidebar nav button {
+  color: var(--text-muted);
+}
+
+.sidebar nav button::before {
+  color: var(--text-muted);
+  background: #f3f4f6;
+}
+
+.sidebar nav button:hover {
+  color: var(--text);
+  background: var(--nav-hover);
+}
+
+.sidebar nav button.active {
+  color: var(--text);
+  background: #f3f4f6;
+}
+
+.sidebar nav button.active::after {
+  background: #4b5563;
+}
+
+.sidebar nav button.active::before {
+  color: #ffffff;
+  background: #374151;
+}
+
+.main-area {
+  width: 100%;
+  min-width: 0;
+}
+
+.eyebrow { color: #4b5563; }
+.header-action,
+.action-button {
+  background: #111827;
+}
+.header-action:hover,
+.action-button:hover {
+  background: #374151;
+}
+.stepper button.current i {
+  background: #374151;
+}
+.pill.accent {
+  color: #374151;
+  background: #f3f4f6;
+}
+.info-card {
+  color: #374151;
+  background: #f7f8fa;
+  border-color: var(--line);
+}
+.info-card p { color: var(--text-muted); }
+.file-input::file-selector-button {
+  color: #374151;
+  background: #f3f4f6;
+}
+.document.selected {
+  border-color: #d1d5db;
+  background: #f3f4f6;
+}
+.document.selected i,
+.route-card span {
+  color: #374151;
+}
+
+@media (max-width: 860px) {
+  .app-shell { padding-left: 0; }
+
+  .sidebar,
+  .sidebar:hover,
+  .sidebar:focus-within {
+    position: static;
+    inset: auto;
+    width: 100%;
+    height: auto;
+    box-shadow: none;
+  }
+}
