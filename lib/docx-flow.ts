@@ -1,6 +1,7 @@
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
 type FlowRule = 'keepNext' | 'keepLines' | 'widowControl';
+const FLOW_ORDER: FlowRule[] = ['keepNext', 'keepLines', 'widowControl'];
 
 function paragraphText(paragraph: Element): string {
   return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't'))
@@ -25,7 +26,15 @@ function paragraphProperties(paragraph: Element): Element {
 function applyRule(paragraph: Element, rule: FlowRule) {
   const properties = paragraphProperties(paragraph);
   const existing = Array.from(properties.children).find((child) => child.namespaceURI === WORD_NS && child.localName === rule);
-  if (!existing) properties.appendChild(paragraph.ownerDocument.createElementNS(WORD_NS, `w:${rule}`));
+  if (existing) return;
+  const property = paragraph.ownerDocument.createElementNS(WORD_NS, `w:${rule}`);
+  const ruleIndex = FLOW_ORDER.indexOf(rule);
+  const insertionPoint = Array.from(properties.children).find((child) => {
+    const otherIndex = FLOW_ORDER.indexOf(child.localName as FlowRule);
+    return otherIndex < 0 || otherIndex > ruleIndex;
+  });
+  if (insertionPoint) properties.insertBefore(property, insertionPoint);
+  else properties.appendChild(property);
 }
 
 function protectParagraph(paragraph: Element, keepWithNext = false) {
@@ -42,14 +51,9 @@ function previousTextParagraph(paragraphs: Element[], index: number): Element | 
 }
 
 /**
- * Applies stable Word pagination controls to a generated letter.
- *
- * Word performs the final pagination when the DOCX is opened/rendered, so this engine applies
- * native OOXML flow constraints instead of estimating pixels in the browser:
- * - headings stay with their first body paragraph;
- * - paragraphs do not split between pages where Word can avoid it;
- * - creditor/account and fraud-account blocks remain paired;
- * - widow/orphan lines are suppressed.
+ * Applies native Word pagination controls to a generated letter.
+ * Word remains responsible for final pagination; this avoids orphan headings and split content
+ * blocks without unreliable browser-side page-height estimation.
  */
 export function applyLetterFlowRules(body: Element) {
   const paragraphs = directParagraphs(body);
@@ -63,25 +67,23 @@ export function applyLetterFlowRules(body: Element) {
     const content = paragraphText(paragraph);
     if (!content) return;
 
-    // Every substantive paragraph receives widow/orphan protection. keepLines keeps a paragraph
-    // intact unless it is longer than a page and Word must split it.
+    // Prevent paragraph splitting and widow/orphan lines where Word can do so without overflow.
     protectParagraph(paragraph);
 
+    // A legal heading must never be stranded at the bottom of a page without its first paragraph.
     if (majorHeading.test(content)) {
       applyRule(paragraph, 'keepNext');
       return;
     }
 
-    // Keep label/value groups and their immediate explanatory paragraph together.
+    // Preserve account label/value blocks and attach an account line to its legal explanation.
     if (accountName.test(content)) {
       applyRule(paragraph, 'keepNext');
       return;
     }
     if (accountNumber.test(content)) {
       const next = paragraphs.slice(index + 1).find((candidate) => paragraphText(candidate));
-      if (next && (fraudStatement.test(paragraphText(next)) || statutoryParagraph.test(paragraphText(next)))) {
-        applyRule(paragraph, 'keepNext');
-      }
+      if (next && (fraudStatement.test(paragraphText(next)) || statutoryParagraph.test(paragraphText(next)))) applyRule(paragraph, 'keepNext');
       return;
     }
     if (fraudStatement.test(content)) {
