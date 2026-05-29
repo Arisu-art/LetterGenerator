@@ -1,7 +1,9 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useState } from 'react';
-import { DocumentEditor } from '@onlyoffice/document-editor-react';
+
+const DocumentEditor = dynamic(() => import('@onlyoffice/document-editor-react').then((module) => module.DocumentEditor), { ssr: false });
 
 export type ReviewOutput = { path: string; type: 'DISPUTE' | 'LATE_PAYMENT'; bureau: string; count: number; detail: string; blob: Blob };
 type Filter = 'ALL' | 'DISPUTE' | 'LATE_PAYMENT';
@@ -63,6 +65,6 @@ export default function OutputReviewWorkspace({ round, outputs, zipName, warning
       {!visible.length && <div className="library-empty">No documents in this category.</div>}
       {warnings.length > 0 && <div className="failed-output-list">{warnings.map((warning) => <article className="failed-output" key={warning}><strong>Not generated</strong><p>{warning}</p></article>)}</div>}
     </section>
-    {selected && <div className="word-editor-backdrop"><section className="word-editor-modal" role="dialog" aria-modal="true"><header className="word-editor-header"><div><p className="eyebrow">Live DOCX editor</p><h2>{selected.path.split('/').pop()}</h2><span>{selected.bureau} · {selected.type === 'DISPUTE' ? 'Dispute Letter' : 'Late Payment Letter'}</span></div><div className="word-editor-controls"><button className="save-edits" disabled={!session || saving} onClick={() => void applySavedEdits()}>{saving ? 'Saving…' : 'Apply Saved Edits to Package'}</button><button className="close-editor" onClick={() => setSelectedPath(null)} aria-label="Close editor">×</button></div></header><div className="word-editor-status">{editorStatus}</div><div className="word-editor-host">{session && <DocumentEditor id="live-docx-editor" documentServerUrl={session.documentServerUrl} config={session.config} onLoadComponentError={(_, description) => setEditorStatus(description)} />}</div></section></div>}
+    {selected && <div className="word-editor-backdrop"><section className="word-editor-modal" role="dialog" aria-modal="true"><header className="word-editor-header"><div><p className="eyebrow">Live DOCX editor</p><h2>{selected.path.split('/').pop()}</h2><span>{selected.bureau} · {selected.type === 'DISPUTE' ? 'Dispute Letter' : 'Late Payment Letter'}</span></div><div className="word-editor-controls"><button className="save-edits" disabled={!session || saving} onClick={() => void applySavedEdits()}>{saving ? 'Saving…' : 'Apply Saved Edits to Package'}</button><button className="close-editor" onClick={() => setSelectedPath(null)} aria-label="Close editor">×</button></div></header><div className="word-editor-status">{editorStatus}</div><div className="word-editor-host">{session && <DocumentEditor id="live-docx-editor" documentServerUrl={session.documentServerUrl} config={session.config as never} onLoadComponentError={(_, description) => setEditorStatus(description)} />}</div></section></div>}
   </section>;
 }
