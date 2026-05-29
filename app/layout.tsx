@@ -1,6 +1,7 @@
 import './globals.css';
 import './workspace-light.css';
 import './workspace-dashboard.css';
+import './workspace-polish.css';
 
 export const metadata = {
   title: 'LetterGenerator',
