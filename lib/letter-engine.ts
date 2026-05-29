@@ -39,19 +39,36 @@ function sectionOf(value: string): Section | '' {
   const headerLike = !value.includes(':') || /:\s*$/.test(value);
   if (/^(FOR\s+)?DISPUTE(\s+(ACCOUNT|ACCOUNTS|ITEM|ITEMS|LETTER|LETTERS|RECORD|RECORDS|SECTION))?S?$/.test(key)) return 'dispute';
   if (/^HARD\s*(INQ|INQUIRY|INQUIRIES)(\s+(ACCOUNT|ACCOUNTS|ITEM|ITEMS|RECORD|RECORDS|SECTION))?S?$/.test(key)) return 'inquiry';
-  // TXT files can label this category as LATE PAYMENT, LATE PAYMENTS, FOR LATE PAYMENT,
-  // LATE PAYMENT ACCOUNTS, or LATE PAYMENT RECORDS. All belong to one letter type.
   if (headerLike && /^(FOR\s+)?LATE\s*(PAY|PAYMENT|PAYMENTS)(\s+(ACCOUNT|ACCOUNTS|ITEM|ITEMS|LETTER|LETTERS|RECORD|RECORDS|SECTION|HISTORY|ONLY))?S?$/.test(key)) return 'late';
   if (/^OPEN\s+ACCOUNT/.test(key) || /^PHONE/.test(key) || /^EMAIL/.test(key)) return 'ignore';
   return '';
 }
 function isNoData(value: string) {
-  return /^(N+ONE|NONE|NO\s+(ACCOUNT|ACCOUNTS|ITEM|ITEMS|LATE\s+PAYMENTS?)|N\/?A|NOTHING)$/i.test(normalized(value));
+  return /^(N+ONE|NONE|NO\s+(ACCOUNT|ACCOUNTS|ITEM|ITEMS|LATE\s+PAYMENTS?|HARD\s+INQUIR(?:Y|IES))|N\/?A|NOTHING)$/i.test(normalized(value));
+}
+function cleanLines(lines: string[]) {
+  return lines.map((line) => line.trim()).filter(Boolean);
+}
+function disputeDisplayText(lines: string[]) {
+  const clean = cleanLines(lines);
+  const accountName = clean.find((line) => /^(ACCOUNT|CREDITOR)\s+NAME\s*:/i.test(line));
+  const accountNumber = clean.find((line) => /^ACCOUNT\s+NUMBER\s*:/i.test(line));
+  if (accountName || accountNumber) return [accountName, accountNumber].filter(Boolean).join('\n');
+  return clean.filter((line) => !/^\$?\s*(BALANCE|DATE|OPENED|STATUS)\s*:/i.test(line)).slice(0, 2).join('\n');
+}
+function inquiryDisplayText(lines: string[]) {
+  return cleanLines(lines).map((line) => line.replace(/\s+/g, ' ')).join(' - ');
 }
 function item(type: ItemType, lines: string[]): SourceItem | null {
-  const clean = lines.map((line) => line.trim()).filter(Boolean);
+  const clean = cleanLines(lines);
   if (!clean.length || clean.every(isNoData)) return null;
-  return { type, displayText: clean.join('\n') };
+  const displayText = type === 'DISPUTE_ACCOUNT'
+    ? disputeDisplayText(clean)
+    : type === 'HARD_INQUIRY'
+      ? inquiryDisplayText(clean)
+      : clean.join('\n');
+  if (!displayText || isNoData(displayText)) return null;
+  return { type, displayText };
 }
 
 export function parseSource(text: string): ParsedSource {
