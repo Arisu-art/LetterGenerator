@@ -61,7 +61,7 @@ function exact(all: Element[], expression: RegExp, message: string): Element {
   return paragraph;
 }
 function normalizedLabel(value: string) {
-  return value.replace(/[\[\]]/g, '').replace(/\s+/g, ' ').replace(/:$/, '').trim().toUpperCase();
+  return value.replace(/[\[\]]/g, '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').replace(/:$/, '').trim().toUpperCase();
 }
 function bureauGreeting(bureauName: string) {
   if (/^TransUnion/i.test(bureauName)) return 'TransUnion';
@@ -69,41 +69,58 @@ function bureauGreeting(bureauName: string) {
   return 'Experian';
 }
 function replaceHeaderFromReference(header: Element[], values: LateReferenceValues) {
-  let fieldMatches = 0;
+  let individualMatches = 0;
+  let clientBlockReplaced = false;
+  let dateReplaced = false;
+  let recipientBlockReplaced = false;
+
   header.forEach((paragraph) => {
     const key = normalizedLabel(text(paragraph));
+
+    // Word frequently stores a visible multiline block such as NAME / ADDRESS / DOB / SSN
+    // as one paragraph containing line-break runs. text() joins those runs, so replace it as one block.
+    if (!clientBlockReplaced && /NAME/.test(key) && /ADDRESS/.test(key) && /DOB/.test(key) && /SSN/.test(key)) {
+      replaceParagraph(paragraph, [values.consumerName, ...values.addressLines, `DOB: ${values.dob}`, `SSN: ${values.ssn}`]);
+      clientBlockReplaced = true;
+      return;
+    }
+    if (!recipientBlockReplaced && /(CREDIT\s*BUREAU\s*NAME|BUREAU\s*NAME)/.test(key) && /(DISPUTE\s*ADDRESS|BUREAU\s*ADDRESS|CREDIT\s*BUREAU\s*ADDRESS)/.test(key)) {
+      replaceParagraph(paragraph, [values.bureauName, ...values.bureauAddressLines]);
+      recipientBlockReplaced = true;
+      return;
+    }
+
     if (/^(NAME|CLIENT NAME|CONSUMER NAME)$/.test(key)) {
       replaceParagraph(paragraph, [values.consumerName]);
-      fieldMatches += 1;
+      individualMatches += 1;
     } else if (/^(ADDRESS|STREET ADDRESS)$/.test(key)) {
       replaceParagraph(paragraph, [values.addressLines[0] || '']);
-      fieldMatches += 1;
+      individualMatches += 1;
     } else if (/^(CITY,? STATE ZIP|CITY,? STATE,? ZIP|CITY STATE ZIP)$/.test(key)) {
       replaceParagraph(paragraph, [values.addressLines.slice(1).join(' ') || '']);
-      fieldMatches += 1;
+      individualMatches += 1;
     } else if (/^DOB$/.test(key)) {
       replaceParagraph(paragraph, [`DOB: ${values.dob}`]);
-      fieldMatches += 1;
+      individualMatches += 1;
     } else if (/^SSN$/.test(key)) {
       replaceParagraph(paragraph, [`SSN: ${values.ssn}`]);
-      fieldMatches += 1;
+      individualMatches += 1;
     } else if (/^(DATE|LETTER DATE)$/.test(key)) {
       replaceParagraph(paragraph, [values.letterDate]);
-      fieldMatches += 1;
+      dateReplaced = true;
     } else if (/^(CREDIT BUREAU NAME|BUREAU NAME)$/.test(key)) {
       replaceParagraph(paragraph, [values.bureauName]);
-      fieldMatches += 1;
+      individualMatches += 1;
     } else if (/^(DISPUTE ADDRESS|BUREAU ADDRESS|CREDIT BUREAU ADDRESS)$/.test(key)) {
       replaceParagraph(paragraph, values.bureauAddressLines);
-      fieldMatches += 1;
+      individualMatches += 1;
     }
   });
 
-  // Blank visual templates use labels such as NAME, [DATE] and [DISPUTE ADDRESS].
-  // Those labels are sufficient; the reference does not need populated sample identity data.
-  if (fieldMatches >= 5) return;
+  // A blank reference can use grouped multiline blocks or separate field paragraphs.
+  if ((clientBlockReplaced && dateReplaced && recipientBlockReplaced) || individualMatches >= 5) return;
 
-  // Completed references may have one populated paragraph per field.
+  // Completed references may contain one populated paragraph per field.
   if (header.length >= 9) {
     replaceParagraph(header[0], [values.consumerName]);
     replaceParagraph(header[1], [values.addressLines[0] || '']);
@@ -117,30 +134,26 @@ function replaceHeaderFromReference(header: Element[], values: LateReferenceValu
     return;
   }
 
-  // Some completed references group identity and recipient lines into three multiline paragraphs.
-  if (header.length >= 3 && fieldMatches === 0) {
+  // Completed references may group identity and recipient values into three multiline paragraphs.
+  if (header.length >= 3 && individualMatches === 0 && !clientBlockReplaced && !recipientBlockReplaced) {
     replaceParagraph(header[0], [values.consumerName, ...values.addressLines, `DOB: ${values.dob}`, `SSN: ${values.ssn}`]);
     replaceParagraph(header[1], [values.letterDate]);
     replaceParagraph(header[2], [values.bureauName, ...values.bureauAddressLines]);
     return;
   }
 
-  throw new Error('Late Payment reference must contain blank header labels (NAME, ADDRESS, DOB, SSN, DATE and bureau address) or a completed header layout.');
+  throw new Error(`Late Payment reference header mapping incomplete: client block=${clientBlockReplaced ? 'found' : 'missing'}, date=${dateReplaced ? 'found' : 'missing'}, bureau block=${recipientBlockReplaced ? 'found' : 'missing'}, separate fields=${individualMatches}.`);
 }
 function sourceItemLines(value: string, accountNameLabel: string) {
   return value
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
-    // The output reference prints account identification only, not status text.
     .filter((line) => !/^Late\s*Payment\s*:/i.test(line))
     .map((line) => line.replace(/^(Account|Creditor)\s+Name\s*:/i, accountNameLabel));
 }
 
-/**
- * Completed or blank-reference renderer for the supplied Late Payment letter.
- * Blank visual labels are populated from source data; account labels can remain empty in the upload.
- */
+/** Blank or completed-reference renderer for a Late Payment letter. */
 export async function renderLatePaymentReference(reference: File, values: LateReferenceValues): Promise<Blob> {
   const zip = new PizZip(await reference.arrayBuffer());
   const documentFile = zip.file('word/document.xml');
@@ -176,8 +189,7 @@ export async function renderLatePaymentReference(reference: File, values: LateRe
   values.latePaymentItems.forEach((itemValue) => {
     const lines = sourceItemLines(itemValue, accountNameLabel);
     const nameLine = lines.find((line) => /^(Creditor|Account)\s+Name\s*:/i.test(line)) || `${accountNameLabel} ${lines[0] || ''}`;
-    const remaining = lines.filter((line) => line !== nameLine);
-    const numberLine = remaining.find((line) => /^Account\s+Number\s*:/i.test(line)) || 'Account Number:';
+    const numberLine = lines.find((line) => /^Account\s+Number\s*:/i.test(line)) || 'Account Number:';
     const account = accountNameSample.cloneNode(true) as Element;
     const number = accountNumberSample.cloneNode(true) as Element;
     replaceParagraph(account, [nameLine]);
