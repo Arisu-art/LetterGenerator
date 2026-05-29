@@ -20,6 +20,12 @@ function safeId(value: string) {
 }
 function metadataFile(id: string) { return join(root, `${safeId(id)}.json`); }
 function docxFile(id: string) { return join(root, `${safeId(id)}.docx`); }
+function signature(value: string, secret: string) { return createHmac('sha256', secret).update(value).digest('base64url'); }
+function fixedMatch(left: string, right: string) {
+  const first = Buffer.from(left);
+  const second = Buffer.from(right);
+  return first.length === second.length && timingSafeEqual(first, second);
+}
 
 export async function createOnlyOfficeSession(bytes: Buffer, filename: string) {
   await mkdir(root, { recursive: true });
@@ -45,15 +51,11 @@ export async function getOnlyOfficeSession(id: string) {
 
 export async function authenticateOnlyOfficeSession(id: string, accessKey: string | null) {
   const session = await getOnlyOfficeSession(id);
-  const provided = Buffer.from(accessKey || '');
-  const expected = Buffer.from(session.accessKey);
-  if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) throw new Error('Unauthorized editing session.');
+  if (!fixedMatch(accessKey || '', session.accessKey)) throw new Error('Unauthorized editing session.');
   return session;
 }
 
-export async function readOnlyOfficeDocument(id: string) {
-  return readFile(docxFile(id));
-}
+export async function readOnlyOfficeDocument(id: string) { return readFile(docxFile(id)); }
 
 export async function saveOnlyOfficeDocument(id: string, bytes: Buffer) {
   const session = await getOnlyOfficeSession(id);
@@ -65,13 +67,18 @@ export async function saveOnlyOfficeDocument(id: string, bytes: Buffer) {
   return updated;
 }
 
-function encode(value: object) {
-  return Buffer.from(JSON.stringify(value)).toString('base64url');
-}
+function encode(value: object) { return Buffer.from(JSON.stringify(value)).toString('base64url'); }
 
 export function signOnlyOfficeConfig(config: object, secret: string) {
   const header = encode({ alg: 'HS256', typ: 'JWT' });
   const payload = encode(config);
-  const signature = createHmac('sha256', secret).update(`${header}.${payload}`).digest('base64url');
-  return `${header}.${payload}.${signature}`;
+  return `${header}.${payload}.${signature(`${header}.${payload}`, secret)}`;
+}
+
+export function verifiedOnlyOfficePayload<T>(token: string | undefined, secret: string): T | null {
+  if (!token) return null;
+  const pieces = token.split('.');
+  if (pieces.length !== 3 || !fixedMatch(pieces[2], signature(`${pieces[0]}.${pieces[1]}`, secret))) return null;
+  try { return JSON.parse(Buffer.from(pieces[1], 'base64url').toString('utf8')) as T; }
+  catch { return null; }
 }
