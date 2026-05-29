@@ -2,6 +2,7 @@ const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
 type FlowRule = 'keepNext' | 'keepLines' | 'widowControl';
 const FLOW_ORDER: FlowRule[] = ['keepNext', 'keepLines', 'widowControl'];
+const MAJOR_HEADING = /^(FRAUDULENT ACCOUNTS FOR IMMEDIATE BLOCKING AND DELETION|LEGAL DEMAND AND NOTICE OF DUTY|REQUIRED ACTIONS|SUPPORTING DOCUMENTS|Subject:\s*Dispute of Inaccurate Late Payment.*)$/i;
 
 function paragraphText(paragraph: Element): string {
   return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't'))
@@ -51,9 +52,29 @@ function previousTextParagraph(paragraphs: Element[], index: number): Element | 
 }
 
 /**
+ * Templates occasionally express vertical spacing using many empty paragraphs. This becomes
+ * unsafe after a dynamic item section expands: a heading can be left at the foot of a page
+ * with its first paragraph pushed to the next page. Keep one intentional spacer only.
+ */
+function normalizeSpacingAfterMajorHeadings(body: Element) {
+  const paragraphs = directParagraphs(body);
+  paragraphs.forEach((paragraph, index) => {
+    if (!MAJOR_HEADING.test(paragraphText(paragraph))) return;
+    const blanks: Element[] = [];
+    for (let pointer = index + 1; pointer < paragraphs.length; pointer += 1) {
+      if (paragraphText(paragraphs[pointer])) break;
+      blanks.push(paragraphs[pointer]);
+    }
+    blanks.slice(1).forEach((blank) => {
+      if (blank.parentNode === body) body.removeChild(blank);
+    });
+  });
+}
+
+/**
  * Word's keepNext only links a paragraph to the paragraph immediately following it.
- * A visual template commonly contains blank spacing paragraphs after a heading. If those
- * blanks are not chained too, Word may still strand the heading at the bottom of a page.
+ * A visual template can contain a spacing paragraph after a heading. That spacer must be
+ * chained too, otherwise Word can still strand the heading at the bottom of a page.
  */
 function keepHeadingWithFirstContent(paragraphs: Element[], headingIndex: number) {
   applyRule(paragraphs[headingIndex], 'keepNext');
@@ -65,12 +86,12 @@ function keepHeadingWithFirstContent(paragraphs: Element[], headingIndex: number
 
 /**
  * Applies deterministic native Word pagination controls to a generated letter.
- * This avoids AI guesswork: Word makes the final page calculation using fonts, margins and
- * printer layout, while these rules prevent orphan headings and split paragraph blocks.
+ * Word performs the final pagination using the actual font metrics and page geometry;
+ * this layer prevents orphan headings, split paragraphs and excessive spacer gaps.
  */
 export function applyLetterFlowRules(body: Element) {
+  normalizeSpacingAfterMajorHeadings(body);
   const paragraphs = directParagraphs(body);
-  const majorHeading = /^(FRAUDULENT ACCOUNTS FOR IMMEDIATE BLOCKING AND DELETION|LEGAL DEMAND AND NOTICE OF DUTY|REQUIRED ACTIONS|SUPPORTING DOCUMENTS|Subject:\s*Dispute of Inaccurate Late Payment.*)$/i;
   const accountName = /^(Account|Creditor)\s+Name\s*:/i;
   const accountNumber = /^Account\s+Number\s*:/i;
   const fraudStatement = /^Pursuant to 15 USC/i;
@@ -78,22 +99,18 @@ export function applyLetterFlowRules(body: Element) {
 
   paragraphs.forEach((paragraph, index) => {
     const content = paragraphText(paragraph);
-
-    // Preserve blank paragraphs as spacing, but only add flow properties to them when
-    // they bridge a heading to its real content in keepHeadingWithFirstContent().
     if (!content) return;
 
-    // Prevent paragraph splitting and widow/orphan lines wherever the content fits on a page.
+    // Prevent an individual paragraph from breaking between pages, and suppress widow/orphan lines.
     protectParagraph(paragraph);
 
-    // A section title must move together with its first real body paragraph, even when the
-    // uploaded template contains blank spacing paragraphs between them.
-    if (majorHeading.test(content)) {
+    // Move a heading to the next page whenever its first real paragraph cannot travel with it.
+    if (MAJOR_HEADING.test(content)) {
       keepHeadingWithFirstContent(paragraphs, index);
       return;
     }
 
-    // Preserve account label/value blocks and attach the account identity to its explanation.
+    // Preserve account label/value blocks and attach identity details to the following explanation.
     if (accountName.test(content)) {
       applyRule(paragraph, 'keepNext');
       return;
