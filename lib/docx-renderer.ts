@@ -60,6 +60,21 @@ function writeLines(paragraph: Element, lines: string[]) {
     paragraph.appendChild(run);
   });
 }
+function forceTextColor(paragraph: Element, color: string) {
+  const doc = paragraph.ownerDocument;
+  const runs = Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 'r'));
+  runs.forEach((run) => {
+    let rPr = Array.from(run.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'rPr') as Element | undefined;
+    if (!rPr) {
+      rPr = doc.createElementNS(WORD_NS, 'w:rPr');
+      run.insertBefore(rPr, run.firstChild);
+    }
+    Array.from(rPr.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'color').forEach((node) => rPr!.removeChild(node));
+    const textColor = doc.createElementNS(WORD_NS, 'w:color');
+    textColor.setAttributeNS(WORD_NS, 'w:val', color);
+    rPr.appendChild(textColor);
+  });
+}
 function resolved(values: ReferenceDisputeValues) {
   if (values.disputeItems || values.hardInquiryItems) return { accounts: values.disputeItems || [], inquiries: values.hardInquiryItems || [] };
   const combined = values.fraudItems || [];
@@ -105,8 +120,9 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
     addSpace();
   });
   if (source.inquiries.length) {
-    const node = statementStyle.cloneNode(true) as Element;
+    const node = itemStyle.cloneNode(true) as Element;
     writeLines(node, source.inquiries);
+    forceTextColor(node, '000000');
     insert(node);
     addSpace();
   }
