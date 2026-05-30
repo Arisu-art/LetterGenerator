@@ -7,6 +7,7 @@ import './output-review.css';
 import './live-editor.css';
 import './experience-upgrade.css';
 import './attention-states.css';
+import './source-normalization.css';
 
 export const metadata = {
   title: 'LetterGenerator',
