@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState, type ClipboardEvent, type ReactNode } from 'react';
 import JSZip from 'jszip';
 import OutputReviewWorkspace, { type ReviewOutput } from '../components/OutputReviewWorkspace';
-import PacketAssemblySetup from '../components/PacketAssemblySetup';
+import SupportingDocumentsSetup from '../components/SupportingDocumentsSetup';
+import TemplatePacketConfigurator from '../components/TemplatePacketConfigurator';
 import { isDocx, renderReferenceDisputeDocx } from '../lib/docx-renderer';
 import { renderLatePaymentReference } from '../lib/late-reference-renderer';
 import { bureauInfo, bureaus, createNormalizedSourceCopy, detectRoutes, parseSource, recommendedSourceFormat, type LetterRoute, type LetterType } from '../lib/letter-engine';
-import { loadPacketAssets, loadPacketFile, type PacketAssets } from '../lib/packet-assets';
+import { loadPacketAssets, type PacketAssets } from '../lib/packet-assets';
 import { appendSupportingPages, getSupportingPages, type PacketPage } from '../lib/packet-renderer';
+import { configuredExhibits, loadTemplateExhibits, readTemplateExhibit, type ExhibitKind, type TemplateExhibits } from '../lib/template-exhibits';
 
 type Round = '1st Round' | '2nd Round' | '3rd Round' | 'Final';
 type Panel = 'Dashboard' | 'Templates' | 'Source Data' | 'Generate' | 'Outputs' | 'Settings';
@@ -17,37 +19,37 @@ type ReferenceSlot = { id: string; round: Round; type: LetterType; name: string;
 type Output = ReviewOutput;
 
 const rounds: Round[] = ['1st Round', '2nd Round', '3rd Round', 'Final'];
-const panels: Panel[] = ['Dashboard', 'Source Data', 'Templates', 'Generate', 'Outputs', 'Settings'];
+const panels: Panel[] = ['Dashboard', 'Templates', 'Source Data', 'Generate', 'Outputs', 'Settings'];
 const workflow: Panel[] = ['Templates', 'Source Data', 'Generate', 'Outputs'];
-const storageKey = 'lettergenerator.visual-reference-output.v12';
-const legacyKeys = ['lettergenerator.visual-reference-output.v11', 'lettergenerator.visual-reference-output.v10', 'lettergenerator.reference-accurate-letters.v9', 'lettergenerator.category-letters.v8', 'lettergenerator.reference-canvas.v6', 'lettergenerator.round.library.v5'];
+const slotsKey = 'lettergenerator.visual-reference-output.v13';
+const priorKeys = ['lettergenerator.visual-reference-output.v12', 'lettergenerator.visual-reference-output.v11'];
 const dbName = 'lettergenerator-private-templates';
 const storeName = 'files';
 const label: Record<LetterType, string> = { DISPUTE: 'Dispute Letter', LATE_PAYMENT: 'Late Payment Letter' };
 const folder: Record<LetterType, string> = { DISPUTE: 'Dispute Letters', LATE_PAYMENT: 'Late Payment Letters' };
+const exhibitLabel: Record<ExhibitKind, string> = { FCRA: 'FCRA', AFFIDAVIT: 'Affidavit', ATTACHMENT: 'Attachment', FTC: 'FTC' };
 const US_TIME_ZONE = 'America/New_York';
-const emptyPacket = (): PacketAssets => ({ supporting: [], legalPdf: null });
+const noPacket = (): PacketAssets => ({ supporting: [], legalPdf: null });
+const noExhibits = (): TemplateExhibits => ({ FCRA: null, AFFIDAVIT: null, ATTACHMENT: null, FTC: null });
 
-function currentUsLetterDate() {
+function dateEastern() {
   return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: US_TIME_ZONE }).format(new Date());
 }
 function seedSlots(): ReferenceSlot[] {
   return rounds.flatMap((round, index) => {
     const prefix = index ? `r${index + 1}-` : '';
     return [
-      { id: `${prefix}dispute-letter`, round, type: 'DISPUTE', name: `${round} Dispute Output Reference`, file: '' },
-      { id: `${prefix}late-letter`, round, type: 'LATE_PAYMENT', name: `${round} Late Payment Output Reference`, file: '' }
+      { id: `${prefix}dispute-letter`, round, type: 'DISPUTE', name: `${round} Dispute Letter`, file: '' },
+      { id: `${prefix}late-letter`, round, type: 'LATE_PAYMENT', name: `${round} Late Payment Letter`, file: '' }
     ];
   });
 }
-function mergeSaved(raw: unknown): ReferenceSlot[] {
-  const slots = seedSlots();
-  if (!Array.isArray(raw)) return slots;
-  const previousDocuments = raw.flatMap((item: { docs?: Array<{ id: string; file?: string; size?: number }> }) => item.docs || []);
-  return slots.map((slot) => {
-    const direct = raw.find((item: ReferenceSlot) => item.id === slot.id && typeof item.file === 'string') as ReferenceSlot | undefined;
-    const old = previousDocuments.find((item) => item.id === slot.id);
-    return direct ? { ...slot, file: direct.file, size: direct.size } : old ? { ...slot, file: old.file || '', size: old.size } : slot;
+function mergeSlots(raw: unknown) {
+  const initial = seedSlots();
+  if (!Array.isArray(raw)) return initial;
+  return initial.map((slot) => {
+    const found = raw.find((item: ReferenceSlot) => item.id === slot.id && typeof item.file === 'string') as ReferenceSlot | undefined;
+    return found ? { ...slot, file: found.file, size: found.size } : slot;
   });
 }
 function openDb(): Promise<IDBDatabase> {
@@ -58,233 +60,138 @@ function openDb(): Promise<IDBDatabase> {
     request.onerror = () => reject(request.error);
   });
 }
-async function putFile(id: string, file: File) {
+async function putReference(id: string, file: File) {
   const db = await openDb();
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(storeName, 'readwrite');
-    tx.objectStore(storeName).put(file, id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  await new Promise<void>((resolve, reject) => { const tx = db.transaction(storeName, 'readwrite'); tx.objectStore(storeName).put(file, id); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); });
   db.close();
 }
-async function getFile(id: string): Promise<File | null> {
+async function getReference(id: string): Promise<File | null> {
   const db = await openDb();
-  const file = await new Promise<File | null>((resolve, reject) => {
-    const request = db.transaction(storeName, 'readonly').objectStore(storeName).get(id);
-    request.onsuccess = () => resolve((request.result as File) || null);
-    request.onerror = () => reject(request.error);
-  });
+  const file = await new Promise<File | null>((resolve, reject) => { const request = db.transaction(storeName, 'readonly').objectStore(storeName).get(id); request.onsuccess = () => resolve((request.result as File) || null); request.onerror = () => reject(request.error); });
   db.close();
   return file;
 }
-async function removeFile(id: string) {
+async function deleteReference(id: string) {
   const db = await openDb();
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(storeName, 'readwrite');
-    tx.objectStore(storeName).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  await new Promise<void>((resolve, reject) => { const tx = db.transaction(storeName, 'readwrite'); tx.objectStore(storeName).delete(id); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); });
   db.close();
 }
-function safePackageName(value: string) { return (value || 'CLIENT').replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '').toUpperCase(); }
-function documentClientName(value: string) { return (value || 'CLIENT').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().toUpperCase(); }
-function bytes(value?: number) { if (!value) return ''; return value > 1048576 ? `${(value / 1048576).toFixed(1)} MB` : `${(value / 1024).toFixed(1)} KB`; }
-function download(name: string, blob: Blob) { const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url); }
+function cleanName(value: string) { return (value || 'CLIENT').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().toUpperCase(); }
+function packageName(value: string) { return cleanName(value).replace(/[^A-Z0-9]+/g, '_'); }
+function fileExtension(name: string) { const match = name.match(/(\.[a-z0-9]+)$/i); return match?.[1] || ''; }
+function saveDownload(name: string, blob: Blob) { const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url); }
 function Pill({ children, tone = 'neutral' }: { children: ReactNode; tone?: Tone }) { return <span className={`pill ${tone}`}>{children}</span>; }
 function Empty({ title, text }: { title: string; text: string }) { return <div className="empty-state"><div className="empty-icon">+</div><strong>{title}</strong><p>{text}</p></div>; }
 
 export default function Page() {
   const [panel, setPanel] = useState<Panel>('Dashboard');
-  const [slots, setSlots] = useState<ReferenceSlot[]>(seedSlots);
   const [round, setRound] = useState<Round>('1st Round');
-  const [selectedId, setSelectedId] = useState('dispute-letter');
+  const [slots, setSlots] = useState<ReferenceSlot[]>(seedSlots);
   const [source, setSource] = useState('');
-  const [sourceOriginal, setSourceOriginal] = useState('');
-  const [sourceNormalized, setSourceNormalized] = useState(false);
-  const [clientCaseId, setClientCaseId] = useState('');
-  const [packet, setPacket] = useState<PacketAssets>(emptyPacket);
+  const [originalSource, setOriginalSource] = useState('');
+  const [normalized, setNormalized] = useState(false);
+  const [caseId, setCaseId] = useState('');
+  const [support, setSupport] = useState<PacketAssets>(noPacket);
+  const [exhibits, setExhibits] = useState<TemplateExhibits>(noExhibits);
   const [strict, setStrict] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [outputs, setOutputs] = useState<Output[]>([]);
-  const [generationWarnings, setGenerationWarnings] = useState<string[]>([]);
-  const [reviewNotes, setReviewNotes] = useState<string[]>([]);
-  const [generatedDate, setGeneratedDate] = useState('');
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [zipOutput, setZipOutput] = useState<{ name: string; blob: Blob } | null>(null);
-  const [ready, setReady] = useState(false);
-  const [status, setStatus] = useState('Upload completed DOCX output references, then upload the TXT source.');
+  const [outputDate, setOutputDate] = useState('');
+  const [notes, setNotes] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState('Configure reusable document packets, then load a client source.');
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) setSlots(mergeSaved(JSON.parse(saved)));
-      else for (const key of legacyKeys) {
-        const previous = localStorage.getItem(key);
-        if (previous) {
-          setSlots(mergeSaved(JSON.parse(previous)));
-          setStatus('Earlier uploaded document restored. Replace each slot with its finished DOCX output reference.');
-          break;
-        }
-      }
-    } catch { setStatus('Reference library is ready.'); }
-    setReady(true);
-  }, []);
-  useEffect(() => { if (ready) localStorage.setItem(storageKey, JSON.stringify(slots)); }, [ready, slots]);
+  useEffect(() => { for (const key of [slotsKey, ...priorKeys]) { const saved = localStorage.getItem(key); if (saved) { setSlots(mergeSlots(JSON.parse(saved))); break; } } }, []);
+  useEffect(() => { localStorage.setItem(slotsKey, JSON.stringify(slots)); }, [slots]);
+  useEffect(() => { setExhibits(loadTemplateExhibits(round)); }, [round]);
 
-  const roundSlots = slots.filter((slot) => slot.round === round);
-  const selected = roundSlots.find((slot) => slot.id === selectedId) || roundSlots[0];
+  const currentSlots = slots.filter((slot) => slot.round === round);
   const parsed = useMemo(() => parseSource(source), [source]);
   const routes = useMemo(() => detectRoutes(parsed), [parsed]);
-  const missing = routes.filter((route) => !roundSlots.find((slot) => slot.type === route.type)?.file);
-  const missingTypes = Array.from(new Set(missing.map((route) => route.type)));
-  const uploadedReferences = roundSlots.filter((slot) => slot.file).length;
-  const sourceReady = Boolean(source.trim() && parsed.name);
-  const sourceVerified = sourceNormalized && sourceReady;
-  const packetKey = clientCaseId ? `${round}::${clientCaseId}` : '';
-  const generationReady = sourceVerified && routes.length > 0;
-  const parseWarnings = parsed.diagnostics?.filter((item) => item.level === 'warning') || [];
-  const activeBureaus = bureaus.filter((bureau) => routes.some((route) => route.bureau === bureau));
-  const requiredTypes = Array.from(new Set(routes.map((route) => route.type)));
+  const sourceValid = Boolean(source.trim() && parsed.name);
+  const sourceVerified = normalized && sourceValid;
+  const supportKey = caseId ? `${round}::${caseId}` : '';
   const hasDispute = routes.some((route) => route.type === 'DISPUTE');
-  const blockers = [
-    !source.trim() ? 'Upload or paste TXT source data.' : '',
-    source.trim() && !parsed.name ? 'Client information could not be read from the TXT file.' : '',
-    source.trim() && !sourceNormalized ? 'Standardize the current source edits before assembling client documents.' : '',
-    sourceVerified && !routes.length ? 'No valid dispute, hard-inquiry, or late-payment items were detected.' : ''
-  ].filter(Boolean);
+  const neededReferences = Array.from(new Set(routes.map((route) => route.type)));
+  const missingReferences = neededReferences.filter((type) => !currentSlots.find((slot) => slot.type === type)?.file);
+  const generatedReady = sourceVerified && routes.length > 0;
+  const diagnostics = parsed.diagnostics?.filter((item) => item.level === 'warning') || [];
+  const activeBureaus = bureaus.filter((bureau) => routes.some((route) => route.bureau === bureau));
 
-  useEffect(() => {
-    if (!ready || !sourceVerified || !packetKey) { setPacket(emptyPacket()); return; }
-    setPacket(loadPacketAssets(packetKey));
-  }, [ready, sourceVerified, packetKey]);
+  useEffect(() => { setSupport(sourceVerified && supportKey ? loadPacketAssets(supportKey) : noPacket()); }, [sourceVerified, supportKey]);
 
-  function panelEnabled(item: Panel) { if (item === 'Generate') return generationReady; if (item === 'Outputs') return Boolean(zipOutput); return true; }
-  function resetPackage() { setOutputs([]); setGenerationWarnings([]); setReviewNotes([]); setGeneratedDate(''); setZipOutput(null); }
-  function newClientSourceSession() { const id = crypto.randomUUID(); setClientCaseId(id); setPacket(emptyPacket()); return id; }
-  function replaceSource(value: string) { setSource(value); setSourceOriginal(''); setSourceNormalized(false); setClientCaseId(''); setPacket(emptyPacket()); resetPackage(); }
-  function automaticallyNormalizeSource(value: string, method: 'uploaded' | 'pasted') {
-    if (!value.trim()) return;
-    const copy = createNormalizedSourceCopy(value);
-    setSourceOriginal(value);
-    setSource(copy.text);
-    setSourceNormalized(true);
-    newClientSourceSession();
-    resetPackage();
-    setStatus(`${method === 'uploaded' ? 'Uploaded' : 'Pasted'} TXT standardized. Client-specific document upload is now available below the verified source.`);
+  function clearGeneration() { setOutputs([]); setWarnings([]); setNotes([]); setOutputDate(''); setZipOutput(null); }
+  function newSourceSession() { setCaseId(crypto.randomUUID()); setSupport(noPacket()); clearGeneration(); }
+  function normalizeIncoming(text: string, action: 'uploaded' | 'pasted') {
+    if (!text.trim()) return;
+    const copy = createNormalizedSourceCopy(text);
+    setOriginalSource(text); setSource(copy.text); setNormalized(true); newSourceSession();
+    setStatus(`${action === 'uploaded' ? 'Uploaded' : 'Pasted'} TXT standardized. Supporting Documents upload is now available.`);
   }
-  function normalizeSource() {
+  function standardizeEdits() {
     if (!source.trim()) return;
-    const copy = createNormalizedSourceCopy(source);
-    if (!sourceOriginal) setSourceOriginal(source);
-    setSource(copy.text);
-    setSourceNormalized(true);
-    if (!clientCaseId) newClientSourceSession();
-    resetPackage();
-    setStatus('Source edits standardized. Upload supporting documents for this client below the detected letter results.');
+    if (!originalSource) setOriginalSource(source);
+    setSource(createNormalizedSourceCopy(source).text); setNormalized(true);
+    if (!caseId) newSourceSession(); else clearGeneration();
+    setStatus('Source standardized. Add Supporting Documents for this client only.');
   }
-  function restoreOriginal() { if (!sourceOriginal) return; setSource(sourceOriginal); setSourceOriginal(''); setSourceNormalized(false); setClientCaseId(''); setPacket(emptyPacket()); resetPackage(); setStatus('Original TXT source restored. Client-specific document upload is hidden until the source is standardized again.'); }
-  function handleSourcePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
-    const pasted = event.clipboardData.getData('text');
-    if (!pasted.trim()) return;
-    event.preventDefault();
-    const field = event.currentTarget;
-    const rawText = `${source.slice(0, field.selectionStart)}${pasted}${source.slice(field.selectionEnd)}`;
-    automaticallyNormalizeSource(rawText, 'pasted');
+  function restoreOriginal() {
+    if (!originalSource) return;
+    setSource(originalSource); setOriginalSource(''); setNormalized(false); setCaseId(''); setSupport(noPacket()); clearGeneration();
+    setStatus('Original source restored. Supporting uploads are hidden until source normalization.');
   }
-  function chooseRound(next: Round) { setRound(next); setSelectedId(slots.find((slot) => slot.round === next)!.id); resetPackage(); }
-  async function uploadSlot(file: File) {
-    if (!isDocx(file.name)) { setStatus('Only DOCX documents are accepted.'); return; }
-    await putFile(selected.id, file);
-    setSlots((items) => items.map((slot) => slot.id === selected.id ? { ...slot, file: file.name, size: file.size } : slot));
-    setStatus(`${selected.name} saved. It will control that document type's generated appearance.`);
+  function pasteSource(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const pasted = event.clipboardData.getData('text'); if (!pasted.trim()) return; event.preventDefault();
+    const field = event.currentTarget; normalizeIncoming(`${source.slice(0, field.selectionStart)}${pasted}${source.slice(field.selectionEnd)}`, 'pasted');
   }
-  async function deleteSlot() {
-    if (!window.confirm(`Delete ${selected.name}?`)) return;
-    await removeFile(selected.id);
-    setSlots((items) => items.map((slot) => slot.id === selected.id ? { ...slot, file: '', size: undefined } : slot));
-    setStatus(`${selected.name} removed.`);
+  async function uploadLetter(slot: ReferenceSlot, file: File) {
+    if (!isDocx(file.name)) { setStatus('Letter reference must be DOCX.'); return; }
+    await putReference(slot.id, file); setSlots((all) => all.map((item) => item.id === slot.id ? { ...item, file: file.name, size: file.size } : item)); clearGeneration(); setStatus(`${slot.name} reference saved.`);
+  }
+  async function removeLetter(slot: ReferenceSlot) {
+    if (!window.confirm(`Remove ${slot.name} reference?`)) return;
+    await deleteReference(slot.id); setSlots((all) => all.map((item) => item.id === slot.id ? { ...item, file: '', size: undefined } : item)); clearGeneration();
   }
   async function renderRoute(route: LetterRoute, input: File, letterDate: string) {
     const identity = { consumerName: parsed.name, addressLines: parsed.address, dob: parsed.dob, ssn: parsed.ssn, letterDate, bureauName: bureauInfo[route.bureau].name, bureauAddressLines: bureauInfo[route.bureau].address.split('\n') };
-    if (route.type === 'DISPUTE') return renderReferenceDisputeDocx(input, {
-      ...identity,
-      disputeItems: route.items.filter((item) => item.type === 'DISPUTE_ACCOUNT').map((item) => item.displayText),
-      hardInquiryItems: route.items.filter((item) => item.type === 'HARD_INQUIRY').map((item) => item.displayText)
-    });
+    if (route.type === 'DISPUTE') return renderReferenceDisputeDocx(input, { ...identity, disputeItems: route.items.filter((item) => item.type === 'DISPUTE_ACCOUNT').map((item) => item.displayText), hardInquiryItems: route.items.filter((item) => item.type === 'HARD_INQUIRY').map((item) => item.displayText) });
     return renderLatePaymentReference(input, { ...identity, latePaymentItems: route.items.map((item) => item.displayText) });
   }
-  function manifest(files: Output[], warnings: string[], date: string, notes: string[]) {
-    const documentLines = files.map((file) => `- ${file.path}`);
-    const legalLines = packet.legalPdf ? files.filter((file) => file.type === 'DISPUTE').map((file) => `- ${file.path.replace(/\.docx$/i, ' FCRA Legal Exhibit.pdf')}`) : [];
-    return [
-      'LetterGenerator Visual Reference Manifest', `Client: ${parsed.name}`, `Round: ${round}`, `Letter date (US Eastern): ${date}`, '',
-      'Assembly Rules:', `Supporting Evidence: ${packet.supporting.length ? `${packet.supporting.length} page(s) appended inside each generated DOCX.` : 'Not included.'}`, `FCRA Legal Exhibit: ${packet.legalPdf ? 'Packaged beside each generated Dispute DOCX only.' : 'Not included.'}`, '',
-      'Output Decisions:', ...bureaus.flatMap((bureau) => { const dispute = parsed.dispute[bureau].length; const inquiry = parsed.inquiry[bureau].length; const late = parsed.late[bureau].length; return [`${dispute || inquiry ? 'CREATE' : 'SKIP'} | Dispute | ${bureau} | ${dispute} dispute account(s), ${inquiry} hard inquiry item(s)`, `${late ? 'CREATE' : 'SKIP'} | Late Payment | ${bureau} | ${late} item(s)`]; }), '',
-      'Files Included in Current Package:', ...documentLines, ...legalLines,
-      ...(notes.length ? ['', 'Review Changes:', ...notes.map((note) => `- ${note}`)] : []),
-      ...(warnings.length ? ['', 'Generation Warnings:', ...warnings.map((warning) => `- ${warning}`)] : [])
-    ].join('\n');
-  }
-  async function buildZip(files: Output[], warnings: string[], date: string, notes: string[]) {
-    const zip = new JSZip();
-    files.forEach((file) => zip.file(file.path, file.blob));
-    if (packetKey && packet.legalPdf) {
-      const legalPdf = await loadPacketFile(packetKey, packet.legalPdf.id);
-      if (legalPdf) files.filter((file) => file.type === 'DISPUTE').forEach((file) => zip.file(file.path.replace(/\.docx$/i, ' FCRA Legal Exhibit.pdf'), legalPdf));
+  async function makeZip(files: Output[], generatedWarnings: string[], date: string, reviewNotes: string[]) {
+    const zip = new JSZip(); files.forEach((file) => zip.file(file.path, file.blob)); const includedExhibits: string[] = [];
+    for (const output of files.filter((file) => file.type === 'DISPUTE')) {
+      for (const kind of configuredExhibits(exhibits)) {
+        const exhibit = exhibits[kind]; const uploaded = await readTemplateExhibit(round, kind);
+        if (exhibit && uploaded) { const name = `${output.path.replace(/\.docx$/i, '')} ${String(['FCRA', 'AFFIDAVIT', 'ATTACHMENT', 'FTC'].indexOf(kind) + 3).padStart(2, '0')} ${exhibitLabel[kind]}${fileExtension(exhibit.name)}`; zip.file(name, uploaded); includedExhibits.push(name); }
+      }
     }
-    zip.file('Generation Manifest.txt', manifest(files, warnings, date, notes));
+    zip.file('Generation Manifest.txt', ['LetterGenerator Packet Manifest', `Client: ${parsed.name}`, `Round: ${round}`, `Letter date (US Eastern): ${date}`, '', 'Supporting Documents:', support.supporting.length ? 'Inserted inside every created DOCX letter.' : 'Not included.', '', 'Static Dispute Exhibits:', ...configuredExhibits(exhibits).map((kind) => `${kind}: configured in Templates`), '', 'Created Files:', ...files.map((file) => `- ${file.path}`), ...includedExhibits.map((path) => `- ${path}`), ...(reviewNotes.length ? ['', 'Review Changes:', ...reviewNotes.map((note) => `- ${note}`)] : []), ...(generatedWarnings.length ? ['', 'Warnings:', ...generatedWarnings.map((warning) => `- ${warning}`)] : [])].join('\n'));
     return zip.generateAsync({ type: 'blob' });
   }
   async function generate() {
-    if (blockers.length || (strict && missing.length)) { setPanel('Generate'); setStatus('Resolve the generation checks shown on the screen.'); return; }
-    setLoading(true);
-    const made: Output[] = [];
-    const warnings: string[] = [];
-    const date = currentUsLetterDate();
-    let supportingPages: PacketPage[] = [];
-    try { supportingPages = packetKey ? await getSupportingPages(packetKey) : []; }
-    catch (error) { warnings.push(`Supporting Documents: ${error instanceof Error ? error.message : 'could not be prepared.'}`); }
-    if (hasDispute && !packet.legalPdf) warnings.push('FCRA Legal Exhibit not uploaded. Dispute DOCX files were generated without a companion FCRA PDF.');
+    if (!generatedReady || (strict && missingReferences.length)) { setStatus('Complete required generation checks.'); return; }
+    setBusy(true); const made: Output[] = []; const generatedWarnings: string[] = []; const date = dateEastern(); let supportingPages: PacketPage[] = [];
+    try { supportingPages = supportKey ? await getSupportingPages(supportKey) : []; } catch (error) { generatedWarnings.push(error instanceof Error ? error.message : 'Supporting document could not be appended.'); }
+    if (hasDispute && !exhibits.FCRA) generatedWarnings.push('Dispute output has no FCRA exhibit configured in Templates.');
     for (const route of routes) {
-      const slot = roundSlots.find((entry) => entry.type === route.type);
-      if (!slot?.file) { warnings.push(`${label[route.type]} / ${route.bureau}: completed DOCX reference not uploaded.`); continue; }
-      const input = await getFile(slot.id);
-      if (!input) { warnings.push(`${label[route.type]} / ${route.bureau}: saved DOCX not readable.`); continue; }
-      try {
-        let blob = await renderRoute(route, input, date);
-        if (supportingPages.length) blob = await appendSupportingPages(blob, supportingPages);
-        const filename = `${documentClientName(parsed.name)} ${route.bureau}.docx`;
-        const path = `${folder[route.type]}/${filename}`;
-        const attachmentText = [supportingPages.length ? `${supportingPages.length} supporting page(s)` : '', route.type === 'DISPUTE' && packet.legalPdf ? 'FCRA PDF companion' : ''].filter(Boolean).join(' · ');
-        made.push({ path, type: route.type, bureau: route.bureau, count: route.items.length, detail: attachmentText || 'Generated reference format', blob });
-      } catch (error) { warnings.push(`${label[route.type]} / ${route.bureau}: ${error instanceof Error ? error.message : 'rendering failed.'}`); }
+      const slot = currentSlots.find((item) => item.type === route.type); if (!slot?.file) { generatedWarnings.push(`${label[route.type]} / ${route.bureau}: DOCX reference missing.`); continue; }
+      const reference = await getReference(slot.id); if (!reference) { generatedWarnings.push(`${label[route.type]} / ${route.bureau}: saved reference unavailable.`); continue; }
+      try { let blob = await renderRoute(route, reference, date); if (supportingPages.length) blob = await appendSupportingPages(blob, supportingPages); const path = `${folder[route.type]}/${cleanName(parsed.name)} ${route.bureau}.docx`; const detail = [supportingPages.length ? 'Supporting Document inside letter' : '', route.type === 'DISPUTE' && configuredExhibits(exhibits).length ? `${configuredExhibits(exhibits).length} dispute exhibit(s)` : ''].filter(Boolean).join(' · ') || 'Generated letter'; made.push({ path, type: route.type, bureau: route.bureau, count: route.items.length, detail, blob }); } catch (error) { generatedWarnings.push(`${label[route.type]} / ${route.bureau}: ${error instanceof Error ? error.message : 'Generation failed.'}`); }
     }
-    const packed = await buildZip(made, warnings, date, []);
-    setOutputs(made); setGenerationWarnings(warnings); setReviewNotes([]); setGeneratedDate(date); setZipOutput({ name: `${safePackageName(parsed.name)}_${safePackageName(round)}_LETTERS.zip`, blob: packed }); setPanel('Outputs'); setLoading(false);
-    setStatus(warnings.length ? `${made.length} DOCX created. ${warnings.length} packet item(s) require attention.` : `${made.length} DOCX letter(s) created with configured attachments.`);
+    const packageBlob = await makeZip(made, generatedWarnings, date, []); setOutputs(made); setWarnings(generatedWarnings); setNotes([]); setOutputDate(date); setZipOutput({ name: `${packageName(parsed.name)}_${packageName(round)}_LETTERS.zip`, blob: packageBlob }); setPanel('Outputs'); setBusy(false); setStatus(`${made.length} DOCX created. ${generatedWarnings.length} packet item(s) require attention.`);
   }
-  async function replaceReviewedDocx(output: Output, file: File) {
-    if (!isDocx(file.name)) { setStatus('Edited output must be a DOCX file.'); return; }
-    const updated = outputs.map((item) => item.path === output.path ? { ...item, blob: file, detail: 'Edited DOCX saved' } : item);
-    const notes = [...reviewNotes, `EDITED | ${output.path}`]; const packed = await buildZip(updated, generationWarnings, generatedDate || currentUsLetterDate(), notes);
-    setOutputs(updated); setReviewNotes(notes); setZipOutput({ name: zipOutput?.name || `${safePackageName(parsed.name)}_${safePackageName(round)}_LETTERS.zip`, blob: packed }); setStatus(`${output.path.split('/').pop()} saved in the ZIP package.`);
-  }
-  async function removeReviewedDocx(output: Output) {
-    if (!window.confirm(`Remove ${output.path.split('/').pop()} from this output package?`)) return;
-    const updated = outputs.filter((item) => item.path !== output.path); const notes = [...reviewNotes, `REMOVED | ${output.path}`]; const packed = await buildZip(updated, generationWarnings, generatedDate || currentUsLetterDate(), notes);
-    setOutputs(updated); setReviewNotes(notes); setZipOutput({ name: zipOutput?.name || `${safePackageName(parsed.name)}_${safePackageName(round)}_LETTERS.zip`, blob: packed }); setStatus(`${output.path.split('/').pop()} removed from the ZIP package.`);
-  }
+  async function saveEdited(output: Output, file: File) { const updated = outputs.map((item) => item.path === output.path ? { ...item, blob: file, detail: 'Edited DOCX saved' } : item); const nextNotes = [...notes, `EDITED | ${output.path}`]; const blob = await makeZip(updated, warnings, outputDate || dateEastern(), nextNotes); setOutputs(updated); setNotes(nextNotes); if (zipOutput) setZipOutput({ name: zipOutput.name, blob }); }
+  async function removeEdited(output: Output) { const updated = outputs.filter((item) => item.path !== output.path); const nextNotes = [...notes, `REMOVED | ${output.path}`]; const blob = await makeZip(updated, warnings, outputDate || dateEastern(), nextNotes); setOutputs(updated); setNotes(nextNotes); if (zipOutput) setZipOutput({ name: zipOutput.name, blob }); }
+  function unlocked(name: Panel) { return name === 'Generate' ? generatedReady : name === 'Outputs' ? Boolean(zipOutput) : true; }
+  function roundsBar() { return <nav className="round-selector">{rounds.map((item, index) => <button key={item} className={round === item ? 'selected' : ''} onClick={() => { setRound(item); clearGeneration(); }}><span className="round-index">0{index + 1}</span><span className="round-copy"><strong>{item}</strong><small>{round === item ? 'Active packet order' : 'Select round'}</small></span></button>)}</nav>; }
+  function stepsBar() { return <nav className="workflow-rail">{workflow.map((item, index) => <button key={item} disabled={!unlocked(item)} className={panel === item ? 'current' : ''} onClick={() => setPanel(item)}><i>{index + 1}</i><span>{item}</span></button>)}</nav>; }
+  function dashboardView() { return <div className="dashboard-grid"><section className="panel dashboard-hero"><p className="eyebrow">Document operations</p><h2>Build bureau-specific document packets.</h2><p>Templates define packet order. Source Data contains the TXT facts and the client Supporting Documents.</p><div className="dashboard-actions"><button className="action-button" onClick={() => setPanel('Templates')}>Configure Templates</button><button className="secondary-button" onClick={() => setPanel('Source Data')}>Load Source Data</button></div></section><article className="metric-tile"><small>Round</small><strong>{round}</strong><span>Active packet sequence</span></article><article className="metric-tile"><small>Detected letters</small><strong>{routes.length}</strong><span>{sourceVerified ? 'Source normalized' : 'Awaiting source'}</span></article><article className="metric-tile"><small>Supporting documents</small><strong>{support.supporting.length}</strong><span>Client-specific files</span></article><article className="metric-tile"><small>Dispute exhibits</small><strong>{configuredExhibits(exhibits).length}</strong><span>Reusable template files</span></article></div>; }
+  function templatesView() { return <div className="templates-packet-workspace"><section className="panel template-round-control"><div className="panel-heading"><div><h2>Reusable letter references</h2><p>Configure fixed packet order here. Supporting Documents stay with the client TXT in Source Data.</p></div><Pill tone="accent">{round}</Pill></div>{roundsBar()}</section><TemplatePacketConfigurator round={round} slots={currentSlots} supportingReady={support.supporting.length > 0} onUploadLetter={uploadLetter} onRemoveLetter={removeLetter} onExhibitsChange={(next) => { setExhibits(next); clearGeneration(); }} onMessage={setStatus} /></div>; }
+  function sourceView() { return <div className="source-case-workspace"><div className="source-workspace"><section className="panel source-input-panel"><div className="panel-heading"><div><h2>Source TXT</h2><p>Only client data and Supporting Documents are uploaded in this step.</p></div>{source && <Pill tone={sourceVerified ? 'success' : 'neutral'}>{sourceVerified ? 'Normalized' : 'Editing'}</Pill>}</div><div className="source-actions"><label className="field-label">Upload TXT file<input className="file-input" type="file" accept=".txt" onChange={async (event) => { const file = event.target.files?.[0]; if (file) normalizeIncoming(await file.text(), 'uploaded'); event.target.value = ''; }} /></label>{!source && <button className="secondary-button" onClick={() => setSource(recommendedSourceFormat)}>Use standard format</button>}</div>{source && <div className="normalization-actions">{!normalized && <button className="normalize-source" onClick={standardizeEdits}>Standardize current edits</button>}{originalSource && <button onClick={restoreOriginal}>Restore original data</button>}</div>}{sourceVerified && <div className="normalized-source-banner"><strong>Normalized source verified · Supporting Documents unlocked</strong><p>FCRA, Affidavit, Attachment and FTC are managed in Templates, not here.</p></div>}<textarea className="source-area" value={source} onPaste={pasteSource} onChange={(event) => { setSource(event.target.value); setNormalized(false); clearGeneration(); }} placeholder="Paste TXT source here..." /></section>{sourceValid ? <section className="panel source-results-panel"><div className="panel-heading"><div><h2>Detected letters</h2><p>Review created routes before generation.</p></div><Pill tone="accent">{routes.length} output{routes.length === 1 ? '' : 's'}</Pill></div><div className="detection-table">{bureaus.map((bureau) => <div className="detection-row" key={bureau}><strong>{bureau}</strong><span>{parsed.dispute[bureau].length || parsed.inquiry[bureau].length ? `${parsed.dispute[bureau].length} dispute · ${parsed.inquiry[bureau].length} inquiry` : 'No dispute data'}</span><span>{parsed.late[bureau].length ? `${parsed.late[bureau].length} late payment` : 'No late payment'}</span></div>)}</div>{diagnostics.length > 0 && <div className="source-review"><strong>Review before generating</strong>{diagnostics.slice(0, 4).map((item, i) => <p key={i}>{item.message}</p>)}</div>}<button className="action-button" disabled={!generatedReady} onClick={() => setPanel('Generate')}>Continue to Generate</button></section> : <section className="panel source-guide"><Empty title="Load client source" text="Upload TXT data first. Supporting Documents appear after normalization." /></section>}</div>{sourceVerified && supportKey && <SupportingDocumentsSetup storageKey={supportKey} clientName={parsed.name} onChanged={(next) => { setSupport(next); clearGeneration(); }} onMessage={setStatus} />}</div>; }
+  function generateView() { if (!generatedReady) return <section className="panel idle-panel"><Empty title="Generation unavailable" text="Normalize a valid source first." /></section>; return <div className="generation-workspace"><section className="panel generation-overview"><div><p className="eyebrow">Packet preparation</p><h2>Prepare {round} delivery</h2><p>Each valid bureau route receives its configured ordered packet.</p></div><div className="generation-summary"><div><strong>{routes.length}</strong><span>Letters</span></div><div><strong>{support.supporting.length ? 'Yes' : 'No'}</strong><span>Supporting</span></div><div><strong>{configuredExhibits(exhibits).length}</strong><span>Exhibits</span></div></div></section><section className="panel route-production"><div className="panel-heading"><div><h2>Output plan</h2><p>Dispute exhibits are configured in Templates; Supporting Documents are inserted from Source Data.</p></div></div><div className="production-rows">{activeBureaus.flatMap((bureau) => routes.filter((route) => route.bureau === bureau).map((route) => <div className="production-row" key={`${bureau}-${route.type}`}><div><strong>{bureau} · {label[route.type]}</strong><small>{route.reason}</small><div className="assembly-chips"><span className="assembly-chip">Letter</span>{support.supporting.length > 0 && <span className="assembly-chip shared">Supporting Document</span>}{route.type === 'DISPUTE' && configuredExhibits(exhibits).map((item) => <span className="assembly-chip legal" key={item}>{item}</span>)}</div></div><Pill tone="success">Create</Pill></div>))}</div>{missingReferences.length > 0 && <div className="alert error">Missing required letter template: {missingReferences.map((item) => label[item]).join(', ')}.</div>}<button className="action-button generate-primary" disabled={busy || (strict && missingReferences.length > 0)} onClick={() => void generate()}>{busy ? 'Assembling packets...' : 'Generate Document Packets ZIP'}</button></section></div>; }
+  function outputsView() { return <OutputReviewWorkspace round={round} outputs={outputs} zipName={zipOutput?.name} warnings={warnings} onZip={() => zipOutput && saveDownload(zipOutput.name, zipOutput.blob)} onDownload={(output) => saveDownload(output.path.split('/').pop() || 'letter.docx', output.blob)} onReplace={saveEdited} onRemove={removeEdited} />; }
+  function settingsView() { return <section className="panel settings"><div className="panel-heading"><div><h2>Generation rules</h2><p>Production safeguards for packet assembly.</p></div></div><label className="setting"><input type="checkbox" checked={strict} onChange={(event) => setStrict(event.target.checked)} /><span><strong>Block generation when a letter reference is missing</strong><small>Supporting Documents and optional exhibits do not block generation.</small></span></label></section>; }
 
-  function roundTabs() { return <nav className="round-selector" aria-label="Letter round">{rounds.map((item, index) => <button key={item} className={item === round ? 'selected' : ''} onClick={() => chooseRound(item)}><span className="round-index">0{index + 1}</span><span className="round-copy"><strong>{item}</strong><small>{item === round ? 'Active reference set' : 'Select round'}</small></span></button>)}</nav>; }
-  function workflowNav() { const step = workflow.indexOf(panel); return <nav className="workflow-rail" aria-label="Workflow steps">{workflow.map((item, index) => { const disabled = !panelEnabled(item); return <button key={item} disabled={disabled} aria-disabled={disabled} className={item === panel ? 'current' : step >= 0 && index < step ? 'complete' : ''} onClick={() => setPanel(item)} title={disabled ? item === 'Generate' ? 'Verify normalized source data to unlock Generate.' : 'Generate a package to unlock Outputs.' : ''}><i>{index + 1}</i><span>{item}</span></button>; })}</nav>; }
-  function dashboardView() { return <div className="dashboard-grid"><section className="panel dashboard-hero"><p className="eyebrow">Operations control center</p><h2>Generate precise bureau letters from verified references.</h2><p>Manage source data, reference documents, client evidence pages and reviewed output packages in one workspace.</p><div className="dashboard-actions"><button className="action-button" onClick={() => setPanel('Source Data')}>Import Client Source</button><button className="secondary-button" onClick={() => setPanel('Templates')}>Manage Letter References</button></div></section><section className="panel dashboard-readiness"><div className="panel-heading"><div><h2>Current readiness</h2><p>{round} production checks</p></div><Pill tone={generationReady ? 'success' : 'warning'}>{generationReady ? 'Ready' : 'Setup'}</Pill></div><div className="status-stack"><div><span>Source data</span><Pill tone={sourceVerified ? 'success' : 'warning'}>{sourceVerified ? 'Verified' : 'Required'}</Pill></div><div><span>Reference files</span><Pill tone={uploadedReferences === 2 ? 'success' : 'warning'}>{uploadedReferences}/2</Pill></div><div><span>Client evidence</span><strong>{sourceVerified ? packet.supporting.length : 0}</strong></div><div><span>FCRA exhibit</span><Pill tone={sourceVerified && packet.legalPdf ? 'success' : 'neutral'}>{sourceVerified && packet.legalPdf ? 'Saved' : 'Not set'}</Pill></div></div></section><article className="metric-tile"><small>Client</small><strong>{parsed.name || 'No source loaded'}</strong><span>{sourceVerified ? 'Normalized and verified' : 'Upload TXT to begin'}</span></article><article className="metric-tile"><small>Detected letters</small><strong>{routes.length}</strong><span>{routes.length ? 'Ready for verification' : 'No routes assessed'}</span></article><article className="metric-tile"><small>Client evidence</small><strong>{sourceVerified ? packet.supporting.length : 0}</strong><span>Source-linked uploads</span></article><article className="metric-tile"><small>Generated DOCX</small><strong>{outputs.length}</strong><span>{zipOutput ? 'Package available' : 'Awaiting generation'}</span></article><section className="panel dashboard-routes"><div className="panel-heading"><div><h2>Detected output plan</h2><p>Bureau-specific documents required from the current source.</p></div>{generationReady && <button className="text-action" onClick={() => setPanel('Generate')}>Open generation →</button>}</div>{routes.length ? <div className="route-list">{routes.map((route) => <div className="route-card" key={`${route.type}-${route.bureau}`}><strong>{route.bureau}</strong><span>{label[route.type]}</span><small>{route.reason}</small></div>)}</div> : <Empty title="No source assessed" text="Import a TXT source file to detect output routes." />}</section></div>; }
-  function templatesView() { return <div className="content-grid"><section className="panel"><div className="panel-heading"><div><h2>Reusable letter references</h2><p>Only reusable DOCX layouts belong here. Client evidence is uploaded in Source Data after normalization.</p></div><Pill tone="accent">{round}</Pill></div>{roundTabs()}<div className="documents">{roundSlots.map((slot, index) => <button key={slot.id} className={`document ${slot.id === selected.id ? 'selected' : ''}`} onClick={() => setSelectedId(slot.id)}><i>{index + 1}</i><span><strong>{slot.name}</strong><small>{slot.file || 'Finished output reference DOCX required'}</small></span><Pill tone={slot.file ? 'success' : 'warning'}>{slot.file ? 'Saved' : 'Needed'}</Pill></button>)}</div></section><section className="panel editor-panel"><div className="panel-heading"><div><h2>{selected.name}</h2><p>Reusable DOCX reference for generated output</p></div><Pill tone={selected.file ? 'success' : 'warning'}>{selected.file ? 'Saved' : 'Needed'}</Pill></div>{selected.file ? <div className="saved-file"><strong>{selected.file}</strong><span>{bytes(selected.size)} · DOCX</span><p>Generated output uses this document&apos;s content regions and format.</p></div> : <div className="upload-empty"><p>Upload a completed DOCX showing how this letter type should look.</p></div>}<label className="field-label">Upload or replace DOCX reference<input className="file-input" type="file" accept=".docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadSlot(file); event.target.value = ''; }} /></label>{selected.file && <button className="delete-button" onClick={() => void deleteSlot()}>Delete saved file</button>}<div className="info-card"><strong>{selected.type === 'DISPUTE' ? 'Dispute letter reference' : 'Late Payment letter reference'}</strong><p>{selected.type === 'DISPUTE' ? 'Include client, date, bureau, account/item area, inquiry area and signature sections.' : 'Include client, date, bureau, creditor/account and signature sections.'}</p></div></section></div>; }
-  function sourceView() { return <div className="source-case-workspace"><div className="source-workspace"><section className="panel source-input-panel"><div className="panel-heading"><div><h2>Source TXT</h2><p>Upload or paste client records. Incoming source is standardized before case documents can be attached.</p></div>{source && <Pill tone={sourceVerified ? 'success' : parseWarnings.length ? 'warning' : 'neutral'}>{sourceVerified ? 'Normalized' : parseWarnings.length ? `${parseWarnings.length} review` : 'Editing'}</Pill>}</div><div className="source-actions"><label className="field-label">Upload TXT file<input className="file-input" type="file" accept=".txt" onChange={async (event) => { const file = event.target.files?.[0]; if (file) automaticallyNormalizeSource(await file.text(), 'uploaded'); event.target.value = ''; }} /></label>{!source.trim() && <button className="secondary-button" onClick={() => { replaceSource(recommendedSourceFormat); setStatus('Standard TXT format inserted. Complete the fields, then standardize current edits.'); }}>Use standard format</button>}</div>{source.trim() && <div className="normalization-actions">{!sourceNormalized && <button className="normalize-source" onClick={normalizeSource}>Standardize current edits</button>}{sourceOriginal && <button onClick={restoreOriginal}>Restore original data</button>}</div>}{sourceVerified && <div className="normalized-source-banner"><div><strong>Normalized source verified · client uploads unlocked</strong><p>Attach this client&apos;s supporting documents below. A newly uploaded client source starts a separate document workspace.</p></div></div>}<textarea className="source-area" value={source} onPaste={handleSourcePaste} onChange={(event) => { setSource(event.target.value); setSourceNormalized(false); resetPackage(); }} placeholder="Paste TXT source here, or select Use standard format to begin…" /></section>{sourceReady ? <section className="panel source-results-panel"><div className="panel-heading"><div><h2>Detected letters</h2><p>Confirm the bureau and letter type before continuing.</p></div><Pill tone="accent">{routes.length} output{routes.length === 1 ? '' : 's'}</Pill></div><div className="detection-table">{bureaus.map((bureau) => { const dispute = parsed.dispute[bureau].length; const inquiry = parsed.inquiry[bureau].length; const late = parsed.late[bureau].length; return <div className="detection-row" key={bureau}><strong>{bureau}</strong><span>{dispute || inquiry ? `${dispute} dispute · ${inquiry} inquiry` : 'No dispute data'}</span><span>{late ? `${late} late payment` : 'No late payment'}</span></div>; })}</div>{(parsed.phone || parsed.email || parsed.preserved.length > 0) && <section className="source-protection"><div className="source-protection-header"><div><strong>Preserved supplemental data</strong><p>Retained for supporting documents or future mappings. Not inserted into dispute letters automatically.</p></div><Pill tone="neutral">Protected</Pill></div><div className="protected-fields">{parsed.phone && <span className="reserved">PHONE: {parsed.phone}</span>}{parsed.email && <span className="reserved">EMAIL: {parsed.email}</span>}{parsed.preserved.filter((item) => !/^(PHONE|TELEPHONE|MOBILE|EMAIL|E-?MAIL)\s*:/i.test(item.text)).slice(0, 3).map((item) => <span key={`${item.line}-${item.text}`}>Line {item.line}: {item.text}</span>)}</div><p className="source-rule">Extra text is never silently removed. It is separated from generated-letter data until a matching document rule is created.</p></section>}{parseWarnings.length > 0 && <section className="source-review"><strong>Review before generating</strong>{parseWarnings.slice(0, 4).map((warning, index) => <p key={`${warning.message}-${index}`}>{warning.line ? `Line ${warning.line}: ` : ''}{warning.message}</p>)}</section>}<button className="action-button" disabled={!generationReady} onClick={() => setPanel('Generate')}>Review {routes.length} detected letter{routes.length === 1 ? '' : 's'}</button></section> : <section className="panel source-guide"><h2>Source verification sequence</h2><p>Load the client TXT source first. Supporting Documents and the FCRA exhibit appear only after the source becomes a normalized client record.</p><div className="guide-steps"><div><strong>1</strong><span>Upload or paste the original client source</span></div><div><strong>2</strong><span>Review the normalized record and detected letters</span></div><div><strong>3</strong><span>Attach documents unique to this client</span></div></div><p className="guide-note">Hard inquiries should use: <strong>COMPANY - MM/DD/YYYY</strong></p></section>}</div>{sourceVerified && packetKey && <PacketAssemblySetup round={round} storageKey={packetKey} clientName={parsed.name} onChanged={(next) => { setPacket(next); resetPackage(); }} onMessage={setStatus} />}</div>; }
-  function assemblyChips(route: LetterRoute) { return <div className="assembly-chips"><span className="assembly-chip">Editable letter</span>{packet.supporting.length > 0 && <span className="assembly-chip shared">{packet.supporting.length} supporting page{packet.supporting.length === 1 ? '' : 's'}</span>}{route.type === 'DISPUTE' && packet.legalPdf && <span className="assembly-chip legal">FCRA PDF companion</span>}</div>; }
-  function generateView() { if (!generationReady) return <section className="panel idle-panel"><Empty title="Generation unavailable" text="Normalize valid source data first, then attach any client-specific supporting documents." /></section>; return <div className="generation-workspace"><section className="panel generation-overview"><div><p className="eyebrow">Packet preparation</p><h2>Prepare {round} delivery</h2><p>Verify every letter and source-linked attachment rule before creating the final ZIP package.</p></div><div className="generation-summary"><div><strong>{routes.length}</strong><span>DOCX letters</span></div><div><strong>{packet.supporting.length}</strong><span>Client pages</span></div><div><strong>{hasDispute && packet.legalPdf ? 'Yes' : 'No'}</strong><span>FCRA PDF</span></div></div></section><div className="generation-layout"><section className="panel route-production"><div className="panel-heading"><div><h2>Packet output plan</h2><p>Supporting evidence is appended in the DOCX. FCRA is packaged beside Dispute DOCX outputs only.</p></div><Pill tone="accent">{routes.length} ready</Pill></div><div className="production-rows">{activeBureaus.map((bureau) => <section className="bureau-output" key={bureau}><header><strong>{bureau}</strong><span>{routes.filter((route) => route.bureau === bureau).length} letter{routes.filter((route) => route.bureau === bureau).length === 1 ? '' : 's'}</span></header>{routes.filter((route) => route.bureau === bureau).map((route) => <div className="production-row" key={`${route.type}-${route.bureau}`}><div><strong>{label[route.type]}</strong><small>{route.reason}</small>{assemblyChips(route)}</div><Pill tone="success">Create</Pill></div>)}</section>)}</div></section><aside className="panel execution-panel"><div className="panel-heading"><div><h2>Ready to generate</h2><p>Final pre-flight confirmation.</p></div></div><div className="readiness-checks"><div className={sourceVerified ? 'checked' : ''}><strong>Normalized source</strong><span>{parsed.name || 'Client missing'}</span></div><div className={!missingTypes.length ? 'checked' : 'blocked'}><strong>Letter references</strong><span>{missingTypes.length ? `Missing ${missingTypes.map((type) => label[type]).join(', ')}` : 'All required DOCX layouts uploaded'}</span></div><div className={packet.supporting.length ? 'checked' : 'review'}><strong>Client Supporting Documents</strong><span>{packet.supporting.length ? `${packet.supporting.length} page(s) appended to each letter` : 'No evidence pages uploaded'}</span></div>{hasDispute && <div className={packet.legalPdf ? 'checked' : 'review'}><strong>FCRA Legal Exhibit</strong><span>{packet.legalPdf ? 'Packaged with each dispute output' : 'No dispute-only PDF uploaded'}</span></div>}</div>{blockers.map((item) => <div className="alert error" key={item}>{item}</div>)}<button className="action-button generate-primary" disabled={loading || (strict && missing.length > 0)} onClick={() => void generate()}>{loading ? 'Assembling document packets…' : `Generate ${routes.length} Document Packet${routes.length === 1 ? '' : 's'}`}</button><p className="generation-note">After generation, review editable DOCX letters before downloading the final ZIP package.</p></aside></div></div>; }
-  function outputsView() { return <OutputReviewWorkspace round={round} outputs={outputs} zipName={zipOutput?.name} warnings={generationWarnings} onZip={() => { if (zipOutput) download(zipOutput.name, zipOutput.blob); }} onDownload={(output) => download(output.path.split('/').pop() || 'letter.docx', output.blob)} onReplace={replaceReviewedDocx} onRemove={removeReviewedDocx} />; }
-  function settingsView() { return <section className="panel settings"><div className="panel-heading"><div><h2>Generation rules</h2><p>Completed-reference document processing.</p></div></div><label className="setting"><input type="checkbox" checked={strict} onChange={(event) => setStrict(event.target.checked)} /><span><strong>Block missing required references</strong><small>Use once completed reference documents for required letter types are ready.</small></span></label><div className="info-card"><strong>Client document boundary</strong><p>Supporting Document images and FCRA PDF are uploaded only after the source is normalized and remain tied to that client source session.</p></div></section>; }
-
-  return <main className="app-shell"><aside className="sidebar"><div className="brand"><span /><div><strong>LetterGenerator</strong><small>Visual reference output</small></div></div><nav aria-label="Primary navigation">{panels.map((item) => <button key={item} disabled={!panelEnabled(item)} className={item === panel ? 'active' : ''} onClick={() => setPanel(item)}><strong>{item}</strong></button>)}</nav></aside><section className="main-area"><header className="header"><div><p className="eyebrow">{panel === 'Dashboard' ? 'Document operations' : `${round} workflow`}</p><h1>{panel}</h1></div></header>{workflow.includes(panel) && workflowNav()}{panel === 'Dashboard' && dashboardView()}{panel === 'Templates' && templatesView()}{panel === 'Source Data' && sourceView()}{panel === 'Generate' && generateView()}{panel === 'Outputs' && outputsView()}{panel === 'Settings' && settingsView()}<div className="toast activity-status" role="status" aria-live="polite"><strong>Activity</strong><span>{status}</span></div></section></main>;
+  return <main className="app-shell"><aside className="sidebar"><div className="brand"><span /><div><strong>LetterGenerator</strong><small>Packet workflow</small></div></div><nav>{panels.map((item) => <button key={item} className={panel === item ? 'active' : ''} disabled={!unlocked(item)} onClick={() => setPanel(item)}><strong>{item}</strong></button>)}</nav></aside><section className="main-area"><header className="header"><div><p className="eyebrow">{panel === 'Dashboard' ? 'Document operations' : `${round} workflow`}</p><h1>{panel}</h1></div></header>{workflow.includes(panel) && stepsBar()}{panel === 'Dashboard' && dashboardView()}{panel === 'Templates' && templatesView()}{panel === 'Source Data' && sourceView()}{panel === 'Generate' && generateView()}{panel === 'Outputs' && outputsView()}{panel === 'Settings' && settingsView()}<div className="toast activity-status" role="status"><strong>Activity</strong><span>{status}</span></div></section></main>;
 }
