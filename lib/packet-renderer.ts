@@ -10,6 +10,7 @@ const A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 const PIC = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
 const IMAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
 const EMU = 914400;
+const PIXEL_TO_EMU = 9525;
 const PAGE_W = 6.5 * EMU;
 const PAGE_H = 9 * EMU;
 
@@ -40,8 +41,10 @@ export async function getSupportingPages(round: string) {
 }
 async function dimensions(blob: Blob) {
   const bitmap = await createImageBitmap(blob);
-  const scale = Math.min(PAGE_W / bitmap.width, PAGE_H / bitmap.height);
-  const answer = { width: Math.round(bitmap.width * scale), height: Math.round(bitmap.height * scale) };
+  const originalWidth = bitmap.width * PIXEL_TO_EMU;
+  const originalHeight = bitmap.height * PIXEL_TO_EMU;
+  const scale = Math.min(PAGE_W / originalWidth, PAGE_H / originalHeight, 1);
+  const answer = { width: Math.round(originalWidth * scale), height: Math.round(originalHeight * scale) };
   bitmap.close();
   return answer;
 }
