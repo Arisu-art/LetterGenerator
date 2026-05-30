@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { loadTemplateExhibits, removeTemplateExhibit, saveTemplateExhibit, type ExhibitKind, type TemplateExhibits } from '../lib/template-exhibits';
 
+type Round = '1st Round' | '2nd Round' | '3rd Round' | 'Final';
 type LetterType = 'DISPUTE' | 'LATE_PAYMENT';
-type Slot = { id: string; type: LetterType; name: string; file: string; size?: number };
+type Slot = { id: string; round: Round; type: LetterType; name: string; file: string; size?: number };
 type Props = {
-  round: string;
+  round: Round;
   slots: Slot[];
   supportingReady: boolean;
   onUploadLetter: (slot: Slot, file: File) => Promise<void>;
@@ -20,7 +21,7 @@ const exhibitOrder: Array<{ kind: ExhibitKind; title: string; accept: string }> 
   { kind: 'ATTACHMENT', title: 'Attachment', accept: '.pdf,.docx,.png,.jpg,.jpeg,.webp' },
   { kind: 'FTC', title: 'FTC', accept: '.pdf,.docx,.png,.jpg,.jpeg,.webp' }
 ];
-function Badge({ ready, children }: { ready: boolean; children: React.ReactNode }) { return <span className={`packet-status ${ready ? 'ready' : ''}`}>{children}</span>; }
+function Badge({ ready, children }: { ready: boolean; children: ReactNode }) { return <span className={`packet-status ${ready ? 'ready' : ''}`}>{children}</span>; }
 function Arrow() { return <span className="packet-arrow" aria-hidden="true">↓</span>; }
 
 export default function TemplatePacketConfigurator({ round, slots, supportingReady, onUploadLetter, onRemoveLetter, onExhibitsChange, onMessage }: Props) {
