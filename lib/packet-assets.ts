@@ -64,7 +64,7 @@ export async function addSupportingAssets(round: string, files: File[]) {
   for (const file of files.filter((item) => /^image\/(png|jpeg|webp)$/i.test(item.type) || /\.(png|jpe?g|webp)$/i.test(item.name))) {
     const id = `support-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     await storeFile(round, id, file);
-    added.push({ id, name: file.name, type: file.type, size: file.size, pages: 1 });
+    added.push({ id, name: file.name, type: file.type || 'image', size: file.size, pages: 1 });
   }
   const next = { ...value, supporting: [...value.supporting, ...added] };
   savePacketAssets(round, next);
@@ -88,11 +88,12 @@ export function moveSupportingAsset(round: string, id: string, offset: -1 | 1) {
   savePacketAssets(round, next);
   return next;
 }
-export async function saveLegalPdf(round: string, file: File, pages: number) {
+export async function saveLegalPdf(round: string, file: File) {
+  if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) throw new Error('FCRA Legal Exhibit accepts PDF files only.');
   const id = 'legal-pdf';
   await storeFile(round, id, file);
   const value = loadPacketAssets(round);
-  const next = { ...value, legalPdf: { id, name: file.name, type: file.type, size: file.size, pages } };
+  const next = { ...value, legalPdf: { id, name: file.name, type: file.type || 'application/pdf', size: file.size } };
   savePacketAssets(round, next);
   return next;
 }
