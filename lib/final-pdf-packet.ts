@@ -27,15 +27,14 @@ async function addRenderedDocx(target: PDFDocument, blob: Blob) {
       renderHeaders: true,
       renderFooters: true
     });
-    const pages = Array.from(host.querySelectorAll('.packet-pdf-docx.docx, .packet-pdf-docx .docx')) as HTMLElement[];
+    const renderedSections = Array.from(host.querySelectorAll('.packet-pdf-docx.docx')) as HTMLElement[];
+    const pages = renderedSections.length ? renderedSections : Array.from(host.querySelectorAll('.docx')) as HTMLElement[];
     if (!pages.length) throw new Error('Rendered DOCX pages were not available for PDF finalization.');
     for (const page of pages) {
       const canvas = await html2canvas(page, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
       const embedded = await target.embedPng(canvas.toDataURL('image/png'));
-      const width = embedded.width;
-      const height = embedded.height;
-      const pdfPage = target.addPage([width, height]);
-      pdfPage.drawImage(embedded, { x: 0, y: 0, width, height });
+      const pdfPage = target.addPage([embedded.width, embedded.height]);
+      pdfPage.drawImage(embedded, { x: 0, y: 0, width: embedded.width, height: embedded.height });
     }
   } finally {
     host.remove();
@@ -47,7 +46,7 @@ async function addStaticPdf(target: PDFDocument, blob: Blob) {
   copied.forEach((page) => target.addPage(page));
 }
 
-/** Creates one read-only PDF packet in the exact supplied order. */
+/** Creates one read-only PDF packet in the exact configured order. */
 export async function assembleFinalPdf(parts: PdfPacketPart[]) {
   const output = await PDFDocument.create();
   for (const part of parts) {
@@ -55,5 +54,7 @@ export async function assembleFinalPdf(parts: PdfPacketPart[]) {
     else await addStaticPdf(output, part.blob);
   }
   const bytes = await output.save();
-  return new Blob([bytes], { type: 'application/pdf' });
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return new Blob([copy.buffer], { type: 'application/pdf' });
 }
