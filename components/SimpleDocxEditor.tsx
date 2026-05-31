@@ -20,24 +20,45 @@ function highlightCss(highlight?: HighlightColor) {
   if (highlight === 'cyan') return '#d5f3f7';
   return '';
 }
+function documentRole(output: ReviewOutput) {
+  if (output.role === 'AFFIDAVIT') return 'Affidavit';
+  if (output.role === 'FTC') return 'FTC Identity Theft Report';
+  return output.type === 'DISPUTE' ? 'Dispute Letter' : 'Late Payment Letter';
+}
+function tagPageSheets(host: HTMLDivElement) {
+  const found = Array.from(host.querySelectorAll('section.simple-visual-docx, .simple-visual-docx.docx, .simple-visual-docx .docx')) as HTMLElement[];
+  const pages = found.filter((page, index) => found.indexOf(page) === index && !page.closest('.simple-visual-docx .docx')?.contains(page.parentElement));
+  (pages.length ? pages : found).forEach((page, index) => {
+    page.classList.add('editor-page-sheet');
+    page.dataset.pageNumber = String(index + 1);
+    if (!page.querySelector(':scope > .page-boundary-label')) {
+      const badge = document.createElement('span');
+      badge.className = 'page-boundary-label';
+      badge.textContent = `PAGE ${index + 1}`;
+      badge.contentEditable = 'false';
+      page.prepend(badge);
+    }
+  });
+}
 
 export default function SimpleDocxEditor({ output, onClose, onSave }: Props) {
   const [items, setItems] = useState<EditableParagraph[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [extras, setExtras] = useState<Record<string, ExtraFormat>>({});
-  const [status, setStatus] = useState('Opening visual document…');
+  const [showGuides, setShowGuides] = useState(true);
+  const [status, setStatus] = useState('Opening visual document...');
   const [busy, setBusy] = useState(false);
   const visualHost = useRef<HTMLDivElement>(null);
   const nodes = useRef(new Map<string, HTMLElement>());
   const selected = useMemo(() => items.find((item) => item.id === selectedId) || items[0], [items, selectedId]);
   const selectedExtra = selected ? extras[selected.id] || {} : {};
-  const filename = output.path.split('/').pop() || 'letter.docx';
+  const filename = output.path.split('/').pop() || 'document.docx';
 
   useEffect(() => {
     let active = true;
     nodes.current.clear();
     setExtras({});
-    setStatus('Opening visual document…');
+    setStatus('Opening visual document...');
     void Promise.all([readEditableParagraphs(output.blob), import('docx-preview')]).then(async ([paragraphs, preview]) => {
       if (!active || !visualHost.current) return;
       setItems(paragraphs);
@@ -45,6 +66,7 @@ export default function SimpleDocxEditor({ output, onClose, onSave }: Props) {
       visualHost.current.innerHTML = '';
       await preview.renderAsync(await output.blob.arrayBuffer(), visualHost.current, undefined, { className: 'simple-visual-docx', inWrapper: true, ignoreWidth: false, ignoreHeight: false, breakPages: true, renderHeaders: false, renderFooters: false });
       if (!active || !visualHost.current) return;
+      tagPageSheets(visualHost.current);
       const visibleParagraphs = Array.from(visualHost.current.querySelectorAll('.simple-visual-docx p')).filter((node) => (node.textContent || '').trim().length > 0) as HTMLElement[];
       paragraphs.forEach((block, index) => {
         const node = visibleParagraphs[index];
@@ -58,7 +80,7 @@ export default function SimpleDocxEditor({ output, onClose, onSave }: Props) {
         node.addEventListener('input', () => setItems((current) => current.map((item) => item.id === block.id ? { ...item, text: displayedText(node), dirty: true } : item)));
         nodes.current.set(block.id, node);
       });
-      setStatus('Edit directly on the document. Select text blocks and apply formatting from the toolbar.');
+      setStatus('Page borders show the rendered page limits. Use Page break before when a heading or paragraph should move cleanly to the next page.');
     }).catch((error: Error) => { if (active) setStatus(error.message); });
     return () => { active = false; nodes.current.clear(); };
   }, [output.blob]);
@@ -75,7 +97,8 @@ export default function SimpleDocxEditor({ output, onClose, onSave }: Props) {
     node.style.marginBottom = `${block.spacingAfter}pt`;
     if (extra.fontSize !== undefined) node.style.fontSize = `${extra.fontSize}pt`;
     if (extra.highlight !== undefined) node.style.backgroundColor = highlightCss(extra.highlight);
-    if (extra.pageBreakBefore !== undefined) node.dataset.pageBreakBefore = String(extra.pageBreakBefore);
+    node.classList.toggle('manual-page-break', Boolean(extra.pageBreakBefore));
+    node.dataset.pageBreakBefore = String(Boolean(extra.pageBreakBefore));
   }
   function patch(values: Partial<EditableParagraph>) {
     if (!selected) return;
@@ -119,17 +142,17 @@ export default function SimpleDocxEditor({ output, onClose, onSave }: Props) {
   }
   async function save() {
     setBusy(true);
-    setStatus('Saving document changes into the ZIP package…');
+    setStatus('Saving document changes into the working package...');
     try {
       const base = await saveEditedParagraphs(output.blob, items);
       const extended = items.flatMap((item, position) => extras[item.id] ? [{ position, ...extras[item.id] }] : []);
       const blob = await applyExtraParagraphFormatting(base, extended);
       await onSave(output, new File([blob], filename, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
-      setStatus('Saved. This edited DOCX is now included in the package.');
+      setStatus('Saved. Review the page lines again, then finalize PDF packets after all documents are clean.');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Save failed.');
     } finally { setBusy(false); }
   }
 
-  return <div className="simple-editor-backdrop"><section className="simple-editor-modal" role="dialog" aria-modal="true" aria-label={`Edit ${filename}`}><header className="simple-editor-header"><div><p className="eyebrow">Simple document editor</p><h2>{filename}</h2><span>{output.bureau} · {output.type === 'DISPUTE' ? 'Dispute Letter' : 'Late Payment Letter'}</span></div><div><button className="save-edits" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save to Package'}</button><button className="close-editor" onClick={onClose} aria-label="Close editor">×</button></div></header><div className="simple-editor-toolbar" aria-label="Text and paragraph formatting"><button className={selected?.bold ? 'active' : ''} onClick={() => patch({ bold: !selected?.bold })} title="Bold"><strong>B</strong></button><button className={selected?.italic ? 'active' : ''} onClick={() => patch({ italic: !selected?.italic })} title="Italic"><em>I</em></button><button className={selected?.underline ? 'active' : ''} onClick={() => patch({ underline: !selected?.underline })} title="Underline"><u>U</u></button><input type="color" aria-label="Text color" value={selected?.color || '#111827'} onChange={(event) => patch({ color: event.target.value })} /><select aria-label="Font size" value={selectedExtra.fontSize || ''} onChange={(event) => event.target.value && patchExtra({ fontSize: Number(event.target.value) })}><option value="">Text size</option><option value="9">9 pt</option><option value="10">10 pt</option><option value="11">11 pt</option><option value="12">12 pt</option><option value="14">14 pt</option><option value="16">16 pt</option></select><select aria-label="Alignment" value={selected?.alignment || 'left'} onChange={(event) => patch({ alignment: event.target.value as ParagraphAlignment })}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option></select><select aria-label="Line spacing" value={selected?.lineSpacing || 1.15} onChange={(event) => patch({ lineSpacing: Number(event.target.value) })}><option value="1">Single</option><option value="1.15">1.15</option><option value="1.5">1.5</option><option value="2">Double</option></select><select aria-label="Paragraph spacing" value={selected?.spacingAfter ?? 8} onChange={(event) => patch({ spacingAfter: Number(event.target.value) })}><option value="0">No gap</option><option value="6">6 pt after</option><option value="8">8 pt after</option><option value="12">12 pt after</option><option value="18">18 pt after</option></select><select aria-label="Highlight" value={selectedExtra.highlight || 'none'} onChange={(event) => patchExtra({ highlight: event.target.value as HighlightColor })}><option value="none">No highlight</option><option value="yellow">Yellow highlight</option><option value="green">Green highlight</option><option value="cyan">Blue highlight</option></select><button className={selectedExtra.pageBreakBefore ? 'active utility' : 'utility'} onClick={() => patchExtra({ pageBreakBefore: !selectedExtra.pageBreakBefore })} title="Move this paragraph to the start of the next page">Page break before</button><button className="utility" onClick={add}>Add paragraph</button><button className="utility" onClick={remove}>Delete paragraph</button></div><div className="simple-editor-status" role="status">{status}</div><div className="simple-editor-stage"><div ref={visualHost} className="simple-editor-visual-host" /></div></section></div>;
+  return <div className="simple-editor-backdrop"><section className="simple-editor-modal" role="dialog" aria-modal="true" aria-label={`Edit ${filename}`}><header className="simple-editor-header"><div><p className="eyebrow">Simple document editor</p><h2>{filename}</h2><span>{output.bureau} - {documentRole(output)}</span></div><div><button className="save-edits" disabled={busy} onClick={() => void save()}>{busy ? 'Saving...' : 'Save to Package'}</button><button className="close-editor" onClick={onClose} aria-label="Close editor">×</button></div></header><div className="simple-editor-toolbar" aria-label="Text and paragraph formatting"><button className={selected?.bold ? 'active' : ''} onClick={() => patch({ bold: !selected?.bold })} title="Bold"><strong>B</strong></button><button className={selected?.italic ? 'active' : ''} onClick={() => patch({ italic: !selected?.italic })} title="Italic"><em>I</em></button><button className={selected?.underline ? 'active' : ''} onClick={() => patch({ underline: !selected?.underline })} title="Underline"><u>U</u></button><input type="color" aria-label="Text color" value={selected?.color || '#111827'} onChange={(event) => patch({ color: event.target.value })} /><select aria-label="Font size" value={selectedExtra.fontSize || ''} onChange={(event) => event.target.value && patchExtra({ fontSize: Number(event.target.value) })}><option value="">Text size</option><option value="9">9 pt</option><option value="10">10 pt</option><option value="11">11 pt</option><option value="12">12 pt</option><option value="14">14 pt</option><option value="16">16 pt</option></select><select aria-label="Alignment" value={selected?.alignment || 'left'} onChange={(event) => patch({ alignment: event.target.value as ParagraphAlignment })}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option></select><select aria-label="Line spacing" value={selected?.lineSpacing || 1.15} onChange={(event) => patch({ lineSpacing: Number(event.target.value) })}><option value="1">Single</option><option value="1.15">1.15</option><option value="1.5">1.5</option><option value="2">Double</option></select><select aria-label="Paragraph spacing" value={selected?.spacingAfter ?? 8} onChange={(event) => patch({ spacingAfter: Number(event.target.value) })}><option value="0">No gap</option><option value="6">6 pt after</option><option value="8">8 pt after</option><option value="12">12 pt after</option><option value="18">18 pt after</option></select><select aria-label="Highlight" value={selectedExtra.highlight || 'none'} onChange={(event) => patchExtra({ highlight: event.target.value as HighlightColor })}><option value="none">No highlight</option><option value="yellow">Yellow highlight</option><option value="green">Green highlight</option><option value="cyan">Blue highlight</option></select><button className={selectedExtra.pageBreakBefore ? 'active utility' : 'utility'} onClick={() => patchExtra({ pageBreakBefore: !selectedExtra.pageBreakBefore })} title="Start selected paragraph on next page">Page break before</button><button className={`utility guide-toggle ${showGuides ? 'active' : ''}`} onClick={() => setShowGuides((value) => !value)}>{showGuides ? 'Page guides: On' : 'Page guides: Off'}</button><button className="utility" onClick={add}>Add paragraph</button><button className="utility" onClick={remove}>Delete paragraph</button></div><div className="simple-editor-status" role="status">{status}</div><div className={`simple-editor-stage ${showGuides ? 'show-page-guides' : ''}`}><div ref={visualHost} className="simple-editor-visual-host" /></div></section></div>;
 }
