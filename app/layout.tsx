@@ -5,11 +5,14 @@ import './workspace-polish.css';
 import './sidebar-visible.css';
 import './output-review.css';
 import './live-editor.css';
+import './editor-pagination.css';
+import './final-packets.css';
 import './experience-upgrade.css';
 import './attention-states.css';
 import './source-normalization.css';
 import './packet-ui.css';
 import './template-flow.css';
+import './template-classification.css';
 
 export const metadata = {
   title: 'LetterGenerator',
