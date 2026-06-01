@@ -1,0 +1,125 @@
+/* Global minimal interface system
+   Palette only: white, cloud, professional blue, deep ink. */
+:root {
+  --ui-white: #ffffff;
+  --ui-cloud: #f3f6fa;
+  --ui-blue: #2b73b9;
+  --ui-ink: #142237;
+
+  --bg: var(--ui-cloud) !important;
+  --surface: var(--ui-white) !important;
+  --surface-subtle: var(--ui-cloud) !important;
+  --surface-hover: var(--ui-white) !important;
+  --surface-active: #edf4fb !important;
+  --text: var(--ui-ink) !important;
+  --text-soft: var(--ui-ink) !important;
+  --text-muted: #5c7088 !important;
+  --line: #dce5ef !important;
+  --line-strong: #c7d6e5 !important;
+  --line-hover: #b8cde2 !important;
+  --nav: var(--ui-white) !important;
+  --primary: var(--ui-ink) !important;
+  --primary-strong: var(--ui-ink) !important;
+  --primary-soft: var(--ui-cloud) !important;
+  --accent: var(--ui-blue) !important;
+  --accent-strong: var(--ui-blue) !important;
+  --accent-soft: #edf5fd !important;
+  --accent-line: #c3dbf2 !important;
+  --success: var(--ui-blue) !important;
+  --success-soft: #edf5fd !important;
+  --warning: var(--ui-ink) !important;
+  --warning-soft: var(--ui-cloud) !important;
+  --danger: var(--ui-ink) !important;
+  --danger-soft: var(--ui-cloud) !important;
+  --shadow-card: 0 1px 2px rgba(20,34,55,.03), 0 10px 30px rgba(20,34,55,.04) !important;
+  --shadow-hover: 0 1px 3px rgba(20,34,55,.04), 0 14px 34px rgba(20,34,55,.065) !important;
+}
+
+html, body {
+  background: var(--ui-cloud) !important;
+  color: var(--ui-ink) !important;
+}
+body {
+  background-image: linear-gradient(180deg, var(--ui-white) 0, var(--ui-cloud) 220px) !important;
+}
+
+/* Redundant chrome is removed from the interface: sidebar remains the navigation model. */
+.workflow-rail,
+.activity-status {
+  display: none !important;
+}
+
+.main-area {
+  padding-top: 22px !important;
+}
+.header {
+  border-bottom-color: transparent !important;
+}
+.panel,
+.template-primary-workflow,
+.template-secondary-workflow,
+.progressive-shell,
+.studio-component-card,
+.review-card,
+.final-packet-card {
+  background: var(--ui-white) !important;
+  border-color: var(--line) !important;
+}
+.panel:hover,
+.studio-component-card:hover,
+.review-card:hover {
+  background: var(--ui-white) !important;
+  border-color: var(--accent-line) !important;
+}
+.eyebrow,
+.studio-sequence,
+.round-copy small,
+.review-order {
+  color: var(--ui-blue) !important;
+}
+.pill,
+.packet-status,
+.packet-status.ready,
+.supporting-count,
+.doc-type,
+.packet-stack-state,
+.packet-stack-state.ready,
+.packet-stack-state.managed,
+.packet-stack-state.none {
+  color: var(--ui-blue) !important;
+  background: var(--accent-soft) !important;
+  border-color: var(--accent-line) !important;
+}
+.action-button,
+.template-primary-cta,
+.edit-document,
+.save-edits,
+.finalize-pdf-button,
+.package-download,
+.final-package-download {
+  color: var(--ui-white) !important;
+  background: var(--ui-blue) !important;
+  border-color: var(--ui-blue) !important;
+}
+.secondary-button,
+.template-secondary-cta,
+.reveal-action,
+.utility {
+  color: var(--ui-blue) !important;
+  background: var(--ui-white) !important;
+  border-color: var(--accent-line) !important;
+}
+input, select, textarea {
+  color: var(--ui-ink) !important;
+  background: var(--ui-white) !important;
+  border-color: var(--line) !important;
+}
+.alert,
+.failed-output,
+.source-review,
+.supporting-empty,
+.packet-insert-status.missing {
+  color: var(--ui-ink) !important;
+  background: var(--ui-cloud) !important;
+  border-color: var(--line) !important;
+}
