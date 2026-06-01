@@ -7,6 +7,9 @@ type Props = { sourceUrl: string; packetMap: HTMLElement | null };
 function packetRows(packetMap: HTMLElement | null) {
   return packetMap ? Array.from(packetMap.querySelectorAll<HTMLElement>('li')) : [];
 }
+function normalized(value: string) {
+  return value.toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+}
 function startPageFor(index: number, pageCount: number, rowCount: number) {
   const firstPartPages = Math.max(1, pageCount - Math.max(0, rowCount - 1));
   return index === 0 ? 1 : Math.min(pageCount, firstPartPages + index);
@@ -22,6 +25,19 @@ function selectPacketStep(packetMap: HTMLElement | null, page: number, pageCount
   });
   rows[active]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
+function markNonePosition(packetMap: HTMLElement | null, text: string) {
+  if (!/NOT CONFIGURED FOR THIS PACKET POSITION/i.test(text) || !/NONE/i.test(text)) return;
+  const content = normalized(text);
+  const rows = packetRows(packetMap);
+  const row = rows.find((item) => {
+    const title = normalized(item.querySelector('strong')?.textContent || '');
+    return title && content.includes(title);
+  });
+  if (!row) return;
+  row.classList.add('missing');
+  const status = row.querySelector('small');
+  if (status) status.textContent = 'None — Not configured';
+}
 
 export default function ContinuousPacketCanvas({ sourceUrl, packetMap }: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -34,6 +50,7 @@ export default function ContinuousPacketCanvas({ sourceUrl, packetMap }: Props) 
     const removers: Array<() => void> = [];
     const target = host.current;
     if (!target || !sourceUrl) return;
+    packetRows(packetMap).forEach((row) => row.classList.remove('missing'));
     target.innerHTML = '';
     setProgress({ current: 0, total: 0 });
     setStatus('Preparing ordered packet pages...');
@@ -52,6 +69,8 @@ export default function ContinuousPacketCanvas({ sourceUrl, packetMap }: Props) 
           if (cancelled) return;
           setStatus(`Rendering ordered page ${number} of ${pdf.numPages}...`);
           const page = await pdf.getPage(number);
+          const text = await page.getTextContent();
+          markNonePosition(packetMap, text.items.map((item) => 'str' in item ? item.str : '').join(' '));
           const viewport = page.getViewport({ scale: 1.25 });
           const sheet = document.createElement('article');
           sheet.className = 'continuous-packet-page';
