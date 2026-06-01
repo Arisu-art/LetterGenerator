@@ -1,109 +1,109 @@
 # LetterGenerator
 
-A DOCX automation workspace for connecting uploaded Word references to uploaded or pasted TXT source data.
+A browser-based document packet workspace that connects reusable DOCX/PDF references to normalized client TXT source data, produces editable review documents, and assembles final bureau-specific PDF packets.
 
-## What this app does
+## Production workflow
 
-- Upload completed DOCX reference documents by output type and round.
-- Paste or upload structured TXT source data.
-- Parse consumer information, dispute records, late payments and hard inquiries by bureau.
-- Protect supplemental source fields such as phone, email and unmapped notes without silently deleting them.
-- Generate bureau-specific DOCX letters only when matching data exists.
-- Open a generated DOCX in a simple built-in editor for correction and formatting changes.
-- Save edited DOCX files back into one final ZIP delivery package.
+### 1. Templates
 
-## Reference preservation rule
+Configure reusable packet files per round. Packet cards remain collapsed until opened.
 
-The uploaded DOCX reference is the source of truth for the generated document format. The generator changes detected variable regions while preserving surrounding document content and styling wherever it is not directly edited.
+| Packet position | Document | Required file type | Processing |
+|---:|---|---|---|
+| 01 | Dispute Letter | DOCX | Generated from source and editable before finalization |
+| 02 | Supporting Documents | Uploaded in Source Data | One aligned evidence page inserted inside the letter |
+| 03 | FCRA Legal Exhibit | PDF | Merged unchanged into final Dispute PDF |
+| 04 | Affidavit | DOCX | Generated from source and editable before finalization |
+| 05 | Attachment | PDF | Merged unchanged into final Dispute PDF |
+| 06 | FTC Identity Theft Report | DOCX | Generated from source and editable before finalization |
+| 01 | Late Payment Letter | DOCX | Generated from source and editable before finalization |
+| 02 | Supporting Documents | Uploaded in Source Data | One aligned evidence page inserted inside the letter |
 
-## Simple document editor
+FCRA, Affidavit, Attachment and FTC are dispute-packet components only. They are not included in Late Payment outputs.
 
-The output screen contains one primary **Edit Document** action for each generated letter. No external document server is required.
+### 2. Source Data
 
-Editable controls:
+Only two kinds of uploads belong in Source Data:
 
-- Paragraph text.
-- Bold, italic and underline.
-- Text color and text size.
-- Left, center, right and justified alignment.
-- Single, 1.15, 1.5 and double line spacing.
-- Paragraph spacing after a selected block.
-- Highlight selected legal text for manual review.
-- **Page break before** for preventing a heading or section from being split at an unsuitable page boundary.
-- Add or delete paragraphs.
+- The client TXT source.
+- Client-specific Supporting Document images.
 
-Workflow:
+TXT input is normalized into a review copy. Supporting Document images are arranged vertically on one clean page and appended inside each generated letter when a matching bureau output exists.
 
-1. Generate the output package.
-2. Open **Outputs** and select **Edit Document** for a letter.
-3. Select a paragraph and modify its text or formatting.
-4. Use **Page break before** where a section heading should begin cleanly on the next page.
-5. Select **Save to Package**.
-6. Download the updated ZIP package.
+### 3. Generate
 
-### Editing boundary
+Generation follows detected bureau routes only:
 
-This is a lightweight paragraph-level DOCX editor, not a Microsoft Word replacement. It is designed for corrections to generated letter text and basic paragraph styling. Complex Word elements such as tables, shapes, images, headers, footers, comments and tracked changes are not directly edited in this workspace.
+- A Dispute route prepares an editable Dispute Letter DOCX and, when configured, editable Affidavit and FTC DOCX documents.
+- A Late Payment route prepares an editable Late Payment Letter DOCX.
+- Supporting Documents do not create outputs by themselves.
 
-## Non-destructive source normalization
+### 4. Outputs and finalization
 
-The **Source Data** screen supports a safe normalization workflow. It distinguishes between data that may be inserted into the current generated letters and data that must be preserved for other documents or future mapping.
+Outputs are reviewed before final delivery:
 
-### Example: phone and email
+- Open editable Dispute, Late Payment, Affidavit and FTC documents.
+- Correct paragraph text and basic formatting.
+- Display page boundaries and page-end lines while checking layout.
+- Apply **Page break before** when a section must begin on the next page.
+- Save edits back into the working ZIP package.
+- Select **Finalize PDF Packets** to merge the final ordered PDF files.
 
-A source file may contain:
+## Final PDF order
 
-```text
-PHONE: 516-660-8573
-EMAIL: veronicaj87@yahoo.com
-```
-
-These fields are recognized as supplemental client data. They are **not** inserted into a Dispute Letter automatically because the current dispute-letter output maps client name, address, DOB and SSN only. Phone and email remain preserved for another first-round document or a future template rule.
-
-### Normalize review copy workflow
-
-1. Upload the original TXT source.
-2. Select **Normalize review copy**.
-3. The system rebuilds a clearly structured working copy containing standardized identity, dispute, inquiry and late-payment sections.
-4. Supplemental and unrecognized text is moved into a visible section named **PRESERVED SOURCE DATA - NOT INSERTED UNLESS A TEMPLATE MAPS IT**.
-5. Select **Restore original source** at any time to return to the untouched input text.
-
-The normalization action does not silently delete text. Excess or accidental entries remain visible for review instead of being injected into a letter without a mapping rule.
-
-## Recommended TXT source structure
+### Dispute packet
 
 ```text
-NAME: CLIENT FULL NAME
-ADDRESS: STREET ADDRESS
-CITY, STATE ZIP
-DOB: MM/DD/YYYY
-SSN: XXX-XX-1234
-PHONE: OPTIONAL SUPPLEMENTAL VALUE
-EMAIL: OPTIONAL SUPPLEMENTAL VALUE
-
-DISPUTE ACCOUNTS
-TRANSUNION
-Account Name: EXAMPLE BANK
-Account Number: XXXX1234
-
-HARD INQUIRIES
-TRANSUNION
-EXAMPLE LENDER - 08/08/2024
-
-LATE PAYMENTS
-EQUIFAX
-Account Name: EXAMPLE AUTO
-Account Number: XXXX5678
-Late Payment: 30 Days Late - 01/2025
+01 Dispute Letter       DOCX converted to PDF; includes Supporting Documents page
+02 Supporting Documents One aligned page already inside the converted letter
+03 FCRA                 Static PDF merged unchanged
+04 Affidavit            Generated DOCX converted to PDF
+05 Attachment           Static PDF merged unchanged
+06 FTC                  Generated DOCX converted to PDF
 ```
 
-## Local application setup
+### Late Payment packet
+
+```text
+01 Late Payment Letter  DOCX converted to PDF; includes Supporting Documents page
+02 Supporting Documents One aligned page already inside the converted letter
+```
+
+## Affidavit and FTC placeholder mappings
+
+Affidavit and FTC DOCX templates are populated with `{{placeholder}}` values through Docxtemplater. Supported values include:
+
+```text
+{{consumer_name}}      {{client_name}}       {{name}}
+{{address}}            {{address_line_1}}    {{address_line_2}}
+{{dob}}                {{ssn}}               {{phone}}
+{{email}}              {{date}}              {{letter_date}}
+{{bureau_name}}        {{bureau_address}}
+{{account_lines}}      {{hard_inquiry_lines}}
+```
+
+Repeat account rows using:
+
+```text
+{{#accounts}}
+{{account_name}} - {{account_number}}
+{{/accounts}}
+```
+
+Repeat inquiry rows using:
+
+```text
+{{#hard_inquiries}}
+{{inquiry_line}}
+{{/hard_inquiries}}
+```
+
+## Local setup
 
 ```bash
 npm install
+npm run build
 npm run dev -- --hostname 0.0.0.0 --port 3000
 ```
 
-## Output logic
-
-Dispute and late-payment data create one matching document per bureau when source data for that output exists. Hard inquiries are retained per bureau as dispute-letter content. Empty categories are skipped. Supplemental or unmapped source content is preserved separately and is not used in output unless a document mapping is implemented for it.
+`npm install` is required after syncing changes because browser-side PDF finalization uses `pdf-lib` and `html2canvas`.
