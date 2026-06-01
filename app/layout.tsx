@@ -5,7 +5,6 @@ import './workspace-polish.css';
 import './sidebar-visible.css';
 import './output-review.css';
 import './live-editor.css';
-import './editor-packet-preview-fix.css';
 import './editor-pagination.css';
 import './final-packets.css';
 import './experience-upgrade.css';
@@ -14,8 +13,6 @@ import './source-normalization.css';
 import './packet-ui.css';
 import './template-flow.css';
 import './template-classification.css';
-import './packet-component-preview.css';
-import './continuous-packet-scroll.css';
 import './progressive-disclosure.css';
 
 export const metadata = {
