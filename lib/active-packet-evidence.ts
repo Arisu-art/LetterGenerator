@@ -15,5 +15,7 @@ export function getActivePacketEvidence() {
 
 export function subscribeActivePacketEvidence(notify: () => void) {
   listeners.add(notify);
-  return () => listeners.delete(notify);
+  return () => {
+    listeners.delete(notify);
+  };
 }
