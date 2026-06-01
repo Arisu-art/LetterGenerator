@@ -3,8 +3,18 @@
 import { useEffect, useState } from 'react';
 import { applyRuntimeMode, runtimeSnapshot, type RuntimeSnapshot } from '../lib/performance-guardian';
 
+const INITIAL_SNAPSHOT: RuntimeSnapshot = {
+  mode: 'full',
+  online: true,
+  reducedData: false,
+  effectiveType: 'unknown',
+  longTasks: 0,
+  hidden: false,
+  message: 'Runtime initializing.'
+};
+
 export default function PerformanceBeacon() {
-  const [snapshot, setSnapshot] = useState<RuntimeSnapshot>(() => runtimeSnapshot());
+  const [snapshot, setSnapshot] = useState<RuntimeSnapshot>(INITIAL_SNAPSHOT);
 
   useEffect(() => {
     let longTasks = 0;
