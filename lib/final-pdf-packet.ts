@@ -1,6 +1,6 @@
 'use client';
 
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 export type PdfPacketPart = {
   label: string;
@@ -25,18 +25,25 @@ function toPdfBlob(bytes: Uint8Array) {
   return new Blob([copy.buffer], { type: 'application/pdf' });
 }
 
-export async function createBlankPdf() {
-  const document = await PDFDocument.create();
-  document.addPage([612, 792]);
-  return toPdfBlob(await document.save());
-}
-
-async function addBlankPage(target: PDFDocument) {
-  target.addPage([612, 792]);
+async function addNonePage(target: PDFDocument, label: string) {
+  const page = target.addPage([612, 792]);
+  const regular = await target.embedFont(StandardFonts.Helvetica);
+  const bold = await target.embedFont(StandardFonts.HelveticaBold);
+  page.drawText(label.toUpperCase(), { x: 54, y: 710, size: 11, font: bold, color: rgb(0.15, 0.4, 0.7) });
+  page.drawLine({ start: { x: 54, y: 693 }, end: { x: 558, y: 693 }, thickness: 1, color: rgb(0.86, 0.9, 0.94) });
+  page.drawText('None', { x: 54, y: 420, size: 40, font: bold, color: rgb(0.18, 0.23, 0.32) });
+  page.drawText('Not configured for this packet position.', { x: 54, y: 382, size: 13, font: regular, color: rgb(0.39, 0.46, 0.55) });
+  page.drawText('Position retained to preserve final filing order.', { x: 54, y: 358, size: 12, font: regular, color: rgb(0.39, 0.46, 0.55) });
   return 1;
 }
 
-async function addRenderedDocx(target: PDFDocument, blob: Blob) {
+export async function createBlankPdf(label = 'Packet component') {
+  const document = await PDFDocument.create();
+  await addNonePage(document, label);
+  return toPdfBlob(await document.save());
+}
+
+async function addRenderedDocx(target: PDFDocument, blob: Blob, label: string) {
   const [{ renderAsync }, html2canvas] = await Promise.all([
     import('docx-preview'),
     import('html2canvas').then((module) => module.default)
@@ -48,17 +55,12 @@ async function addRenderedDocx(target: PDFDocument, blob: Blob) {
   let count = 0;
   try {
     await renderAsync(await blob.arrayBuffer(), host, undefined, {
-      className: 'packet-pdf-docx',
-      inWrapper: true,
-      ignoreWidth: false,
-      ignoreHeight: false,
-      breakPages: true,
-      renderHeaders: true,
-      renderFooters: true
+      className: 'packet-pdf-docx', inWrapper: true, ignoreWidth: false, ignoreHeight: false,
+      breakPages: true, renderHeaders: true, renderFooters: true
     });
-    const renderedSections = Array.from(host.querySelectorAll('.packet-pdf-docx.docx')) as HTMLElement[];
-    const pages = renderedSections.length ? renderedSections : Array.from(host.querySelectorAll('.docx')) as HTMLElement[];
-    if (!pages.length) return addBlankPage(target);
+    const candidates = Array.from(host.querySelectorAll('.packet-pdf-docx.docx, .packet-pdf-docx .docx, .docx')) as HTMLElement[];
+    const pages = candidates.filter((node, index) => candidates.indexOf(node) === index && !node.querySelector('.docx'));
+    if (!pages.length) return addNonePage(target, label);
     for (const page of pages) {
       const canvas = await html2canvas(page, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff', logging: false });
       const embedded = await target.embedPng(canvas.toDataURL('image/png'));
@@ -79,16 +81,19 @@ async function addStaticPdf(target: PDFDocument, blob: Blob) {
   return copied.length;
 }
 
+async function addPart(target: PDFDocument, part: PdfPacketPart) {
+  if (part.kind === 'BLANK' || !part.blob) return addNonePage(target, part.label);
+  if (part.kind === 'DOCX') return addRenderedDocx(target, part.blob, part.label);
+  try { return await addStaticPdf(target, part.blob); }
+  catch { return addNonePage(target, part.label); }
+}
+
 export async function assembleFinalPdfWithRanges(parts: PdfPacketPart[]): Promise<AssembledPdfPacket> {
   const output = await PDFDocument.create();
   const ranges: PacketPageRange[] = [];
   let page = 1;
   for (const part of parts) {
-    const count = part.kind === 'BLANK' || !part.blob
-      ? await addBlankPage(output)
-      : part.kind === 'DOCX'
-        ? await addRenderedDocx(output, part.blob)
-        : await addStaticPdf(output, part.blob);
+    const count = await addPart(output, part);
     ranges.push({ label: part.label, startPage: page, endPage: page + Math.max(1, count) - 1 });
     page += Math.max(1, count);
   }
