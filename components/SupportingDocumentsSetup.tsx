@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import ProgressiveDisclosure from './ProgressiveDisclosure';
 import SupportingDocumentsLayoutEditor from './SupportingDocumentsLayoutEditor';
+import { setActivePacketEvidence } from '../lib/active-packet-evidence';
 import {
   addSupportingAssets,
   loadPacketAssets,
@@ -26,8 +27,19 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, onCha
   const [manageOpen, setManageOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
-  useEffect(() => { setAssets(loadPacketAssets(storageKey)); setManageOpen(false); setLayoutOpen(false); setAboutOpen(false); }, [storageKey]);
-  function changed(next: PacketAssets) { setAssets(next); onChanged(next); }
+  useEffect(() => {
+    const next = loadPacketAssets(storageKey);
+    setAssets(next);
+    setActivePacketEvidence(storageKey, next);
+    setManageOpen(false);
+    setLayoutOpen(false);
+    setAboutOpen(false);
+  }, [storageKey]);
+  function changed(next: PacketAssets) {
+    setAssets(next);
+    setActivePacketEvidence(storageKey, next);
+    onChanged(next);
+  }
   async function add(files: File[]) {
     setBusy(true);
     try {
@@ -55,7 +67,7 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, onCha
     <ProgressiveDisclosure open={manageOpen} onToggle={() => setManageOpen((value) => !value)} title={assets.supporting.length ? 'Manage supporting evidence' : 'Add supporting evidence'} summary={assets.supporting.length ? `${assets.supporting.length} uploaded file(s) assigned to packet position 02` : 'Upload files only when evidence is available'} badge={<span className={`packet-status ${assets.supporting.length ? 'ready' : ''}`}>{assets.supporting.length ? 'Available' : 'Optional now'}</span>} className="supporting-disclosure">
       <div className="source-supporting-grid">
         <label className="supporting-dropzone"><strong>{assets.supporting.length ? 'Add more supporting documents' : 'Upload supporting documents'}</strong><span>JPG, PNG or WEBP only · evidence for this client packet</span><input disabled={busy} multiple type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={(event) => { const files = Array.from(event.target.files || []); if (files.length) void add(files); event.target.value = ''; }} /></label>
-        {assets.supporting.length ? <ol className="source-supporting-list">{assets.supporting.map((asset, index) => <li key={asset.id}><span className="support-order">{index + 1}</span><div><strong>{asset.name}</strong><small>{size(asset.size)}{asset.placement ? ' · Custom layout' : ' · Auto-aligned'}</small></div><div className="support-actions"><button disabled={index === 0} onClick={() => move(asset.id, -1)} aria-label="Move up">↑</button><button disabled={index === assets.supporting.length - 1} onClick={() => move(asset.id, 1)} aria-label="Move down">↓</button><button onClick={() => void remove(asset.id)}>Remove</button></div></li>)}</ol> : <div className="supporting-empty"><strong>No supporting documents uploaded</strong><p>Ordered preview will show None at position 02 until evidence is uploaded.</p></div>}
+        {assets.supporting.length ? <ol className="source-supporting-list">{assets.supporting.map((asset, index) => <li key={asset.id}><span className="support-order">{index + 1}</span><div><strong>{asset.name}</strong><small>{size(asset.size)}{asset.placement ? ' · Custom layout' : ' · Auto-aligned'}</small></div><div className="support-actions"><button disabled={index === 0} onClick={() => move(asset.id, -1)} aria-label="Move up">↑</button><button disabled={index === assets.supporting.length - 1} onClick={() => move(asset.id, 1)} aria-label="Move down">↓</button><button onClick={() => void remove(asset.id)}>Remove</button></div></li>)}</ol> : <div className="supporting-empty"><strong>No supporting documents uploaded</strong><p>Ordered editor will show None at position 02 until evidence is uploaded.</p></div>}
       </div>
     </ProgressiveDisclosure>
     {assets.supporting.length > 0 && <ProgressiveDisclosure open={layoutOpen} onToggle={() => setLayoutOpen((value) => !value)} title="Arrange the one-page evidence layout" summary="Crop, resize and move each image freely before preview or PDF export" badge={<span className="packet-status ready">Editable page</span>} className="supporting-disclosure layout-disclosure"><SupportingDocumentsLayoutEditor storageKey={storageKey} assets={assets} onChanged={changed} onMessage={onMessage} /></ProgressiveDisclosure>}
