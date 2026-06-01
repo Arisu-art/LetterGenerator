@@ -21,6 +21,7 @@ import './global-minimal-ui.css';
 import './workflow-premium.css';
 import './guided-source-flow.css';
 import './output-guided-flow.css';
+import './packet-editor-precision.css';
 
 export const metadata = {
   title: 'LetterGenerator',
