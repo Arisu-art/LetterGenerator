@@ -4,12 +4,14 @@ import { createRoot, type Root } from 'react-dom/client';
 import { useEffect } from 'react';
 import ContinuousPacketCanvas from './ContinuousPacketCanvas';
 
-/** Replaces the embedded PDF frame with a continuous page canvas while retaining the generated packet PDF as its source. */
+/** Opens and upgrades the ordered PDF view when a document is selected for packet review. */
 export default function ContinuousPacketUpgrade() {
   useEffect(() => {
     let mountedFrame: HTMLIFrameElement | null = null;
     let mountNode: HTMLDivElement | null = null;
     let root: Root | null = null;
+    let attemptedModal: Element | null = null;
+    let requestTimer: number | null = null;
 
     const cleanup = () => {
       root?.unmount();
@@ -20,7 +22,18 @@ export default function ContinuousPacketUpgrade() {
       mountedFrame = null;
     };
 
+    const requestOrderedPreview = () => {
+      const modal = document.querySelector('.simple-editor-modal');
+      if (!modal || modal === attemptedModal) return;
+      const buttons = Array.from(modal.querySelectorAll<HTMLButtonElement>('.editor-view-switch button'));
+      const previewButton = buttons.find((button) => /Complete Packet Preview/i.test(button.textContent || ''));
+      if (!previewButton || previewButton.disabled) return;
+      attemptedModal = modal;
+      requestTimer = window.setTimeout(() => previewButton.click(), 140);
+    };
+
     const enhance = () => {
+      requestOrderedPreview();
       const frame = document.querySelector<HTMLIFrameElement>('.editor-complete-packet-preview iframe');
       const source = frame?.getAttribute('src') || '';
       if (!frame || !source) {
@@ -40,9 +53,9 @@ export default function ContinuousPacketUpgrade() {
     };
 
     const observer = new MutationObserver(enhance);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src', 'class'] });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src', 'class', 'disabled'] });
     enhance();
-    return () => { observer.disconnect(); cleanup(); };
+    return () => { observer.disconnect(); if (requestTimer !== null) window.clearTimeout(requestTimer); cleanup(); };
   }, []);
 
   return null;
