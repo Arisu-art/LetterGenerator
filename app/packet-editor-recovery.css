@@ -1,0 +1,128 @@
+/* Permanent Packet Editor recovery layer.
+   The editor renders DOCX and insert bodies asynchronously; they must never be clipped by shell motion or later overflow rules. */
+
+/* Opening and reopening the editor must be immediate and stable. */
+.simple-editor-backdrop,
+.premium-document-editor,
+.premium-document-editor .simple-editor-header {
+  animation: none !important;
+  transition: none !important;
+  view-transition-name: none !important;
+}
+
+/* Every ordered packet position remains expanded in the continuous editor. */
+.premium-document-editor .ordered-packet-scroll {
+  display: grid !important;
+  align-content: start !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+.premium-document-editor .packet-stack-section {
+  display: block !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  contain: none !important;
+}
+.premium-document-editor .packet-stack-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 8 !important;
+}
+
+/* DOCX body must remain mounted and visible after async document rendering. */
+.premium-document-editor .packet-inline-docx-host {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 460px !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+.premium-document-editor .packet-inline-docx-host:empty {
+  min-height: 190px !important;
+}
+.premium-document-editor .packet-inline-docx-host:empty::before {
+  content: 'Loading editable document pages…';
+  min-height: 190px;
+  display: grid;
+  place-items: center;
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+.premium-document-editor .packet-inline-docx-host .docx-wrapper,
+.premium-document-editor .packet-inline-docx-host .packet-inline-docx-wrapper {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+.premium-document-editor .packet-inline-docx-host .docx,
+.premium-document-editor .packet-inline-docx-host .packet-inline-docx {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 792px !important;
+  height: auto !important;
+  max-height: none !important;
+  transform: none !important;
+}
+
+/* Static inserts and the evidence layout editor must remain visible as ordered content. */
+.premium-document-editor .packet-static-file-view,
+.premium-document-editor .packet-static-docx-host,
+.premium-document-editor .packet-supporting-inline,
+.premium-document-editor .packet-insert-status,
+.premium-document-editor .professional-evidence-editor {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+.premium-document-editor .packet-static-file-view,
+.premium-document-editor .packet-static-docx-host {
+  min-height: 620px !important;
+}
+.premium-document-editor .packet-static-file-view iframe {
+  display: block !important;
+  min-height: 590px !important;
+}
+.premium-document-editor .packet-insert-status {
+  min-height: 180px !important;
+  display: grid !important;
+}
+.premium-document-editor .packet-supporting-inline {
+  padding: 14px !important;
+}
+.premium-document-editor .professional-evidence-editor {
+  display: grid !important;
+}
+
+/* Do not transition any packet editor content; it must render immediately and precisely. */
+.premium-document-editor *,
+.premium-document-editor *::before,
+.premium-document-editor *::after {
+  view-transition-name: none !important;
+}
+
+@media (max-width: 760px) {
+  .premium-document-editor .packet-inline-docx-host {
+    min-height: 320px !important;
+  }
+  .premium-document-editor .packet-inline-docx-host .docx,
+  .premium-document-editor .packet-inline-docx-host .packet-inline-docx {
+    min-height: 560px !important;
+  }
+  .premium-document-editor .packet-static-file-view,
+  .premium-document-editor .packet-static-docx-host {
+    min-height: 460px !important;
+  }
+}
