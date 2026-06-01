@@ -20,6 +20,7 @@ import './template-premium.css';
 import './global-minimal-ui.css';
 import './workflow-premium.css';
 import './guided-source-flow.css';
+import './output-guided-flow.css';
 
 export const metadata = {
   title: 'LetterGenerator',
