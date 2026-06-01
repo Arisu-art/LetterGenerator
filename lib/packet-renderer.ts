@@ -1,7 +1,7 @@
 import PizZip from 'pizzip';
 import { PDFDocument } from 'pdf-lib';
 import { DOCX_MIME } from './docx-renderer';
-import { loadPacketAssets, loadPacketFile } from './packet-assets';
+import { loadPacketAssets, loadPacketFile, type PacketAsset, type SupportingPlacement } from './packet-assets';
 
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -23,6 +23,7 @@ const GAP = 18;
 export type PacketPage = { name: string; image: Blob; type: 'SUPPORTING' };
 type ImageSize = { width: number; height: number };
 type VerticalSlot = { x: number; y: number; width: number; height: number };
+type RenderAsset = { asset: PacketAsset; file: File };
 
 function toPng(canvas: HTMLCanvasElement) {
   return new Promise<Blob>((resolve, reject) => {
@@ -34,10 +35,7 @@ function verticalSlots(count: number): VerticalSlot[] {
   const availableHeight = CANVAS_H - (VERTICAL_MARGIN * 2) - (GAP * (safeCount - 1));
   const slotHeight = availableHeight / safeCount;
   return Array.from({ length: safeCount }, (_, index) => ({
-    x: HORIZONTAL_MARGIN,
-    y: VERTICAL_MARGIN + index * (slotHeight + GAP),
-    width: CANVAS_W - (HORIZONTAL_MARGIN * 2),
-    height: slotHeight
+    x: HORIZONTAL_MARGIN, y: VERTICAL_MARGIN + index * (slotHeight + GAP), width: CANVAS_W - (HORIZONTAL_MARGIN * 2), height: slotHeight
   }));
 }
 function contain(image: ImageSize, slot: VerticalSlot) {
@@ -46,7 +44,28 @@ function contain(image: ImageSize, slot: VerticalSlot) {
   const height = Math.round(image.height * scale);
   return { x: Math.round(slot.x + ((slot.width - width) / 2)), y: Math.round(slot.y + ((slot.height - height) / 2)), width, height };
 }
-async function buildSingleSupportingPage(files: File[]) {
+function defaultPlacement(index: number, count: number, image: ImageSize): SupportingPlacement {
+  const frame = contain(image, verticalSlots(count)[index]);
+  return { x: frame.x / CANVAS_W, y: frame.y / CANVAS_H, width: frame.width / CANVAS_W, height: frame.height / CANVAS_H, cropX: 0, cropY: 0, cropWidth: 1, cropHeight: 1 };
+}
+function position(value: number, dimension: number) { return Math.round(value * dimension); }
+function drawPlacedImage(context: CanvasRenderingContext2D, bitmap: ImageBitmap, placement: SupportingPlacement) {
+  const sx = position(placement.cropX, bitmap.width);
+  const sy = position(placement.cropY, bitmap.height);
+  const sw = Math.max(1, position(placement.cropWidth, bitmap.width));
+  const sh = Math.max(1, position(placement.cropHeight, bitmap.height));
+  const dx = position(placement.x, CANVAS_W);
+  const dy = position(placement.y, CANVAS_H);
+  const dw = Math.max(1, position(placement.width, CANVAS_W));
+  const dh = Math.max(1, position(placement.height, CANVAS_H));
+  context.save();
+  context.beginPath();
+  context.rect(dx, dy, dw, dh);
+  context.clip();
+  context.drawImage(bitmap, sx, sy, sw, sh, dx, dy, dw, dh);
+  context.restore();
+}
+async function buildSingleSupportingPage(items: RenderAsset[]) {
   const canvas = document.createElement('canvas');
   canvas.width = CANVAS_W;
   canvas.height = CANVAS_H;
@@ -54,27 +73,26 @@ async function buildSingleSupportingPage(files: File[]) {
   if (!context) throw new Error('Image rendering is unavailable in this browser.');
   context.fillStyle = '#ffffff';
   context.fillRect(0, 0, CANVAS_W, CANVAS_H);
-  const slots = verticalSlots(files.length);
-  for (let index = 0; index < files.length; index += 1) {
-    const bitmap = await createImageBitmap(files[index]);
-    const frame = contain({ width: bitmap.width, height: bitmap.height }, slots[index]);
-    context.drawImage(bitmap, frame.x, frame.y, frame.width, frame.height);
+  for (let index = 0; index < items.length; index += 1) {
+    const bitmap = await createImageBitmap(items[index].file);
+    const placement = items[index].asset.placement || defaultPlacement(index, items.length, { width: bitmap.width, height: bitmap.height });
+    drawPlacedImage(context, bitmap, placement);
     bitmap.close();
   }
   return toPng(canvas);
 }
 export async function getSupportingPages(storageKey: string) {
   const setup = loadPacketAssets(storageKey);
-  const files: File[] = [];
+  const items: RenderAsset[] = [];
   for (const asset of setup.supporting) {
     const file = await loadPacketFile(storageKey, asset.id);
-    if (file) files.push(file);
+    if (file) items.push({ asset, file });
   }
-  if (!files.length) return [];
-  return [{ name: 'Supporting Documents', image: await buildSingleSupportingPage(files), type: 'SUPPORTING' as const }];
+  if (!items.length) return [];
+  return [{ name: 'Supporting Documents', image: await buildSingleSupportingPage(items), type: 'SUPPORTING' as const }];
 }
 
-/** Creates the one-page PDF evidence insert used at order position 02 in final packets. */
+/** Creates the editable one-page PDF evidence insert used at order position 02 in final packets. */
 export async function createSupportingDocumentsPdf(storageKey: string) {
   const pages = await getSupportingPages(storageKey);
   if (!pages.length) return null;
