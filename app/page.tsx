@@ -1,5 +1,5 @@
-import LetterGeneratorWorkspace from '../components/LetterGeneratorWorkspace';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return <LetterGeneratorWorkspace />;
+  redirect('/intelligence');
 }
