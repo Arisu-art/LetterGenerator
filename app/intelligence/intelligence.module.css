@@ -28,7 +28,15 @@
 :global(.adaptive-footer button){border:0;background:transparent;color:#2563eb;font-size:11px;font-weight:700}
 :global(.adaptive-footer p){width:100%;margin:6px 0 0;padding:10px;border-radius:10px;background:#f8fafc;color:#64748b;font-size:11px;line-height:1.5}
 :global(.adaptive-launch){position:fixed;right:22px;bottom:22px;z-index:80;width:54px;height:54px;border:0;border-radius:18px;background:#1d4ed8;color:#fff;font-weight:800;box-shadow:0 18px 45px rgba(37,99,235,.24)}
+:global(.runtime-beacon){position:fixed;right:22px;bottom:22px;z-index:70;display:flex;align-items:center;gap:10px;max-width:344px;padding:10px 13px;border:1px solid #e2e8f0;border-radius:15px;background:#ffffff;box-shadow:0 12px 30px rgba(15,23,42,.08)}
+:global(.runtime-beacon strong){display:block;font-size:12px;color:#0f172a}
+:global(.runtime-beacon small){display:block;max-width:270px;color:#64748b;font-size:11px;line-height:1.35}
+:global(.runtime-dot){width:9px;height:9px;border-radius:99px;background:#22c55e;box-shadow:0 0 0 4px #dcfce7;flex:none}
+:global(.runtime-beacon.balanced .runtime-dot){background:#f59e0b;box-shadow:0 0 0 4px #fef3c7}
+:global(.runtime-beacon.efficient .runtime-dot),:global(.runtime-beacon.offline .runtime-dot){background:#ef4444;box-shadow:0 0 0 4px #fee2e2}
 :global(.adaptive-focus .main-area .panel:not(:hover)){opacity:.72;transition:opacity .15s ease}
 :global(.adaptive-compact .adaptive-center){width:304px}
-:global(.adaptive-reduced-motion *){animation-duration:0ms!important;transition-duration:0ms!important;scroll-behavior:auto!important}
-@media(max-width:1220px){:global(.adaptive-center){right:12px;top:auto;bottom:12px;width:min(344px,calc(100vw - 24px));max-height:64vh}}
+:global(.adaptive-reduced-motion *),:global([data-runtime-mode="efficient"] *){animation-duration:0ms!important;transition-duration:0ms!important;scroll-behavior:auto!important}
+:global([data-runtime-mode="efficient"] .adaptive-center){box-shadow:none}
+@media(min-width:1221px){:global(.main-area){padding-right:386px}}
+@media(max-width:1220px){:global(.adaptive-center){right:12px;top:auto;bottom:68px;width:min(344px,calc(100vw - 24px));max-height:64vh}:global(.runtime-beacon){right:12px;bottom:12px;max-width:calc(100vw - 24px)}}
