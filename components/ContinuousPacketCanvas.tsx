@@ -4,12 +4,18 @@ import { useEffect, useRef, useState } from 'react';
 
 type Props = { sourceUrl: string; packetMap: HTMLElement | null };
 
+function packetRows(packetMap: HTMLElement | null) {
+  return packetMap ? Array.from(packetMap.querySelectorAll<HTMLElement>('li')) : [];
+}
+function startPageFor(index: number, pageCount: number, rowCount: number) {
+  const firstPartPages = Math.max(1, pageCount - Math.max(0, rowCount - 1));
+  return index === 0 ? 1 : Math.min(pageCount, firstPartPages + index);
+}
 function selectPacketStep(packetMap: HTMLElement | null, page: number, pageCount: number) {
-  if (!packetMap) return;
-  const rows = Array.from(packetMap.querySelectorAll<HTMLElement>('li'));
+  const rows = packetRows(packetMap);
   if (!rows.length) return;
-  const letterPages = Math.max(1, pageCount - (rows.length - 1));
-  const active = page <= letterPages ? 0 : Math.min(rows.length - 1, page - letterPages);
+  const firstPartPages = Math.max(1, pageCount - Math.max(0, rows.length - 1));
+  const active = page <= firstPartPages ? 0 : Math.min(rows.length - 1, page - firstPartPages);
   rows.forEach((row, index) => {
     row.classList.toggle('scroll-current', index === active);
     row.setAttribute('aria-current', index === active ? 'page' : 'false');
@@ -25,6 +31,7 @@ export default function ContinuousPacketCanvas({ sourceUrl, packetMap }: Props) 
   useEffect(() => {
     let cancelled = false;
     let observer: IntersectionObserver | null = null;
+    const removers: Array<() => void> = [];
     const target = host.current;
     if (!target || !sourceUrl) return;
     target.innerHTML = '';
@@ -43,7 +50,7 @@ export default function ContinuousPacketCanvas({ sourceUrl, packetMap }: Props) 
         const pages: HTMLElement[] = [];
         for (let number = 1; number <= pdf.numPages; number += 1) {
           if (cancelled) return;
-          setStatus(`Rendering page ${number} of ${pdf.numPages}...`);
+          setStatus(`Rendering ordered page ${number} of ${pdf.numPages}...`);
           const page = await pdf.getPage(number);
           const viewport = page.getViewport({ scale: 1.25 });
           const sheet = document.createElement('article');
@@ -65,6 +72,16 @@ export default function ContinuousPacketCanvas({ sourceUrl, packetMap }: Props) 
         }
         if (cancelled) return;
         setStatus('');
+        const rows = packetRows(packetMap);
+        rows.forEach((row, index) => {
+          row.tabIndex = 0;
+          row.setAttribute('role', 'button');
+          const go = () => pages[startPageFor(index, pdf.numPages, rows.length) - 1]?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+          const key = (event: KeyboardEvent) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); go(); } };
+          row.addEventListener('click', go);
+          row.addEventListener('keydown', key);
+          removers.push(() => { row.removeEventListener('click', go); row.removeEventListener('keydown', key); row.removeAttribute('role'); row.removeAttribute('tabindex'); });
+        });
         selectPacketStep(packetMap, 1, pdf.numPages);
         observer = new IntersectionObserver((entries) => {
           const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
@@ -75,7 +92,7 @@ export default function ContinuousPacketCanvas({ sourceUrl, packetMap }: Props) 
         if (!cancelled) setStatus(error instanceof Error ? error.message : 'Packet pages could not be displayed.');
       }
     })();
-    return () => { cancelled = true; observer?.disconnect(); if (target) target.innerHTML = ''; };
+    return () => { cancelled = true; observer?.disconnect(); removers.forEach((remove) => remove()); if (target) target.innerHTML = ''; };
   }, [sourceUrl, packetMap]);
 
   return <div className="continuous-packet-shell">{status && <div className="continuous-packet-status"><span>{status}</span>{progress.total > 0 && <progress max={progress.total} value={progress.current} />}</div>}<div ref={host} className="continuous-packet-pages" aria-label="Complete ordered packet pages" /></div>;
