@@ -1,0 +1,388 @@
+/* Packet Editor precision: protect native DOCX page geometry and isolate all editor overflow. */
+.premium-document-editor {
+  max-width: 1760px;
+  margin: 0 auto;
+}
+.premium-document-editor .simple-editor-header {
+  min-height: 88px !important;
+  padding: 16px 22px !important;
+}
+.premium-document-editor .simple-editor-header h2 {
+  margin: 4px 0 9px !important;
+  font-size: 22px !important;
+}
+.premium-document-editor .editor-context-tags span {
+  min-height: 25px !important;
+  padding: 0 10px !important;
+}
+.premium-document-editor .ordered-packet-body {
+  min-height: 0;
+  overflow: hidden;
+  grid-template-columns: 258px minmax(0, 1fr) !important;
+}
+.premium-document-editor .editor-packet-map {
+  padding: 19px 12px !important;
+  overflow-x: hidden;
+}
+.premium-document-editor .document-rail li button {
+  padding: 9px !important;
+  grid-template-columns: 39px minmax(0,1fr) !important;
+  overflow: hidden;
+}
+.premium-document-editor .document-rail li strong,
+.premium-document-editor .document-rail li small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.premium-document-editor .ordered-packet-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 15px 16px 38px !important;
+  gap: 15px !important;
+}
+.premium-document-editor .packet-stack-section {
+  min-width: 0;
+  overflow: hidden !important;
+}
+.premium-document-editor .packet-stack-header {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  min-width: 0;
+  padding: 11px 14px !important;
+}
+.premium-document-editor .packet-stack-header div {
+  min-width: 0;
+}
+.premium-document-editor .packet-stack-header h3,
+.premium-document-editor .packet-stack-header p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* DOCX pages use their native computed width/margins from docx-preview. Do not fit or stretch pages. */
+.premium-document-editor .packet-inline-docx-host {
+  display: block !important;
+  min-width: 0;
+  padding: 20px 18px 28px !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  background: #e9edf2 !important;
+  scrollbar-gutter: stable;
+}
+.premium-document-editor .packet-inline-docx-host .docx-wrapper,
+.premium-document-editor .packet-inline-docx-host .packet-inline-docx-wrapper {
+  display: block !important;
+  width: max-content !important;
+  min-width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+}
+.premium-document-editor .packet-inline-docx-host .docx,
+.premium-document-editor .packet-inline-docx-host .packet-inline-docx {
+  display: block !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  margin: 0 auto 20px !important;
+  flex: none !important;
+  transform: none !important;
+  box-shadow: 0 8px 25px rgba(15,23,37,.14) !important;
+}
+.premium-document-editor .packet-static-file-view,
+.premium-document-editor .packet-static-docx-host,
+.premium-document-editor .packet-supporting-inline {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+/* Evidence editor: selected photo, clean page preview, and constrained controls. */
+.professional-evidence-editor {
+  padding: 18px;
+  display: grid !important;
+  gap: 15px;
+  border: 1px solid var(--ui-gray-200) !important;
+  border-radius: 21px !important;
+  background: var(--ui-white) !important;
+}
+.professional-evidence-editor .support-layout-header {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.professional-evidence-editor .support-layout-header h3 {
+  margin: 5px 0 6px;
+  color: var(--ui-black);
+  font-size: 20px;
+  letter-spacing: -.045em;
+}
+.professional-evidence-editor .support-layout-header span {
+  color: var(--ui-muted);
+  font-size: 11px;
+}
+.professional-evidence-editor .support-layout-header button {
+  flex: none;
+  min-height: 39px;
+  padding: 0 13px;
+  border: 1px solid var(--ui-gray-300);
+  border-radius: 11px;
+  color: var(--ui-charcoal);
+  background: var(--ui-white);
+  font-size: 11px;
+  font-weight: 700;
+}
+.professional-evidence-editor .support-layout-header button:hover {
+  border-color: var(--ui-black);
+  background: var(--ui-gray-100);
+}
+.support-image-strip {
+  padding: 8px;
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 15px;
+  background: var(--ui-gray-50);
+}
+.support-image-strip button {
+  flex: 0 0 166px;
+  min-height: 54px;
+  padding: 6px;
+  display: grid;
+  grid-template-columns: 41px 25px minmax(0,1fr);
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  color: var(--ui-muted);
+  background: transparent;
+  text-align: left;
+}
+.support-image-strip button:hover,
+.support-image-strip button.selected {
+  border-color: var(--ui-gray-300);
+  background: var(--ui-white);
+}
+.support-image-strip button.selected {
+  color: var(--ui-black);
+  box-shadow: 0 4px 14px rgba(15,23,37,.045);
+}
+.support-image-strip button > span {
+  width: 41px;
+  height: 41px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--ui-gray-100);
+}
+.support-image-strip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.support-image-strip strong {
+  color: var(--ui-charcoal);
+  font-size: 10px;
+}
+.support-image-strip small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
+.professional-evidence-editor .support-layout-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(370px, 1fr) 314px;
+  gap: 14px;
+  align-items: start;
+}
+.professional-evidence-editor .support-page-frame {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 17px;
+  background: var(--ui-gray-100);
+}
+.support-canvas-caption {
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.support-canvas-caption strong {
+  color: var(--ui-charcoal);
+  font-size: 11px;
+}
+.support-canvas-caption span {
+  color: var(--ui-muted);
+  font-size: 10px;
+}
+.professional-evidence-editor .support-page-canvas {
+  position: relative;
+  width: min(100%, 560px);
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--ui-gray-300);
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(15,23,37,.09);
+}
+.professional-evidence-editor .support-canvas-item {
+  position: absolute;
+  overflow: hidden;
+  border: 1px solid transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.professional-evidence-editor .support-canvas-item:active { cursor: grabbing; }
+.professional-evidence-editor .support-canvas-item.selected {
+  border: 2px solid var(--ui-black);
+  box-shadow: 0 0 0 3px rgba(15,23,37,.10);
+}
+.professional-evidence-editor .support-canvas-item img {
+  position: absolute;
+  max-width: none;
+  object-fit: fill;
+  user-select: none;
+}
+.professional-evidence-editor .support-canvas-item > span {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 23px;
+  height: 23px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: #fff;
+  background: rgba(15,23,37,.78);
+  font-size: 10px;
+  font-weight: 750;
+}
+.professional-evidence-editor .support-layout-controls {
+  padding: 13px;
+  display: grid;
+  gap: 13px;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 16px;
+  background: var(--ui-white);
+}
+.support-layout-controls > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.support-layout-controls > header strong {
+  display: block;
+  max-width: 188px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-black);
+  font-size: 12px;
+}
+.support-layout-controls > header > span {
+  padding: 6px 8px;
+  border-radius: 999px;
+  color: var(--ui-charcoal);
+  background: var(--ui-gray-100);
+  font-size: 10px;
+  font-weight: 700;
+}
+.support-quick-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 6px;
+}
+.support-quick-tools button,
+.support-zoom-tools button,
+.support-nudge button {
+  min-height: 36px;
+  border: 1px solid var(--ui-gray-300);
+  border-radius: 10px;
+  color: var(--ui-charcoal);
+  background: var(--ui-white);
+  font-size: 11px;
+  font-weight: 680;
+}
+.support-quick-tools button:hover,
+.support-zoom-tools button:hover,
+.support-nudge button:hover {
+  background: var(--ui-gray-100);
+  border-color: var(--ui-black);
+}
+.support-control-group {
+  padding-top: 12px;
+  display: grid;
+  gap: 9px;
+  border-top: 1px solid var(--ui-gray-200);
+}
+.support-control-group h4 {
+  margin: 0;
+  color: var(--ui-charcoal);
+  font-size: 11px;
+}
+.support-zoom-tools {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: center;
+  gap: 6px;
+}
+.support-zoom-tools span {
+  color: var(--ui-muted);
+  text-align: center;
+  font-size: 10px;
+}
+.support-nudge {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 6px;
+}
+.support-control-group.sliders label {
+  display: grid;
+  grid-template-columns: 47px 1fr 37px;
+  align-items: center;
+  gap: 7px;
+  color: var(--ui-muted);
+  font-size: 10px;
+}
+.support-control-group.sliders input {
+  width: 100%;
+}
+.support-control-group.sliders output {
+  text-align: right;
+  color: var(--ui-charcoal);
+  font-size: 10px;
+}
+.support-precision-controls {
+  padding-top: 11px;
+  border-top: 1px solid var(--ui-gray-200);
+}
+.support-precision-controls summary {
+  cursor: pointer;
+  color: var(--ui-charcoal);
+  font-size: 11px;
+  font-weight: 700;
+}
+.support-precision-controls[open] summary {
+  margin-bottom: 10px;
+}
+@media (max-width: 1100px) {
+  .professional-evidence-editor .support-layout-grid { grid-template-columns: 1fr; }
+  .professional-evidence-editor .support-layout-controls { max-width: 520px; }
+}
+@media (max-width: 760px) {
+  .premium-document-editor .ordered-packet-body { grid-template-columns: 1fr !important; }
+  .premium-document-editor .packet-inline-docx-host { padding: 10px 5px 16px !important; }
+  .professional-evidence-editor { padding: 10px; }
+  .professional-evidence-editor .support-layout-header { display: grid; }
+  .professional-evidence-editor .support-layout-grid { grid-template-columns: 1fr; }
+}
