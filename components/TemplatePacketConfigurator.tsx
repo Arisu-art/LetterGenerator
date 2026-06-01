@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import ProgressiveDisclosure from './ProgressiveDisclosure';
 import {
   exhibitAccept,
@@ -30,27 +30,37 @@ type Props = {
 function Badge({ ready, children }: { ready: boolean; children: ReactNode }) {
   return <span className={`packet-status ${ready ? 'ready' : ''}`}>{children}</span>;
 }
-function Arrow() { return <span className="packet-arrow" aria-hidden="true">↓</span>; }
 function kindDescription(kind: ExhibitKind) {
   return exhibitModes[kind] === 'GENERATED_DOCX'
-    ? 'Editable DOCX template · Filled from the TXT source during generation'
-    : 'Static PDF · Merged unchanged into the filing-order packet';
+    ? 'Editable DOCX · source-populated during generation'
+    : 'Static PDF · merged unchanged in filing order';
+}
+function kindLabel(kind: ExhibitKind) {
+  return exhibitModes[kind] === 'GENERATED_DOCX' ? 'Editable DOCX' : 'Static PDF';
+}
+function completionTone(ready: number, total: number) {
+  return ready === total ? 'complete' : ready > 0 ? 'progress' : 'empty';
 }
 
 export default function TemplatePacketConfigurator({ round, slots, supportingReady, onUploadLetter, onRemoveLetter, onExhibitsChange, onMessage }: Props) {
-  const [open, setOpen] = useState<LetterType | null>(null);
+  const [open, setOpen] = useState<LetterType | null>('DISPUTE');
   const [activeNode, setActiveNode] = useState<NodeId>(null);
   const [showGuidance, setShowGuidance] = useState(false);
   const [exhibits, setExhibits] = useState<TemplateExhibits>({ FCRA: null, AFFIDAVIT: null, ATTACHMENT: null, FTC: null });
   const dispute = slots.find((slot) => slot.type === 'DISPUTE')!;
   const late = slots.find((slot) => slot.type === 'LATE_PAYMENT')!;
+  const disputeConfigured = useMemo(() => [Boolean(dispute.file), supportingReady, ...exhibitKinds.map((kind) => Boolean(exhibits[kind]))].filter(Boolean).length, [dispute.file, supportingReady, exhibits]);
+  const reusableFiles = useMemo(() => [Boolean(dispute.file), Boolean(late.file), ...exhibitKinds.map((kind) => Boolean(exhibits[kind]))].filter(Boolean).length, [dispute.file, late.file, exhibits]);
+  const requiredReady = Boolean(dispute.file);
+
   useEffect(() => {
     const saved = loadTemplateExhibits(round);
     setExhibits(saved);
     onExhibitsChange(saved);
-    setOpen(null);
+    setOpen('DISPUTE');
     setActiveNode(null);
   }, [round]);
+
   async function uploadExhibit(kind: ExhibitKind, file: File) {
     try {
       const next = await saveTemplateExhibit(round, kind, file);
@@ -68,40 +78,76 @@ export default function TemplatePacketConfigurator({ round, slots, supportingRea
     onExhibitsChange(next);
     onMessage(`${exhibitTitles[kind]} removed from ${round}.`);
   }
-  function LetterActions({ slot, node }: { slot: Slot; node: NodeId }) {
-    const active = activeNode === node;
-    return <div className={`contextual-actions ${active ? 'visible' : ''}`}><button className="reveal-action" type="button" aria-expanded={active} onClick={() => setActiveNode(active ? null : node)}>{active ? 'Close' : slot.file ? 'Replace' : 'Configure'}</button><div className="contextual-action-region" aria-hidden={!active}><div><label><span>Upload DOCX</span><input type="file" accept=".docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onUploadLetter(slot, file).then(() => setActiveNode(null)); event.target.value = ''; }} /></label>{slot.file && <button className="remove-node" onClick={() => void onRemoveLetter(slot)}>Remove</button>}</div></div></div>;
-  }
-  function ExhibitActions({ kind }: { kind: ExhibitKind }) {
-    const active = activeNode === kind;
-    const format = exhibitModes[kind] === 'GENERATED_DOCX' ? 'DOCX' : 'PDF';
-    return <div className={`contextual-actions ${active ? 'visible' : ''}`}><button className="reveal-action" type="button" aria-expanded={active} onClick={() => setActiveNode(active ? null : kind)}>{active ? 'Close' : exhibits[kind] ? 'Replace' : 'Configure'}</button><div className="contextual-action-region" aria-hidden={!active}><div><label><span>Upload {format}</span><input type="file" accept={exhibitAccept[kind]} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadExhibit(kind, file); event.target.value = ''; }} /></label>{exhibits[kind] && <button className="remove-node" onClick={() => void removeExhibit(kind)}>Remove</button>}</div></div></div>;
+  function configurePrimary() {
+    setOpen('DISPUTE');
+    setActiveNode(dispute.file ? null : 'DISPUTE_LETTER');
+    document.querySelector('.template-primary-workflow')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
   function setPacket(value: LetterType) {
     setOpen(open === value ? null : value);
     setActiveNode(null);
   }
-  return <section className="panel template-packet-config progressive-surface">
-    <header className="packet-config-heading"><div><p className="eyebrow">Template architecture</p><h2>Document packet order</h2><p>Open only the packet you need. Configure actions appear at the exact component being changed, keeping the workspace focused.</p></div><button type="button" className={`guidance-toggle ${showGuidance ? 'active' : ''}`} onClick={() => setShowGuidance((value) => !value)}>{showGuidance ? 'Hide guide' : 'How templates work'}</button></header>
-    <div className={`context-guide ${showGuidance ? 'open' : ''}`} aria-hidden={!showGuidance}><div><strong>Progressive configuration</strong><p>Choose a packet, then select Configure beside one component. Unconfigured inserts remain blank pages in the correct packet order until uploaded later. Supporting Documents are supplied with Source Data.</p></div></div>
-    <ProgressiveDisclosure open={open === 'DISPUTE'} onToggle={() => setPacket('DISPUTE')} title={dispute.name} summary="Letter → Supporting → FCRA → Affidavit → Attachment → FTC" badge={<Badge ready={Boolean(dispute.file)}>{dispute.file ? 'Configured' : 'Needed'}</Badge>} className="packet-disclosure">
-      <div className="packet-nodes">
-        <div className="packet-node primary"><b>01</b><div><strong>Dispute Letter</strong><small>{dispute.file || 'Editable DOCX reference required'}</small></div><Badge ready={Boolean(dispute.file)}>{dispute.file ? 'DOCX saved' : 'Required'}</Badge><LetterActions slot={dispute} node="DISPUTE_LETTER" /></div>
-        <Arrow />
-        <div className="packet-node linked"><b>02</b><div><strong>Supporting Documents</strong><small>Client evidence page · uploaded in Source Data only when needed</small></div><Badge ready={supportingReady}>{supportingReady ? 'Available' : 'Later'}</Badge></div>
-        {exhibitKinds.map((kind, index) => <div className="exhibit-flow" key={kind}><Arrow /><div className={`packet-node exhibit ${exhibitModes[kind] === 'GENERATED_DOCX' ? 'editable-node' : 'static-node'}`}><b>{String(index + 3).padStart(2, '0')}</b><div><strong>{exhibitTitles[kind]}</strong><small>{exhibits[kind]?.name || kindDescription(kind)}</small></div><Badge ready={Boolean(exhibits[kind])}>{exhibits[kind] ? exhibitModes[kind] === 'GENERATED_DOCX' ? 'DOCX saved' : 'PDF saved' : 'Blank until set'}</Badge><ExhibitActions kind={kind} /></div></div>)}
+  function LetterActions({ slot, node }: { slot: Slot; node: NodeId }) {
+    const active = activeNode === node;
+    return <div className={`contextual-actions studio-actions ${active ? 'visible' : ''}`}><button className="reveal-action" type="button" aria-expanded={active} onClick={() => setActiveNode(active ? null : node)}>{active ? 'Close' : slot.file ? 'Replace file' : 'Upload template'}</button><div className="contextual-action-region" aria-hidden={!active}><div><label><span>Select DOCX</span><input type="file" accept=".docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onUploadLetter(slot, file).then(() => setActiveNode(null)); event.target.value = ''; }} /></label>{slot.file && <button className="remove-node" onClick={() => void onRemoveLetter(slot)}>Remove</button>}</div></div></div>;
+  }
+  function ExhibitActions({ kind }: { kind: ExhibitKind }) {
+    const active = activeNode === kind;
+    const format = exhibitModes[kind] === 'GENERATED_DOCX' ? 'DOCX' : 'PDF';
+    return <div className={`contextual-actions studio-actions ${active ? 'visible' : ''}`}><button className="reveal-action" type="button" aria-expanded={active} onClick={() => setActiveNode(active ? null : kind)}>{active ? 'Close' : exhibits[kind] ? 'Replace file' : 'Upload file'}</button><div className="contextual-action-region" aria-hidden={!active}><div><label><span>Select {format}</span><input type="file" accept={exhibitAccept[kind]} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadExhibit(kind, file); event.target.value = ''; }} /></label>{exhibits[kind] && <button className="remove-node" onClick={() => void removeExhibit(kind)}>Remove</button>}</div></div></div>;
+  }
+  function ComponentCard({ number, title, meta, ready, status, format, children, className = '' }: { number: string; title: string; meta: string; ready: boolean; status: string; format: string; children?: ReactNode; className?: string }) {
+    return <article className={`studio-component-card ${ready ? 'is-ready' : ''} ${className}`}><span className="studio-sequence">{number}</span><div className="studio-component-copy"><div className="studio-component-title"><h4>{title}</h4><span className="studio-format">{format}</span></div><p>{meta}</p></div><Badge ready={ready}>{status}</Badge>{children}</article>;
+  }
+
+  return <section className="template-studio progressive-surface" aria-label="Template Studio">
+    <section className="template-studio-hero">
+      <div className="template-hero-copy">
+        <p className="eyebrow">Template Studio · {round}</p>
+        <h2>Build filing-ready packet templates once. Generate with confidence.</h2>
+        <p className="template-hero-summary">Configure reusable DOCX letters and ordered exhibits for every bureau packet. Your filing sequence is protected even when optional documents are added later.</p>
+        <div className="template-hero-actions"><button type="button" className="template-primary-cta" onClick={configurePrimary}>{requiredReady ? 'Review Dispute Packet' : 'Configure Required Letter'}</button><button type="button" className="template-secondary-cta" onClick={() => setShowGuidance((value) => !value)}>{showGuidance ? 'Hide Guide' : 'View Setup Guide'}</button></div>
       </div>
-    </ProgressiveDisclosure>
-    <ProgressiveDisclosure open={open === 'LATE_PAYMENT'} onToggle={() => setPacket('LATE_PAYMENT')} title={late.name} summary="Letter → Supporting Documents" badge={<Badge ready={Boolean(late.file)}>{late.file ? 'Configured' : 'Optional'}</Badge>} className="packet-disclosure">
-      <div className="packet-nodes compact">
-        <div className="packet-node primary"><b>01</b><div><strong>Late Payment Letter</strong><small>{late.file || 'Only required when late-payment data exists'}</small></div><Badge ready={Boolean(late.file)}>{late.file ? 'DOCX saved' : 'Optional'}</Badge><LetterActions slot={late} node="LATE_LETTER" /></div>
-        <Arrow />
-        <div className="packet-node linked"><b>02</b><div><strong>Supporting Documents</strong><small>Same client evidence page from Source Data</small></div><Badge ready={supportingReady}>{supportingReady ? 'Available' : 'Later'}</Badge></div>
-        <p className="packet-only-note">This packet appears only when the TXT source contains late-payment items. Dispute-only inserts stay hidden from this flow.</p>
+      <div className="template-order-model" aria-label="Dispute packet standard order">
+        <header><span>Standard filing model</span><strong>Dispute packet</strong></header>
+        <div className="template-order-flow">
+          {['Letter', 'Supporting', 'FCRA', 'Affidavit', 'Attachment', 'FTC'].map((label, index) => <div key={label} className={index === 0 ? 'required' : ''}><b>{String(index + 1).padStart(2, '0')}</b><small>{label}</small></div>)}
+        </div>
+        <p>Editable DOCX documents and static PDFs remain locked to order.</p>
       </div>
-    </ProgressiveDisclosure>
-    <ProgressiveDisclosure open={showGuidance} onToggle={() => setShowGuidance((value) => !value)} title="Template behavior reference" summary="Details for editable and static components" className="rule-disclosure">
-      <div className="template-rule-grid"><article><strong>Editable templates</strong><p>Dispute Letter, Late Payment Letter, Affidavit and FTC are DOCX files populated from source and reviewed before final PDF generation.</p></article><article><strong>Static merge-only files</strong><p>FCRA and Attachment are PDFs placed into the final Dispute PDF exactly in sequence without editor changes.</p></article></div>
-    </ProgressiveDisclosure>
+    </section>
+
+    <div className={`template-setup-guide ${showGuidance ? 'open' : ''}`} aria-hidden={!showGuidance}><div><div><strong>1. Upload letter</strong><span>Start with the required Dispute Letter DOCX.</span></div><div><strong>2. Add exhibits</strong><span>Configure FCRA, Affidavit, Attachment and FTC as needed.</span></div><div><strong>3. Generate packets</strong><span>Supporting Documents are added per client in Source Data.</span></div></div></div>
+
+    <section className="template-readiness" aria-label="Template readiness">
+      <article className={`template-metric ${requiredReady ? 'ready' : 'required'}`}><span>Required template</span><strong>{requiredReady ? 'Ready' : 'Action needed'}</strong><small>Dispute Letter DOCX</small></article>
+      <article className={`template-metric ${completionTone(disputeConfigured, 6)}`}><span>Dispute packet coverage</span><strong>{disputeConfigured}<i>/6</i></strong><small>Positions prepared</small></article>
+      <article className={`template-metric ${reusableFiles ? 'ready' : ''}`}><span>Reusable files</span><strong>{reusableFiles}</strong><small>Stored for {round}</small></article>
+      <article className={`template-metric ${supportingReady ? 'ready' : ''}`}><span>Client evidence</span><strong>{supportingReady ? 'Available' : 'Added later'}</strong><small>Source Data · position 02</small></article>
+    </section>
+
+    <section className="template-workflow-grid">
+      <div className="template-primary-workflow">
+        <header className="template-section-heading"><div><p className="eyebrow">Primary workflow</p><h3>Dispute Packet Templates</h3><span>Configure all six filing-order positions for bureau disputes.</span></div><Badge ready={requiredReady}>{requiredReady ? `${disputeConfigured}/6 prepared` : 'Letter required'}</Badge></header>
+        <ProgressiveDisclosure open={open === 'DISPUTE'} onToggle={() => setPacket('DISPUTE')} title={dispute.name} summary="Standard order · Letter → Supporting → FCRA → Affidavit → Attachment → FTC" badge={<Badge ready={requiredReady}>{requiredReady ? 'Active' : 'Start here'}</Badge>} className="studio-packet-disclosure">
+          <div className="studio-component-grid">
+            <ComponentCard number="01" title="Dispute Letter" meta={dispute.file || 'Upload the DOCX letter template required to generate dispute packets.'} ready={Boolean(dispute.file)} status={dispute.file ? 'Ready' : 'Required'} format="Editable DOCX" className="primary-component"><LetterActions slot={dispute} node="DISPUTE_LETTER" /></ComponentCard>
+            <ComponentCard number="02" title="Supporting Documents" meta="Client-specific evidence is uploaded and arranged in Source Data." ready={supportingReady} status={supportingReady ? 'Available' : 'Per client'} format="Image layout" className="linked-component" />
+            {exhibitKinds.map((kind, index) => <ComponentCard key={kind} number={String(index + 3).padStart(2, '0')} title={exhibitTitles[kind]} meta={exhibits[kind]?.name || kindDescription(kind)} ready={Boolean(exhibits[kind])} status={exhibits[kind] ? 'Ready' : 'Optional'} format={kindLabel(kind)} className={exhibitModes[kind] === 'GENERATED_DOCX' ? 'editable-component' : 'static-component'}><ExhibitActions kind={kind} /></ComponentCard>)}
+          </div>
+        </ProgressiveDisclosure>
+      </div>
+
+      <aside className="template-secondary-workflow">
+        <header className="template-section-heading"><div><p className="eyebrow">Conditional workflow</p><h3>Late Payment Packet</h3><span>Used only when late-payment records are detected.</span></div></header>
+        <ProgressiveDisclosure open={open === 'LATE_PAYMENT'} onToggle={() => setPacket('LATE_PAYMENT')} title={late.name} summary="Letter → Supporting Documents" badge={<Badge ready={Boolean(late.file)}>{late.file ? 'Configured' : 'Optional'}</Badge>} className="studio-packet-disclosure secondary">
+          <div className="studio-component-grid compact">
+            <ComponentCard number="01" title="Late Payment Letter" meta={late.file || 'Configure only when your workflow handles late-payment disputes.'} ready={Boolean(late.file)} status={late.file ? 'Ready' : 'Optional'} format="Editable DOCX"><LetterActions slot={late} node="LATE_LETTER" /></ComponentCard>
+            <ComponentCard number="02" title="Supporting Documents" meta="Uses the same client evidence page uploaded in Source Data." ready={supportingReady} status={supportingReady ? 'Available' : 'Per client'} format="Image layout" />
+          </div>
+        </ProgressiveDisclosure>
+        <div className="template-rule-cards"><article><strong>Editable documents</strong><p>Letters, Affidavit and FTC are DOCX templates populated from source data.</p></article><article><strong>Static inserts</strong><p>FCRA and Attachment PDFs are merged unchanged into the final packet.</p></article></div>
+      </aside>
+    </section>
   </section>;
 }
