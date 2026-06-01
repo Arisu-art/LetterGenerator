@@ -13,6 +13,7 @@ import './attention-states.css';
 import './source-normalization.css';
 import './packet-ui.css';
 import './template-flow.css';
+import './templates-header-inline.css';
 import './template-classification.css';
 import './progressive-disclosure.css';
 
