@@ -17,11 +17,27 @@
   --accent-focus: var(--ui-gray-primary-ring) !important;
 }
 
-/* Operational screens already supply their functional title; remove duplicated generic banners. */
-.main-area > .header:has(+ .templates-packet-workspace),
-.main-area > .header:has(+ .guided-source-workspace),
-.main-area > .header:has(+ .guided-output-workspace) {
-  display: none !important;
+/* Keep one visible page header on every workspace; duplicate task copy is removed within panels/editors instead. */
+.main-area > .header {
+  display: flex !important;
+  min-height: 78px !important;
+  margin-bottom: 16px !important;
+  padding: 16px 22px !important;
+  align-items: center !important;
+  border: 1px solid var(--ui-gray-200) !important;
+  border-radius: 22px !important;
+  background: var(--ui-white) !important;
+  box-shadow: 0 1px 2px rgba(15,23,37,.035), 0 10px 26px rgba(15,23,37,.045) !important;
+}
+.main-area > .header .eyebrow {
+  margin-bottom: 5px !important;
+  color: var(--ui-gray-primary-hover) !important;
+}
+.main-area > .header h1 {
+  margin: 0 !important;
+  font-size: clamp(29px, 2.4vw, 36px) !important;
+  line-height: 1.05 !important;
+  letter-spacing: -.065em !important;
 }
 .main-area:has(> .templates-packet-workspace),
 .main-area:has(> .guided-source-workspace),
@@ -236,12 +252,13 @@ textarea:focus,
   }
 }
 @media (max-width: 880px) {
-  .main-area > .header:has(+ .templates-packet-workspace),
-  .main-area > .header:has(+ .guided-source-workspace),
-  .main-area > .header:has(+ .guided-output-workspace) {
-    display: block !important;
+  .main-area > .header {
     min-height: 0 !important;
     padding: 14px 16px !important;
     margin-bottom: 12px !important;
+    border-radius: 18px !important;
+  }
+  .main-area > .header h1 {
+    font-size: 29px !important;
   }
 }
