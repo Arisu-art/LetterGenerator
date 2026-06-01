@@ -1,0 +1,247 @@
+/* Final neutral workspace system.
+   Palette: white surfaces, medium-gray primary interaction, black text, green success, red required state.
+   Loaded last to remove legacy blue chrome without disturbing document rendering geometry. */
+:root {
+  --ui-gray-primary: #59636f;
+  --ui-gray-primary-hover: #454e59;
+  --ui-gray-primary-soft: #edf0f2;
+  --ui-gray-primary-line: #c8ced5;
+  --ui-gray-primary-ring: rgba(89, 99, 111, .16);
+  --primary: var(--ui-gray-primary) !important;
+  --primary-strong: var(--ui-gray-primary-hover) !important;
+  --primary-soft: var(--ui-gray-primary-soft) !important;
+  --accent: var(--ui-gray-primary) !important;
+  --accent-strong: var(--ui-gray-primary-hover) !important;
+  --accent-soft: var(--ui-gray-primary-soft) !important;
+  --accent-line: var(--ui-gray-primary-line) !important;
+  --accent-focus: var(--ui-gray-primary-ring) !important;
+}
+
+/* Operational screens already supply their functional title; remove duplicated generic banners. */
+.main-area > .header:has(+ .templates-packet-workspace),
+.main-area > .header:has(+ .guided-source-workspace),
+.main-area > .header:has(+ .guided-output-workspace) {
+  display: none !important;
+}
+.main-area:has(> .templates-packet-workspace),
+.main-area:has(> .guided-source-workspace),
+.main-area:has(> .guided-output-workspace) {
+  padding-top: 18px !important;
+}
+
+/* Gray is the primary action; black remains typography and deep emphasis only. */
+.action-button,
+.header-action,
+.template-primary-cta,
+.edit-document,
+.save-edits,
+.finalize-pdf-button,
+.package-download,
+.final-package-download,
+.generate-primary,
+.output-download-all,
+.consolidated-packet-editor .packet-document-toolbar button:not(:disabled) {
+  color: #fff !important;
+  background: var(--ui-gray-primary) !important;
+  border-color: var(--ui-gray-primary) !important;
+  box-shadow: 0 9px 19px rgba(69,78,89,.16) !important;
+  transition: background-color 180ms ease, border-color 180ms ease, box-shadow 260ms cubic-bezier(.22,1,.36,1), transform 260ms cubic-bezier(.22,1,.36,1) !important;
+}
+.action-button:hover,
+.header-action:hover,
+.template-primary-cta:hover,
+.edit-document:hover,
+.save-edits:hover,
+.finalize-pdf-button:hover,
+.package-download:hover,
+.final-package-download:hover,
+.generate-primary:hover,
+.output-download-all:hover,
+.consolidated-packet-editor .packet-document-toolbar button:not(:disabled):hover {
+  background: var(--ui-gray-primary-hover) !important;
+  border-color: var(--ui-gray-primary-hover) !important;
+  box-shadow: 0 13px 25px rgba(69,78,89,.22) !important;
+  transform: translateY(-1px);
+}
+.action-button:active,
+.edit-document:active,
+.output-download-all:active {
+  transform: translateY(0) !important;
+}
+.secondary-button:hover,
+.reveal-action:hover,
+.utility:hover {
+  border-color: var(--ui-gray-primary-line) !important;
+  background: var(--ui-gray-primary-soft) !important;
+}
+
+/* Neutralize all active/selected workflow indicators previously tinted blue. */
+.guided-source-step.active,
+.output-flow-step.active,
+.round-selector button.selected,
+.document.selected,
+.progressive-disclosure.is-open,
+.output-packet-grid .review-card:focus-within,
+.template-studio-operational .studio-component-card.primary-component {
+  color: var(--ui-black) !important;
+  background: var(--ui-gray-primary-soft) !important;
+  border-color: var(--ui-gray-primary-line) !important;
+}
+.guided-source-step.active b,
+.output-flow-step.active b,
+.round-selector button.selected .round-index,
+.primary-component .studio-sequence,
+.focused-packet-editor .document-rail li.current button b,
+.editor-active-document strong b {
+  color: #fff !important;
+  background: var(--ui-gray-primary) !important;
+  border-color: var(--ui-gray-primary) !important;
+}
+.guided-source-step.done,
+.output-flow-step.done {
+  color: var(--ui-green) !important;
+}
+
+/* Packet Editor: remove blue rail and number badges without reintroducing motion or overlap. */
+.focused-packet-editor .document-rail li button b {
+  color: var(--ui-gray-primary) !important;
+  background: var(--ui-gray-primary-soft) !important;
+  border-color: var(--ui-gray-primary-line) !important;
+}
+.focused-packet-editor .document-rail li.current button {
+  border-color: var(--ui-gray-primary-line) !important;
+  background: var(--ui-white) !important;
+  box-shadow: 0 9px 22px rgba(34,40,48,.06) !important;
+}
+.focused-packet-editor .document-rail li button:hover {
+  background: var(--ui-gray-primary-soft) !important;
+  border-color: var(--ui-gray-primary-line) !important;
+}
+.focused-packet-editor .packet-focus-section {
+  border-color: var(--ui-gray-200) !important;
+}
+.consolidated-packet-editor .packet-document-toolbar {
+  background: var(--ui-white) !important;
+}
+
+/* Neutralize source/evidence and template operational controls. */
+.guided-route-card span,
+.assembly-chip,
+.template-info-tag,
+.studio-format,
+.packet-stack-state.managed,
+.supporting-count,
+.output-count-pill,
+.editor-context-tags span {
+  color: var(--ui-charcoal) !important;
+  background: var(--ui-gray-primary-soft) !important;
+  border-color: var(--ui-gray-primary-line) !important;
+}
+.guided-route-card span:first-child,
+.packet-status.ready,
+.pill.success,
+.packet-stack-state.ready,
+.supporting-count.has-files {
+  color: var(--ui-green) !important;
+  background: var(--ui-green-soft) !important;
+  border-color: var(--ui-green-line) !important;
+}
+.support-image-strip button.selected,
+.support-image-strip button:hover,
+.professional-evidence-editor .support-canvas-item.selected {
+  border-color: var(--ui-gray-primary) !important;
+}
+.professional-evidence-editor .support-canvas-item.selected {
+  box-shadow: 0 0 0 3px var(--ui-gray-primary-ring) !important;
+}
+.support-quick-tools button:hover,
+.support-zoom-tools button:hover,
+.support-nudge button:hover {
+  border-color: var(--ui-gray-primary) !important;
+  background: var(--ui-gray-primary-soft) !important;
+}
+
+/* Inputs: gray focus ring instead of blue. */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-color: var(--ui-gray-primary-ring) !important;
+}
+input:focus,
+select:focus,
+textarea:focus,
+.file-input:focus,
+.code-area:focus,
+.source-area:focus,
+.guided-source-text:focus {
+  border-color: var(--ui-gray-primary) !important;
+  box-shadow: 0 0 0 4px var(--ui-gray-primary-ring) !important;
+}
+.file-input::file-selector-button {
+  color: var(--ui-charcoal) !important;
+  background: var(--ui-gray-primary-soft) !important;
+  border-color: var(--ui-gray-primary-line) !important;
+}
+.file-input:hover::file-selector-button {
+  color: var(--ui-black) !important;
+  border-color: var(--ui-gray-primary) !important;
+}
+
+/* Keep primary actions visible without page-level scrolling where the task has internal content. */
+.guided-source-workspace,
+.guided-output-workspace,
+.templates-packet-workspace {
+  max-width: 100% !important;
+}
+.guided-source-stage,
+.output-stage {
+  scroll-margin-top: 18px;
+}
+.source-stage .guided-stage-footer,
+.generation-stage .guided-stage-footer,
+.output-review-stage .output-stage-footer,
+.output-finalize-stage .output-stage-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  margin: 0 -2px -2px;
+  padding: 14px 2px 2px;
+  background: linear-gradient(180deg, rgba(255,255,255,0), var(--ui-white) 28%);
+}
+.guided-evidence-stage .guided-stage-command,
+.output-stage-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+/* Motion is purposeful: navigation and light cards only; never editor or pages. */
+.sidebar nav button,
+.guided-source-step,
+.output-flow-step,
+.round-selector button,
+.studio-component-card,
+.review-card {
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 260ms cubic-bezier(.22,1,.36,1), transform 260ms cubic-bezier(.22,1,.36,1) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar nav button,
+  .guided-source-step,
+  .output-flow-step,
+  .round-selector button,
+  .studio-component-card,
+  .review-card {
+    transition-duration: 1ms !important;
+  }
+}
+@media (max-width: 880px) {
+  .main-area > .header:has(+ .templates-packet-workspace),
+  .main-area > .header:has(+ .guided-source-workspace),
+  .main-area > .header:has(+ .guided-output-workspace) {
+    display: block !important;
+    min-height: 0 !important;
+    padding: 14px 16px !important;
+    margin-bottom: 12px !important;
+  }
+}
