@@ -1,0 +1,6 @@
+:global(.adaptive-center){position:fixed;right:24px;top:24px;width:340px;padding:18px;border-radius:24px;background:#0b1220;color:#f8fafc;z-index:80;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+:global(.adaptive-head){display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+:global(.adaptive-head small){display:block;color:#60a5fa;font-size:11px;font-weight:700}
+:global(.adaptive-prediction),:global(.adaptive-friction),:global(.adaptive-controls){padding:14px;margin-top:12px;border-radius:16px;background:#121d32}
+:global(.adaptive-primary){width:100%;padding:12px;border:0;border-radius:12px;background:#2563eb;color:white;font-weight:700}
+:global(.adaptive-queue button){display:block;width:100%;padding:10px;border:0;background:transparent;color:white;text-align:left}
