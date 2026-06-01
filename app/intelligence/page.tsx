@@ -1,12 +1,10 @@
 import styles from './intelligence.module.css';
-import LetterGeneratorWorkspace from '../../components/LetterGeneratorWorkspace';
-import PerformanceBeacon from '../../components/PerformanceBeacon';
+import IntelligentWorkspaceView from '../../components/IntelligentWorkspaceView';
 
 export default function IntelligentWorkspacePage() {
   return (
     <div className={styles.experience}>
-      <LetterGeneratorWorkspace />
-      <PerformanceBeacon />
+      <IntelligentWorkspaceView />
     </div>
   );
 }
