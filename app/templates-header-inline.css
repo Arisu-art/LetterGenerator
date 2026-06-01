@@ -1,4 +1,4 @@
-/* Templates-only page composition: round reference control belongs beside the page heading. */
+/* Templates-only composition: page title and round references share one clean header row. */
 @media (min-width: 1001px) {
   .main-area:has(.templates-packet-workspace) {
     display: grid;
@@ -10,15 +10,10 @@
   .main-area:has(.templates-packet-workspace) > .header {
     grid-column: 1;
     grid-row: 1;
-    min-height: 68px;
+    min-height: 64px;
     margin: 0;
     padding-bottom: 0;
     align-self: center;
-  }
-  .main-area:has(.templates-packet-workspace) > .workflow-rail {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    margin: 0;
   }
   .main-area:has(.templates-packet-workspace) > .templates-packet-workspace {
     display: contents;
@@ -26,24 +21,20 @@
   .main-area:has(.templates-packet-workspace) .template-round-control {
     grid-column: 2;
     grid-row: 1;
-    min-height: 68px;
+    min-height: 64px;
     margin: 0;
     align-self: center;
     box-shadow: none;
-    border-color: #e3eaf2;
   }
   .main-area:has(.templates-packet-workspace) .template-round-control:hover {
     transform: none;
     box-shadow: none;
-    border-color: #d5e1ee;
   }
   .main-area:has(.templates-packet-workspace) .template-studio {
     grid-column: 1 / -1;
-    grid-row: 3;
+    grid-row: 2;
   }
 }
 @media (max-width: 1000px) {
-  .template-round-control {
-    margin-top: 0;
-  }
+  .template-round-control { margin-top: 0; }
 }
