@@ -1,4 +1,5 @@
 import PizZip from 'pizzip';
+import { PDFDocument } from 'pdf-lib';
 import { DOCX_MIME } from './docx-renderer';
 import { loadPacketAssets, loadPacketFile } from './packet-assets';
 
@@ -20,7 +21,6 @@ const VERTICAL_MARGIN = 74;
 const GAP = 18;
 
 export type PacketPage = { name: string; image: Blob; type: 'SUPPORTING' };
-
 type ImageSize = { width: number; height: number };
 type VerticalSlot = { x: number; y: number; width: number; height: number };
 
@@ -44,12 +44,7 @@ function contain(image: ImageSize, slot: VerticalSlot) {
   const scale = Math.min(slot.width / image.width, slot.height / image.height);
   const width = Math.round(image.width * scale);
   const height = Math.round(image.height * scale);
-  return {
-    x: Math.round(slot.x + ((slot.width - width) / 2)),
-    y: Math.round(slot.y + ((slot.height - height) / 2)),
-    width,
-    height
-  };
+  return { x: Math.round(slot.x + ((slot.width - width) / 2)), y: Math.round(slot.y + ((slot.height - height) / 2)), width, height };
 }
 async function buildSingleSupportingPage(files: File[]) {
   const canvas = document.createElement('canvas');
@@ -78,6 +73,23 @@ export async function getSupportingPages(storageKey: string) {
   if (!files.length) return [];
   return [{ name: 'Supporting Documents', image: await buildSingleSupportingPage(files), type: 'SUPPORTING' as const }];
 }
+
+/** Creates the one-page PDF evidence insert used at order position 02 in final packets. */
+export async function createSupportingDocumentsPdf(storageKey: string) {
+  const pages = await getSupportingPages(storageKey);
+  if (!pages.length) return null;
+  const document = await PDFDocument.create();
+  const image = await document.embedPng(await pages[0].image.arrayBuffer());
+  const page = document.addPage([612, 792]);
+  const margin = 24;
+  const scale = Math.min((page.getWidth() - margin * 2) / image.width, (page.getHeight() - margin * 2) / image.height);
+  const width = image.width * scale;
+  const height = image.height * scale;
+  page.drawImage(image, { x: (page.getWidth() - width) / 2, y: (page.getHeight() - height) / 2, width, height });
+  const bytes = await document.save();
+  return new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
+}
+
 async function dimensions(blob: Blob) {
   const bitmap = await createImageBitmap(blob);
   const originalWidth = bitmap.width * PX_TO_EMU;
