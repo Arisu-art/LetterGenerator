@@ -13,6 +13,7 @@ type Props = {
   evidenceKey?: string; evidence?: PacketAssets;
   onEvidenceChanged?: (assets: PacketAssets) => void; onMessage?: (message: string) => void;
   onZip: () => void; onFinalZip?: () => void; onFinalize?: () => void | Promise<void>;
+  onPreviewPacket?: (output: ReviewOutput, pendingBlob: Blob) => Promise<FinalPdfPacket>;
   onPdfDownload?: (packet: FinalPdfPacket) => void; onReplace: (output: ReviewOutput, file: File) => void | Promise<void>;
 };
 function isLetter(output: ReviewOutput) { return !output.role || output.role === 'LETTER'; }
