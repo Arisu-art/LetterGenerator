@@ -38,9 +38,6 @@ function kindDescription(kind: ExhibitKind) {
 function kindLabel(kind: ExhibitKind) {
   return exhibitModes[kind] === 'GENERATED_DOCX' ? 'Editable DOCX' : 'Static PDF';
 }
-function completionTone(ready: number, total: number) {
-  return ready === total ? 'complete' : ready > 0 ? 'progress' : 'empty';
-}
 
 export default function TemplatePacketConfigurator({ round, slots, supportingReady, onUploadLetter, onRemoveLetter, onExhibitsChange, onMessage }: Props) {
   const [open, setOpen] = useState<LetterType | null>('DISPUTE');
@@ -50,7 +47,6 @@ export default function TemplatePacketConfigurator({ round, slots, supportingRea
   const dispute = slots.find((slot) => slot.type === 'DISPUTE')!;
   const late = slots.find((slot) => slot.type === 'LATE_PAYMENT')!;
   const disputeConfigured = useMemo(() => [Boolean(dispute.file), supportingReady, ...exhibitKinds.map((kind) => Boolean(exhibits[kind]))].filter(Boolean).length, [dispute.file, supportingReady, exhibits]);
-  const reusableFiles = useMemo(() => [Boolean(dispute.file), Boolean(late.file), ...exhibitKinds.map((kind) => Boolean(exhibits[kind]))].filter(Boolean).length, [dispute.file, late.file, exhibits]);
   const requiredReady = Boolean(dispute.file);
 
   useEffect(() => {
@@ -81,7 +77,6 @@ export default function TemplatePacketConfigurator({ round, slots, supportingRea
   function configurePrimary() {
     setOpen('DISPUTE');
     setActiveNode(dispute.file ? null : 'DISPUTE_LETTER');
-    document.querySelector('.template-primary-workflow')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
   function setPacket(value: LetterType) {
     setOpen(open === value ? null : value);
@@ -100,35 +95,14 @@ export default function TemplatePacketConfigurator({ round, slots, supportingRea
     return <article className={`studio-component-card ${ready ? 'is-ready' : ''} ${className}`}><span className="studio-sequence">{number}</span><div className="studio-component-copy"><div className="studio-component-title"><h4>{title}</h4><span className="studio-format">{format}</span></div><p>{meta}</p></div><Badge ready={ready}>{status}</Badge>{children}</article>;
   }
 
-  return <section className="template-studio progressive-surface" aria-label="Template Studio">
-    <section className="template-studio-hero">
-      <div className="template-hero-copy">
-        <p className="eyebrow">Template Studio · {round}</p>
-        <h2>Build filing-ready packet templates once. Generate with confidence.</h2>
-        <p className="template-hero-summary">Configure reusable DOCX letters and ordered exhibits for every bureau packet. Your filing sequence is protected even when optional documents are added later.</p>
-        <div className="template-hero-actions"><button type="button" className="template-primary-cta" onClick={configurePrimary}>{requiredReady ? 'Review Dispute Packet' : 'Configure Required Letter'}</button><button type="button" className="template-secondary-cta" onClick={() => setShowGuidance((value) => !value)}>{showGuidance ? 'Hide Guide' : 'View Setup Guide'}</button></div>
-      </div>
-      <div className="template-order-model" aria-label="Dispute packet standard order">
-        <header><span>Standard filing model</span><strong>Dispute packet</strong></header>
-        <div className="template-order-flow">
-          {['Letter', 'Supporting', 'FCRA', 'Affidavit', 'Attachment', 'FTC'].map((label, index) => <div key={label} className={index === 0 ? 'required' : ''}><b>{String(index + 1).padStart(2, '0')}</b><small>{label}</small></div>)}
-        </div>
-        <p>Editable DOCX documents and static PDFs remain locked to order.</p>
-      </div>
-    </section>
-
-    <div className={`template-setup-guide ${showGuidance ? 'open' : ''}`} aria-hidden={!showGuidance}><div><div><strong>1. Upload letter</strong><span>Start with the required Dispute Letter DOCX.</span></div><div><strong>2. Add exhibits</strong><span>Configure FCRA, Affidavit, Attachment and FTC as needed.</span></div><div><strong>3. Generate packets</strong><span>Supporting Documents are added per client in Source Data.</span></div></div></div>
-
-    <section className="template-readiness" aria-label="Template readiness">
-      <article className={`template-metric ${requiredReady ? 'ready' : 'required'}`}><span>Required template</span><strong>{requiredReady ? 'Ready' : 'Action needed'}</strong><small>Dispute Letter DOCX</small></article>
-      <article className={`template-metric ${completionTone(disputeConfigured, 6)}`}><span>Dispute packet coverage</span><strong>{disputeConfigured}<i>/6</i></strong><small>Positions prepared</small></article>
-      <article className={`template-metric ${reusableFiles ? 'ready' : ''}`}><span>Reusable files</span><strong>{reusableFiles}</strong><small>Stored for {round}</small></article>
-      <article className={`template-metric ${supportingReady ? 'ready' : ''}`}><span>Client evidence</span><strong>{supportingReady ? 'Available' : 'Added later'}</strong><small>Source Data · position 02</small></article>
-    </section>
-
+  return <section className="template-studio template-studio-operational progressive-surface" aria-label="Packet template configuration">
     <section className="template-workflow-grid">
       <div className="template-primary-workflow">
-        <header className="template-section-heading"><div><p className="eyebrow">Primary workflow</p><h3>Dispute Packet Templates</h3><span>Configure all six filing-order positions for bureau disputes.</span></div><Badge ready={requiredReady}>{requiredReady ? `${disputeConfigured}/6 prepared` : 'Letter required'}</Badge></header>
+        <header className="template-section-heading template-operational-heading">
+          <div><p className="eyebrow">Primary workflow · {round}</p><h3>Dispute Packet Templates</h3><span>Configure reusable packet components in the same order used for final output.</span></div>
+          <div className="template-heading-actions"><Badge ready={requiredReady}>{requiredReady ? `${disputeConfigured}/6 prepared` : 'Letter required'}</Badge><button type="button" className="template-primary-cta compact" onClick={configurePrimary}>{requiredReady ? 'Review packet' : 'Upload letter'}</button><button type="button" className="template-secondary-cta compact" onClick={() => setShowGuidance((value) => !value)}>{showGuidance ? 'Hide guide' : 'Guide'}</button></div>
+        </header>
+        <div className={`template-setup-guide operational ${showGuidance ? 'open' : ''}`} aria-hidden={!showGuidance}><div><div><strong>1. Letter</strong><span>Upload the required Dispute Letter DOCX.</span></div><div><strong>2. Inserts</strong><span>Add FCRA, Affidavit, Attachment and FTC templates.</span></div><div><strong>3. Evidence</strong><span>Supporting Documents are managed in Source Data.</span></div></div></div>
         <ProgressiveDisclosure open={open === 'DISPUTE'} onToggle={() => setPacket('DISPUTE')} title={dispute.name} summary="Standard order · Letter → Supporting → FCRA → Affidavit → Attachment → FTC" badge={<Badge ready={requiredReady}>{requiredReady ? 'Active' : 'Start here'}</Badge>} className="studio-packet-disclosure">
           <div className="studio-component-grid">
             <ComponentCard number="01" title="Dispute Letter" meta={dispute.file || 'Upload the DOCX letter template required to generate dispute packets.'} ready={Boolean(dispute.file)} status={dispute.file ? 'Ready' : 'Required'} format="Editable DOCX" className="primary-component"><LetterActions slot={dispute} node="DISPUTE_LETTER" /></ComponentCard>
