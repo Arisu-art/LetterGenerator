@@ -9,7 +9,7 @@ import type { Round } from '../lib/reference-store';
 
 type Props = {
   kind: 'SUPPORTING' | 'FCRA' | 'ATTACHMENT';
-  round: Round;
+  round: string;
   evidenceKey?: string;
   evidence?: PacketAssets;
   onEvidenceChanged?: (assets: PacketAssets) => void;
@@ -20,7 +20,7 @@ function EmptyInsert({ message }: { message: string }) {
   return <div className="packet-insert-status missing"><strong>None</strong><span>{message}</span></div>;
 }
 
-function StaticTemplateViewer({ kind, round }: { kind: ExhibitKind; round: Round }) {
+function StaticTemplateViewer({ kind, round }: { kind: ExhibitKind; round: string }) {
   const host = useRef<HTMLDivElement>(null);
   const [url, setUrl] = useState('');
   const [missing, setMissing] = useState(false);
@@ -32,7 +32,7 @@ function StaticTemplateViewer({ kind, round }: { kind: ExhibitKind; round: Round
     setUrl('');
     setMissing(false);
     setDocx(false);
-    void readTemplateExhibit(round, kind).then(async (file) => {
+    void readTemplateExhibit(round as Round, kind).then(async (file) => {
       if (!active) return;
       if (!file) { setMissing(true); return; }
       const isDocx = /\.docx$/i.test(file.name) || /wordprocessingml/i.test(file.type);
