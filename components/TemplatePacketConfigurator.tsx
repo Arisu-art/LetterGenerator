@@ -15,9 +15,9 @@ import {
 } from '../lib/template-exhibits';
 
 type Round = '1st Round' | '2nd Round' | '3rd Round' | 'Final';
-type LetterType = 'DISPUTE' | 'LATE_PAYMENT';
-type Slot = { id: string; round: Round; type: LetterType; name: string; file: string; size?: number };
+type Slot = { id: string; round: Round; type: 'DISPUTE' | 'LATE_PAYMENT'; name: string; file: string; size?: number };
 type NodeId = 'DISPUTE_LETTER' | 'LATE_LETTER' | ExhibitKind | null;
+type StatusTone = 'ready' | 'required' | 'neutral';
 type Props = {
   round: Round;
   slots: Slot[];
@@ -27,16 +27,14 @@ type Props = {
   onExhibitsChange: (value: TemplateExhibits) => void;
   onMessage: (message: string) => void;
 };
-function Badge({ ready, children }: { ready: boolean; children: ReactNode }) {
-  return <span className={`packet-status ${ready ? 'ready' : ''}`}>{children}</span>;
+function Badge({ tone = 'neutral', children }: { tone?: StatusTone; children: ReactNode }) {
+  return <span className={`packet-status ${tone}`}>{children}</span>;
 }
 function Tag({ children }: { children: ReactNode }) {
   return <span className="template-info-tag">{children}</span>;
 }
 function kindDescription(kind: ExhibitKind) {
-  return exhibitModes[kind] === 'GENERATED_DOCX'
-    ? 'Populated from client source data'
-    : 'Inserted unchanged in final packet';
+  return exhibitModes[kind] === 'GENERATED_DOCX' ? 'Populated from client source data' : 'Inserted unchanged in final packet';
 }
 function kindLabel(kind: ExhibitKind) {
   return exhibitModes[kind] === 'GENERATED_DOCX' ? 'Editable DOCX' : 'Static PDF';
@@ -83,8 +81,8 @@ export default function TemplatePacketConfigurator({ round, slots, supportingRea
     const format = exhibitModes[kind] === 'GENERATED_DOCX' ? 'DOCX' : 'PDF';
     return <div className={`contextual-actions studio-actions ${active ? 'visible' : ''}`}><button className="reveal-action" type="button" aria-expanded={active} onClick={() => setActiveNode(active ? null : kind)}>{active ? 'Close' : exhibits[kind] ? 'Replace' : 'Upload'}</button><div className="contextual-action-region" aria-hidden={!active}><div><label><span>Select {format}</span><input type="file" accept={exhibitAccept[kind]} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadExhibit(kind, file); event.target.value = ''; }} /></label>{exhibits[kind] && <button className="remove-node" onClick={() => void removeExhibit(kind)}>Remove</button>}</div></div></div>;
   }
-  function ComponentCard({ number, title, meta, ready, status, format, children, className = '' }: { number: string; title: string; meta: string; ready: boolean; status: string; format: string; children?: ReactNode; className?: string }) {
-    return <article className={`studio-component-card ${ready ? 'is-ready' : ''} ${className}`}><span className="studio-sequence">{number}</span><div className="studio-component-copy"><div className="studio-component-title"><h4>{title}</h4><span className="studio-format">{format}</span></div><p>{meta}</p></div><Badge ready={ready}>{status}</Badge>{children}</article>;
+  function ComponentCard({ number, title, meta, tone, status, format, children, className = '' }: { number: string; title: string; meta: string; tone?: StatusTone; status: string; format: string; children?: ReactNode; className?: string }) {
+    return <article className={`studio-component-card ${tone === 'ready' ? 'is-ready' : ''} ${className}`}><span className="studio-sequence">{number}</span><div className="studio-component-copy"><div className="studio-component-title"><h4>{title}</h4><span className="studio-format">{format}</span></div><p>{meta}</p></div><Badge tone={tone}>{status}</Badge>{children}</article>;
   }
 
   return <section className="template-studio template-studio-operational progressive-surface" aria-label="Packet template configuration">
@@ -95,18 +93,17 @@ export default function TemplatePacketConfigurator({ round, slots, supportingRea
           <div className="template-info-tags" aria-label="Packet attributes"><Tag>Reusable</Tag><Tag>Order locked</Tag></div>
         </header>
         <div className="studio-component-grid primary-visible-grid">
-          <ComponentCard number="01" title="Dispute Letter" meta={dispute.file || 'Upload the required dispute letter template.'} ready={Boolean(dispute.file)} status={dispute.file ? 'Ready' : 'Required'} format="Editable DOCX" className="primary-component"><LetterActions slot={dispute} node="DISPUTE_LETTER" /></ComponentCard>
-          <ComponentCard number="02" title="Supporting Documents" meta="Client evidence is arranged in Source Data." ready={supportingReady} status={supportingReady ? 'Available' : 'Per client'} format="Image layout" className="linked-component" />
-          {exhibitKinds.map((kind, index) => <ComponentCard key={kind} number={String(index + 3).padStart(2, '0')} title={exhibitTitles[kind]} meta={exhibits[kind]?.name || kindDescription(kind)} ready={Boolean(exhibits[kind])} status={exhibits[kind] ? 'Ready' : 'Optional'} format={kindLabel(kind)} className={exhibitModes[kind] === 'GENERATED_DOCX' ? 'editable-component' : 'static-component'}><ExhibitActions kind={kind} /></ComponentCard>)}
+          <ComponentCard number="01" title="Dispute Letter" meta={dispute.file || 'Upload the required dispute letter template.'} tone={dispute.file ? 'ready' : 'required'} status={dispute.file ? 'Ready' : 'Required'} format="Editable DOCX" className="primary-component"><LetterActions slot={dispute} node="DISPUTE_LETTER" /></ComponentCard>
+          <ComponentCard number="02" title="Supporting Documents" meta="Client evidence is arranged in Source Data." tone={supportingReady ? 'ready' : 'neutral'} status={supportingReady ? 'Available' : 'Per client'} format="Image layout" className="linked-component" />
+          {exhibitKinds.map((kind, index) => <ComponentCard key={kind} number={String(index + 3).padStart(2, '0')} title={exhibitTitles[kind]} meta={exhibits[kind]?.name || kindDescription(kind)} tone={exhibits[kind] ? 'ready' : 'neutral'} status={exhibits[kind] ? 'Ready' : 'Optional'} format={kindLabel(kind)} className={exhibitModes[kind] === 'GENERATED_DOCX' ? 'editable-component' : 'static-component'}><ExhibitActions kind={kind} /></ComponentCard>)}
         </div>
       </div>
-
       <aside className="template-secondary-workflow">
         <header className="template-section-heading"><div><p className="eyebrow">Optional</p><h3>Late Payment Packet</h3><span>Configure only for late-payment routes.</span></div></header>
-        <ProgressiveDisclosure open={lateOpen} onToggle={() => { setLateOpen((value) => !value); setActiveNode(null); }} title={late.name} summary="Letter → Supporting Documents" badge={<Badge ready={Boolean(late.file)}>{late.file ? 'Ready' : 'Optional'}</Badge>} className="studio-packet-disclosure secondary">
+        <ProgressiveDisclosure open={lateOpen} onToggle={() => { setLateOpen((value) => !value); setActiveNode(null); }} title={late.name} summary="Letter → Supporting Documents" badge={<Badge tone={late.file ? 'ready' : 'neutral'}>{late.file ? 'Ready' : 'Optional'}</Badge>} className="studio-packet-disclosure secondary">
           <div className="studio-component-grid compact">
-            <ComponentCard number="01" title="Late Payment Letter" meta={late.file || 'Upload only when required.'} ready={Boolean(late.file)} status={late.file ? 'Ready' : 'Optional'} format="Editable DOCX"><LetterActions slot={late} node="LATE_LETTER" /></ComponentCard>
-            <ComponentCard number="02" title="Supporting Documents" meta="Uses evidence from Source Data." ready={supportingReady} status={supportingReady ? 'Available' : 'Per client'} format="Image layout" />
+            <ComponentCard number="01" title="Late Payment Letter" meta={late.file || 'Upload only when required.'} tone={late.file ? 'ready' : 'neutral'} status={late.file ? 'Ready' : 'Optional'} format="Editable DOCX"><LetterActions slot={late} node="LATE_LETTER" /></ComponentCard>
+            <ComponentCard number="02" title="Supporting Documents" meta="Uses evidence from Source Data." tone={supportingReady ? 'ready' : 'neutral'} status={supportingReady ? 'Available' : 'Per client'} format="Image layout" />
           </div>
         </ProgressiveDisclosure>
       </aside>
