@@ -41,9 +41,13 @@
   padding: 15px 16px 38px !important;
   gap: 15px !important;
 }
+/* Each packet position contains asynchronously rendered pages or inserts; never clip its body. */
 .premium-document-editor .packet-stack-section {
+  display: block !important;
   min-width: 0;
-  overflow: hidden !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
 }
 .premium-document-editor .packet-stack-header {
   position: sticky;
@@ -65,7 +69,12 @@
 /* DOCX pages use their native computed width/margins from docx-preview. Do not fit or stretch pages. */
 .premium-document-editor .packet-inline-docx-host {
   display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
   min-width: 0;
+  min-height: 420px !important;
+  height: auto !important;
+  max-height: none !important;
   padding: 20px 18px 28px !important;
   overflow-x: auto !important;
   overflow-y: visible !important;
@@ -75,9 +84,13 @@
 .premium-document-editor .packet-inline-docx-host .docx-wrapper,
 .premium-document-editor .packet-inline-docx-host .packet-inline-docx-wrapper {
   display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
   width: max-content !important;
   min-width: 100% !important;
   max-width: none !important;
+  height: auto !important;
+  max-height: none !important;
   margin: 0 !important;
   padding: 0 !important;
   overflow: visible !important;
@@ -86,7 +99,11 @@
 .premium-document-editor .packet-inline-docx-host .docx,
 .premium-document-editor .packet-inline-docx-host .packet-inline-docx {
   display: block !important;
-  min-height: 0 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 792px !important;
+  height: auto !important;
+  max-height: none !important;
   max-width: none !important;
   margin: 0 auto 20px !important;
   flex: none !important;
@@ -96,8 +113,14 @@
 .premium-document-editor .packet-static-file-view,
 .premium-document-editor .packet-static-docx-host,
 .premium-document-editor .packet-supporting-inline {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
   min-width: 0;
+  height: auto !important;
+  max-height: none !important;
   overflow-x: auto;
+  overflow-y: visible !important;
 }
 
 /* Evidence editor: selected photo, clean page preview, and constrained controls. */
@@ -381,7 +404,9 @@
 }
 @media (max-width: 760px) {
   .premium-document-editor .ordered-packet-body { grid-template-columns: 1fr !important; }
-  .premium-document-editor .packet-inline-docx-host { padding: 10px 5px 16px !important; }
+  .premium-document-editor .packet-inline-docx-host { padding: 10px 5px 16px !important; min-height: 300px !important; }
+  .premium-document-editor .packet-inline-docx-host .docx,
+  .premium-document-editor .packet-inline-docx-host .packet-inline-docx { min-height: 560px !important; }
   .professional-evidence-editor { padding: 10px; }
   .professional-evidence-editor .support-layout-header { display: grid; }
   .professional-evidence-editor .support-layout-grid { grid-template-columns: 1fr; }
