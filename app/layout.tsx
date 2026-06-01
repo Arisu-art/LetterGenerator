@@ -18,6 +18,7 @@ import './template-classification.css';
 import './progressive-disclosure.css';
 import './template-premium.css';
 import './global-minimal-ui.css';
+import './workflow-premium.css';
 
 export const metadata = {
   title: 'LetterGenerator',
