@@ -12,6 +12,7 @@ type Props = {
   round: string;
   evidenceKey?: string;
   evidence?: PacketAssets;
+  toolbarTargetId?: string;
   onEvidenceChanged?: (assets: PacketAssets) => void;
   onMessage?: (message: string) => void;
 };
@@ -58,7 +59,7 @@ function StaticTemplateViewer({ kind, round }: { kind: ExhibitKind; round: strin
   return <div ref={host} className={docx ? 'packet-static-docx-host' : 'packet-insert-loading'}>{!docx && 'Loading configured insert…'}</div>;
 }
 
-export default function PacketInsertViewer({ kind, round, evidenceKey = '', evidence, onEvidenceChanged, onMessage }: Props) {
+export default function PacketInsertViewer({ kind, round, evidenceKey = '', evidence, toolbarTargetId, onEvidenceChanged, onMessage }: Props) {
   const [published, setPublished] = useState(() => getActivePacketEvidence());
   const [message, setMessage] = useState('');
 
@@ -73,6 +74,7 @@ export default function PacketInsertViewer({ kind, round, evidenceKey = '', evid
     <SupportingDocumentsLayoutEditor
       storageKey={key}
       assets={assets}
+      toolbarTargetId={toolbarTargetId}
       onChanged={(next) => { setActivePacketEvidence(key, next); onEvidenceChanged?.(next); }}
       onMessage={(next) => { setMessage(next); onMessage?.(next); }}
     />
