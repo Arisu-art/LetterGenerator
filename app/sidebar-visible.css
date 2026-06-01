@@ -1,145 +1,159 @@
-/* Highlighted operations navigation while preserving hover-to-expand behaviour. */
+/* Persistent professional navigation: visible labels, medium-gray emphasis, controlled movement. */
 :root {
-  --sidebar-panel: #f3f6fa;
+  --sidebar-panel: #f4f5f7;
   --sidebar-card: #ffffff;
-  --sidebar-divider: #dce5ef;
-  --sidebar-ink: #111827;
-  --sidebar-muted: #5f7189;
-  --sidebar-accent: #3b82d0;
-  --sidebar-accent-soft: #e8f2fc;
-  --sidebar-accent-border: #bad7f2;
+  --sidebar-divider: #d6dbe2;
+  --sidebar-ink: #161b23;
+  --sidebar-muted: #626b77;
+  --sidebar-accent: #59636f;
+  --sidebar-accent-strong: #414a55;
+  --sidebar-accent-soft: #eceff2;
+  --sidebar-accent-border: #c9ced5;
+  --sidebar-visible-width: 242px;
 }
 
-/* Width and workspace movement are intentionally not overridden here.
-   workspace-light.css remains responsible for collapsed default + hover expansion. */
+/* Desktop navigation remains visible so users never need to discover labels through hover. */
+@media (min-width: 881px) {
+  .app-shell,
+  .app-shell:has(.sidebar:hover) {
+    padding-left: var(--sidebar-visible-width) !important;
+  }
+  .sidebar,
+  .sidebar:hover,
+  .sidebar:focus-within:not(:hover) {
+    width: var(--sidebar-visible-width) !important;
+  }
+  .sidebar .brand > div,
+  .sidebar nav button strong,
+  .sidebar:focus-within:not(:hover) .brand > div,
+  .sidebar:focus-within:not(:hover) nav button strong {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
 .sidebar {
   color: var(--sidebar-ink);
-  background: linear-gradient(180deg, #f8fafc 0%, var(--sidebar-panel) 100%);
-  border-right: 1px solid var(--sidebar-divider);
-  box-shadow: 5px 0 18px rgba(15,23,42,.035);
+  padding: 18px 12px !important;
+  background: linear-gradient(180deg, #fbfbfc 0%, var(--sidebar-panel) 100%) !important;
+  border-right: 1px solid var(--sidebar-divider) !important;
+  box-shadow: 6px 0 22px rgba(16,24,40,.045) !important;
 }
 .sidebar:hover {
-  border-right-color: #cfdae7;
-  box-shadow: 15px 0 34px rgba(15,23,42,.075);
+  border-right-color: #c8ced6 !important;
+  box-shadow: 13px 0 29px rgba(16,24,40,.07) !important;
 }
 .sidebar .brand {
-  margin-bottom: 22px;
-  border-radius: 17px;
-  transition: background var(--duration) var(--ease), border-color var(--duration) ease, box-shadow var(--duration) ease;
-}
-.sidebar:hover .brand {
-  background: var(--sidebar-card);
+  min-height: 58px;
+  margin-bottom: 26px;
+  padding: 7px;
   border: 1px solid var(--sidebar-divider);
-  box-shadow: 0 1px 2px rgba(15,23,42,.025);
+  border-radius: 18px;
+  background: var(--sidebar-card);
+  box-shadow: 0 1px 2px rgba(16,24,40,.03);
+  transition: border-color 180ms ease, box-shadow 260ms cubic-bezier(.22,1,.36,1);
 }
 .sidebar .brand > span {
   width: 42px;
   height: 42px;
   border-radius: 13px;
-  background: linear-gradient(145deg, #4c98e2, #79b7ee);
-  box-shadow: 0 9px 20px rgba(59,130,208,.19);
+  background: linear-gradient(145deg, #4c5561, #747d88) !important;
+  box-shadow: 0 9px 20px rgba(34,40,48,.16) !important;
 }
 .sidebar .brand strong { color: var(--sidebar-ink); }
 .sidebar .brand small { color: var(--sidebar-muted); }
-
 .sidebar nav {
   position: relative;
   padding-top: 27px;
-  gap: 7px;
+  display: grid;
+  gap: 8px;
 }
 .sidebar nav::before {
-  content: "OPERATIONS";
+  content: "WORKSPACE";
   position: absolute;
   top: 3px;
   left: 12px;
-  color: #7d8ea5;
+  color: #727b87;
   font-size: 10px;
   line-height: 1;
   font-weight: 760;
-  letter-spacing: .12em;
-  opacity: 0;
-  transform: translateX(-7px);
-  transition: opacity var(--duration) var(--ease), transform var(--duration) var(--ease);
-}
-.sidebar:hover nav::before {
+  letter-spacing: .14em;
   opacity: 1;
-  transform: translateX(0);
 }
 .sidebar nav button {
-  height: 51px;
+  position: relative;
+  height: 54px;
   padding: 0 10px;
-  grid-template-columns: 35px minmax(0, 1fr);
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
   gap: 11px;
-  color: var(--sidebar-muted);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 14px;
+  align-items: center;
+  color: var(--sidebar-muted) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 15px;
+  transition: color 170ms ease, border-color 170ms ease, background 170ms ease, transform 250ms cubic-bezier(.22,1,.36,1), box-shadow 250ms cubic-bezier(.22,1,.36,1);
 }
 .sidebar nav button::before {
-  width: 35px;
-  height: 35px;
-  color: #657990;
-  background: #e9eef4;
-  border: 1px solid transparent;
+  width: 36px;
+  height: 36px;
+  color: #626b77 !important;
+  background: #e8ebef !important;
+  border: 1px solid transparent !important;
   border-radius: 11px;
+  transition: color 170ms ease, background 170ms ease, transform 250ms cubic-bezier(.22,1,.36,1);
 }
 .sidebar nav button strong {
   color: inherit;
   font-size: 13px;
-  font-weight: 640;
+  font-weight: 670;
 }
 .sidebar nav button:hover {
-  color: var(--sidebar-accent);
-  background: var(--sidebar-card);
-  border-color: var(--sidebar-divider);
-  transform: translateX(2px);
-  box-shadow: 0 7px 15px rgba(15,23,42,.045);
+  color: var(--sidebar-ink) !important;
+  background: var(--sidebar-card) !important;
+  border-color: var(--sidebar-divider) !important;
+  transform: translateX(3px);
+  box-shadow: 0 8px 18px rgba(16,24,40,.05);
 }
 .sidebar nav button:hover::before {
-  color: var(--sidebar-accent);
-  background: var(--sidebar-accent-soft);
-  border-color: var(--sidebar-accent-border);
+  color: var(--sidebar-accent-strong) !important;
+  background: var(--sidebar-accent-soft) !important;
+  border-color: var(--sidebar-accent-border) !important;
 }
-.sidebar nav button.active {
-  color: #2367ad;
-  background: var(--sidebar-card);
-  border-color: var(--sidebar-accent-border);
-  box-shadow: 0 6px 16px rgba(59,130,208,.075);
+.sidebar nav button.active,
+.sidebar:not(:hover) nav button.active {
+  color: var(--sidebar-ink) !important;
+  background: var(--sidebar-card) !important;
+  border-color: var(--sidebar-accent-border) !important;
+  box-shadow: 0 8px 20px rgba(16,24,40,.06) !important;
+  transform: translateX(3px);
 }
-.sidebar nav button.active::after {
+.sidebar nav button.active::after,
+.sidebar:not(:hover) nav button.active::after {
   content: "";
   position: absolute;
-  left: -11px;
+  left: -13px !important;
   top: 13px;
   width: 4px;
-  height: 25px;
+  height: 28px;
   border-radius: 0 5px 5px 0;
-  background: var(--sidebar-accent);
+  background: var(--sidebar-accent) !important;
 }
 .sidebar nav button.active::before {
-  color: #ffffff;
-  background: var(--sidebar-accent);
-  border-color: var(--sidebar-accent);
+  color: #ffffff !important;
+  background: var(--sidebar-accent) !important;
+  border-color: var(--sidebar-accent) !important;
 }
 .sidebar nav button:disabled {
-  opacity: .46;
-  background: transparent;
+  opacity: .42;
 }
-
-/* On the collapsed rail only the strengthened icons remain visible;
-   labels and navigation caption appear through the original hover interaction. */
-.sidebar:not(:hover) nav button.active {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-}
-.sidebar:not(:hover) nav button.active::after {
-  left: -10px;
-}
-
 @media (max-width: 880px) {
-  .sidebar { background: #f6f8fb; border-right-color: var(--line); }
+  .sidebar {
+    background: #f6f7f8 !important;
+    border-right-color: var(--sidebar-divider) !important;
+  }
   .sidebar nav::before { display: none; }
-  .sidebar nav button::before { color: var(--text-muted); background: #e9eef4; }
-  .sidebar nav button.active::before { color: #fff; background: var(--accent); }
+  .sidebar nav button.active::before {
+    color: #fff !important;
+    background: var(--sidebar-accent) !important;
+  }
 }
