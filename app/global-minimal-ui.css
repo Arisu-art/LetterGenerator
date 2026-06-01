@@ -1,125 +1,265 @@
-/* Global minimal interface system
-   Palette only: white, cloud, professional blue, deep ink. */
+/* Premium global interface system
+   Main palette: white, cool gray, charcoal/black. Semantic highlights: green success, red action required/error. */
 :root {
   --ui-white: #ffffff;
-  --ui-cloud: #f3f6fa;
-  --ui-blue: #2b73b9;
-  --ui-ink: #142237;
+  --ui-gray-25: #fcfcfd;
+  --ui-gray-50: #f7f8fa;
+  --ui-gray-100: #f1f3f6;
+  --ui-gray-200: #e2e7ee;
+  --ui-gray-300: #cdd5df;
+  --ui-black: #0f1725;
+  --ui-charcoal: #253143;
+  --ui-muted: #627184;
+  --ui-green: #167347;
+  --ui-green-soft: #eef8f2;
+  --ui-green-line: #cce8d7;
+  --ui-red: #b42318;
+  --ui-red-soft: #fff3f2;
+  --ui-red-line: #f1cbc7;
 
-  --bg: var(--ui-cloud) !important;
+  --bg: var(--ui-gray-50) !important;
   --surface: var(--ui-white) !important;
-  --surface-subtle: var(--ui-cloud) !important;
+  --surface-subtle: var(--ui-gray-50) !important;
   --surface-hover: var(--ui-white) !important;
-  --surface-active: #edf4fb !important;
-  --text: var(--ui-ink) !important;
-  --text-soft: var(--ui-ink) !important;
-  --text-muted: #5c7088 !important;
-  --line: #dce5ef !important;
-  --line-strong: #c7d6e5 !important;
-  --line-hover: #b8cde2 !important;
+  --surface-active: var(--ui-gray-100) !important;
+  --text: var(--ui-black) !important;
+  --text-soft: var(--ui-charcoal) !important;
+  --text-muted: var(--ui-muted) !important;
+  --line: var(--ui-gray-200) !important;
+  --line-strong: var(--ui-gray-300) !important;
+  --line-hover: #b8c3d0 !important;
   --nav: var(--ui-white) !important;
-  --primary: var(--ui-ink) !important;
-  --primary-strong: var(--ui-ink) !important;
-  --primary-soft: var(--ui-cloud) !important;
-  --accent: var(--ui-blue) !important;
-  --accent-strong: var(--ui-blue) !important;
-  --accent-soft: #edf5fd !important;
-  --accent-line: #c3dbf2 !important;
-  --success: var(--ui-blue) !important;
-  --success-soft: #edf5fd !important;
-  --warning: var(--ui-ink) !important;
-  --warning-soft: var(--ui-cloud) !important;
-  --danger: var(--ui-ink) !important;
-  --danger-soft: var(--ui-cloud) !important;
-  --shadow-card: 0 1px 2px rgba(20,34,55,.03), 0 10px 30px rgba(20,34,55,.04) !important;
-  --shadow-hover: 0 1px 3px rgba(20,34,55,.04), 0 14px 34px rgba(20,34,55,.065) !important;
+  --primary: var(--ui-black) !important;
+  --primary-strong: var(--ui-black) !important;
+  --primary-soft: var(--ui-gray-100) !important;
+  --accent: var(--ui-black) !important;
+  --accent-strong: var(--ui-black) !important;
+  --accent-soft: var(--ui-gray-100) !important;
+  --accent-line: var(--ui-gray-300) !important;
+  --accent-focus: rgba(15,23,37,.15) !important;
+  --success: var(--ui-green) !important;
+  --success-soft: var(--ui-green-soft) !important;
+  --warning: var(--ui-red) !important;
+  --warning-soft: var(--ui-red-soft) !important;
+  --danger: var(--ui-red) !important;
+  --danger-soft: var(--ui-red-soft) !important;
+  --shadow-card: 0 1px 2px rgba(15,23,37,.035), 0 11px 29px rgba(15,23,37,.045) !important;
+  --shadow-hover: 0 2px 5px rgba(15,23,37,.045), 0 19px 42px rgba(15,23,37,.075) !important;
 }
 
 html, body {
-  background: var(--ui-cloud) !important;
-  color: var(--ui-ink) !important;
+  color: var(--ui-black) !important;
+  background: var(--ui-gray-50) !important;
 }
 body {
-  background-image: linear-gradient(180deg, var(--ui-white) 0, var(--ui-cloud) 220px) !important;
+  background-image: linear-gradient(180deg, var(--ui-white) 0, var(--ui-gray-50) 245px) !important;
 }
 
-/* Redundant chrome is removed from the interface: sidebar remains the navigation model. */
+/* Redundant navigation chrome remains removed; sidebar is the single navigation model. */
 .workflow-rail,
-.activity-status {
-  display: none !important;
+.activity-status { display: none !important; }
+
+.main-area { padding-top: 22px !important; }
+.header {
+  min-height: 86px !important;
+  padding: 20px 23px !important;
+  border: 1px solid var(--ui-gray-200) !important;
+  border-radius: 25px !important;
+  background: var(--ui-white) !important;
+  box-shadow: 0 1px 2px rgba(15,23,37,.035), 0 15px 37px rgba(15,23,37,.052) !important;
+}
+.header h1,
+.header h2 { color: var(--ui-black) !important; letter-spacing: -.06em !important; }
+.eyebrow {
+  color: var(--ui-charcoal) !important;
+  font-weight: 760 !important;
+  letter-spacing: .15em !important;
 }
 
-.main-area {
-  padding-top: 22px !important;
+.sidebar {
+  background: var(--ui-white) !important;
+  border-right: 1px solid var(--ui-gray-200) !important;
 }
-.header {
-  border-bottom-color: transparent !important;
+.sidebar nav button.active,
+.sidebar nav button:hover {
+  color: var(--ui-black) !important;
+  border-color: var(--ui-gray-300) !important;
+  background: var(--ui-gray-100) !important;
 }
+.sidebar nav button.active::before,
+.sidebar nav button.active::after {
+  color: var(--ui-white) !important;
+  background: var(--ui-black) !important;
+}
+
 .panel,
 .template-primary-workflow,
 .template-secondary-workflow,
 .progressive-shell,
 .studio-component-card,
 .review-card,
-.final-packet-card {
+.final-packet-card,
+.packet-stack-section,
+.delivery-grid > div {
+  color: var(--ui-black) !important;
   background: var(--ui-white) !important;
-  border-color: var(--line) !important;
+  border-color: var(--ui-gray-200) !important;
+  box-shadow: var(--shadow-card) !important;
 }
 .panel:hover,
 .studio-component-card:hover,
-.review-card:hover {
+.review-card:hover,
+.final-packet-card:hover {
   background: var(--ui-white) !important;
-  border-color: var(--accent-line) !important;
+  border-color: var(--ui-gray-300) !important;
+  box-shadow: var(--shadow-hover) !important;
 }
-.eyebrow,
-.studio-sequence,
-.round-copy small,
-.review-order {
-  color: var(--ui-blue) !important;
-}
-.pill,
-.packet-status,
-.packet-status.ready,
-.supporting-count,
-.doc-type,
-.packet-stack-state,
-.packet-stack-state.ready,
-.packet-stack-state.managed,
-.packet-stack-state.none {
-  color: var(--ui-blue) !important;
-  background: var(--accent-soft) !important;
-  border-color: var(--accent-line) !important;
-}
+
+/* Principal actions are black, precise and immediately recognizable. */
 .action-button,
+.header-action,
 .template-primary-cta,
 .edit-document,
 .save-edits,
 .finalize-pdf-button,
 .package-download,
-.final-package-download {
+.final-package-download,
+.packet-stack-header button:not(:disabled) {
   color: var(--ui-white) !important;
-  background: var(--ui-blue) !important;
-  border-color: var(--ui-blue) !important;
+  background: var(--ui-black) !important;
+  border-color: var(--ui-black) !important;
+  box-shadow: 0 9px 19px rgba(15,23,37,.14) !important;
+}
+.action-button:hover,
+.header-action:hover,
+.template-primary-cta:hover,
+.edit-document:hover,
+.save-edits:hover,
+.finalize-pdf-button:hover,
+.package-download:hover,
+.final-package-download:hover {
+  background: #000000 !important;
+  border-color: #000000 !important;
+  box-shadow: 0 13px 27px rgba(15,23,37,.21) !important;
 }
 .secondary-button,
 .template-secondary-cta,
 .reveal-action,
-.utility {
-  color: var(--ui-blue) !important;
+.utility,
+.studio-actions .reveal-action {
+  color: var(--ui-black) !important;
   background: var(--ui-white) !important;
-  border-color: var(--accent-line) !important;
+  border-color: var(--ui-gray-300) !important;
 }
-input, select, textarea {
-  color: var(--ui-ink) !important;
-  background: var(--ui-white) !important;
-  border-color: var(--line) !important;
+.secondary-button:hover,
+.template-secondary-cta:hover,
+.reveal-action:hover,
+.utility:hover,
+.studio-actions .reveal-action:hover {
+  color: var(--ui-black) !important;
+  background: var(--ui-gray-100) !important;
+  border-color: #b7c1cd !important;
+}
+
+/* Ready/completed means green; missing/error/destructive means red. */
+.packet-status.ready,
+.pill.success,
+.supporting-count.has-files,
+.packet-stack-state.ready,
+.doc-type.ready,
+.saved-file .pill,
+.final-packet-card .doc-type {
+  color: var(--ui-green) !important;
+  background: var(--ui-green-soft) !important;
+  border-color: var(--ui-green-line) !important;
+}
+.packet-status:not(.ready),
+.pill,
+.supporting-count,
+.doc-type,
+.packet-stack-state.managed,
+.packet-stack-state.none {
+  color: var(--ui-charcoal) !important;
+  background: var(--ui-gray-100) !important;
+  border-color: var(--ui-gray-200) !important;
 }
 .alert,
 .failed-output,
-.source-review,
-.supporting-empty,
-.packet-insert-status.missing {
-  color: var(--ui-ink) !important;
-  background: var(--ui-cloud) !important;
-  border-color: var(--line) !important;
+.packet-insert-status.missing,
+.packet-stack-state.none,
+.pill.warning,
+.pill.danger {
+  color: var(--ui-red) !important;
+  background: var(--ui-red-soft) !important;
+  border-color: var(--ui-red-line) !important;
+}
+.remove-node,
+.support-actions button:last-child {
+  color: var(--ui-red) !important;
+  border-color: var(--ui-red-line) !important;
+  background: var(--ui-white) !important;
+}
+.remove-node:hover,
+.support-actions button:last-child:hover {
+  background: var(--ui-red-soft) !important;
+}
+
+/* Form controls and file rows remain highly visible. */
+input, select, textarea,
+.file-input, .code-area, .source-area {
+  color: var(--ui-black) !important;
+  background: var(--ui-white) !important;
+  border-color: var(--ui-gray-300) !important;
+}
+input:focus, select:focus, textarea:focus,
+.file-input:focus, .code-area:focus, .source-area:focus {
+  border-color: var(--ui-black) !important;
+  box-shadow: 0 0 0 4px rgba(15,23,37,.10) !important;
+}
+.document.selected,
+.round-selector button.selected,
+.studio-component-card.primary-component {
+  color: var(--ui-black) !important;
+  background: var(--ui-gray-50) !important;
+  border-color: var(--ui-gray-300) !important;
+}
+.round-selector button.selected .round-index,
+.primary-component .studio-sequence {
+  color: var(--ui-white) !important;
+  background: var(--ui-black) !important;
+}
+.round-copy small,
+.review-order { color: var(--ui-muted) !important; }
+
+/* Templates inherits the same high-contrast system; tags convey structure, not decoration. */
+.template-info-tag {
+  color: var(--ui-charcoal) !important;
+  background: var(--ui-gray-100) !important;
+  border-color: var(--ui-gray-200) !important;
+}
+.template-info-tag::before { background: var(--ui-black) !important; }
+.template-studio-operational .studio-component-card .packet-status.ready {
+  color: var(--ui-green) !important;
+  background: var(--ui-green-soft) !important;
+  border-color: var(--ui-green-line) !important;
+}
+.template-studio-operational .studio-component-card .packet-status:not(.ready) {
+  color: var(--ui-red) !important;
+  background: var(--ui-red-soft) !important;
+  border-color: var(--ui-red-line) !important;
+}
+.template-studio-operational .linked-component .packet-status:not(.ready) {
+  color: var(--ui-charcoal) !important;
+  background: var(--ui-gray-100) !important;
+  border-color: var(--ui-gray-200) !important;
+}
+.template-studio-operational .studio-format {
+  color: var(--ui-charcoal) !important;
+  background: var(--ui-gray-100) !important;
+  border-color: var(--ui-gray-200) !important;
+}
+
+@media (max-width: 700px) {
+  .main-area { padding-top: 12px !important; }
+  .header { min-height: 0 !important; padding: 16px !important; border-radius: 19px !important; }
 }
