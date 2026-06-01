@@ -1,16 +1,13 @@
-/* Shared-element motion system: animate task context, never distort document pages. */
+/* Shared motion system: animate lightweight workflow context only, never the document editor or rendered pages. */
 :root {
   --motion-fast: 180ms;
   --motion-stage: 360ms;
-  --motion-expand: 420ms;
   --motion-ease: cubic-bezier(.22, 1, .36, 1);
-  --motion-exit: cubic-bezier(.4, 0, 1, 1);
 }
 
-/* Smooth fallback behavior where View Transitions are not available. */
+/* Smooth local feedback for lightweight cards and tools. */
 .shared-stage-surface,
 .packet-card,
-.shared-editor-origin,
 .template-studio-operational .studio-component-card,
 .progressive-disclosure,
 .support-layout-controls,
@@ -30,26 +27,10 @@
 .template-studio-operational .studio-component-card:active {
   transform: translateY(0) scale(.992);
 }
-.simple-editor-backdrop {
-  animation: editor-backdrop-enter var(--motion-fast) ease both;
-}
-.premium-document-editor {
-  animation: editor-modal-enter var(--motion-stage) var(--motion-ease) both;
-}
-@keyframes editor-backdrop-enter {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes editor-modal-enter {
-  from { opacity: 0; transform: translateY(10px) scale(.992); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
 
-/* Native View Transition timing. Root snapshots do not animate during named transitions. */
+/* Native View Transition timing for staged Source Data and Outputs surfaces only. */
 html[data-transition-kind='stage']::view-transition-old(root),
-html[data-transition-kind='stage']::view-transition-new(root),
-html[data-transition-kind='packet']::view-transition-old(root),
-html[data-transition-kind='packet']::view-transition-new(root) {
+html[data-transition-kind='stage']::view-transition-new(root) {
   animation: none;
 }
 html[data-transition-kind='stage']::view-transition-group(source-work-stage),
@@ -65,14 +46,6 @@ html[data-transition-kind='stage']::view-transition-new(source-work-stage),
 html[data-transition-kind='stage']::view-transition-new(output-work-stage) {
   animation: shared-surface-in var(--motion-stage) var(--motion-ease) both;
 }
-html[data-transition-kind='packet']::view-transition-group(*) {
-  animation-duration: var(--motion-expand);
-  animation-timing-function: var(--motion-ease);
-}
-html[data-transition-kind='packet']::view-transition-old(*),
-html[data-transition-kind='packet']::view-transition-new(*) {
-  mix-blend-mode: normal;
-}
 @keyframes shared-surface-out {
   to { opacity: .12; transform: translateY(-4px) scale(.992); }
 }
@@ -81,7 +54,10 @@ html[data-transition-kind='packet']::view-transition-new(*) {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* Stable precision zones: never scale/animate rendered pages or evidence image contents. */
+/* Stable precision zones: never animate rendered document/editor content. */
+.simple-editor-backdrop,
+.premium-document-editor,
+.premium-document-editor *,
 .packet-inline-docx-host,
 .packet-inline-docx-host .docx,
 .packet-static-docx-host,
@@ -90,10 +66,10 @@ html[data-transition-kind='packet']::view-transition-new(*) {
 .support-page-canvas,
 .support-canvas-item img {
   view-transition-name: none !important;
-  animation: none;
+  animation: none !important;
 }
 
-/* Local progressive reveals stay controlled and intentional. */
+/* Local progressive reveals remain controlled and inexpensive. */
 .progressive-region,
 .contextual-action-region,
 .support-precision-controls > div {
