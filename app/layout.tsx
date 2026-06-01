@@ -16,6 +16,7 @@ import './template-flow.css';
 import './template-classification.css';
 import './packet-component-preview.css';
 import './continuous-packet-scroll.css';
+import './progressive-disclosure.css';
 
 export const metadata = {
   title: 'LetterGenerator',
