@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { readEditableParagraphs, saveEditedParagraphs, type EditableParagraph } from '../lib/simple-docx-editor';
 import { loadTemplateExhibits } from '../lib/template-exhibits';
 import type { PacketAssets } from '../lib/packet-assets';
@@ -8,7 +8,6 @@ import PacketInsertViewer from './PacketInsertViewer';
 import type { ReviewOutput } from './OutputReviewWorkspace';
 
 type Props = {
-  transitionName?: string;
   round: string;
   output: ReviewOutput;
   documents: ReviewOutput[];
@@ -70,7 +69,7 @@ function PacketInsertSection({ slot, round, evidenceKey, evidence, onEvidenceCha
   return <article className="packet-stack-section packet-stack-insert" data-slot={slot.id}><header className="packet-stack-header"><b>{String(slot.number).padStart(2, '0')}</b><div><h3>{slot.label}</h3><p>{slot.message}</p></div><span className={`packet-stack-state ${slot.id === 'SUPPORTING' ? 'managed' : slot.configured ? 'ready' : 'none'}`}>{state}</span></header>{viewable ? <PacketInsertViewer kind={slot.id as 'SUPPORTING' | 'FCRA' | 'ATTACHMENT'} round={round} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={onEvidenceChanged} onMessage={onMessage} /> : <div className="packet-insert-status missing"><strong>None</strong><span>No generated document for this packet position.</span></div>}</article>;
 }
 
-export default function SimpleDocxEditor({ transitionName, round, output, documents, evidenceKey, evidence, onEvidenceChanged, onMessage, onClose, onSave }: Props) {
+export default function SimpleDocxEditor({ round, output, documents, evidenceKey, evidence, onEvidenceChanged, onMessage, onClose, onSave }: Props) {
   const scroll = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<SlotId>('LETTER');
   const exhibits = useMemo(() => loadTemplateExhibits(round), [round]);
@@ -92,6 +91,5 @@ export default function SimpleDocxEditor({ transitionName, round, output, docume
     sections.forEach((section) => observer.observe(section)); return () => observer.disconnect();
   }, [documents.length, output.path]);
   function jump(id: SlotId) { scroll.current?.querySelector<HTMLElement>(`[data-slot="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-  const motionStyle = transitionName ? ({ viewTransitionName: transitionName } as CSSProperties) : undefined;
-  return <div className="simple-editor-backdrop"><section className="simple-editor-modal ordered-packet-modal premium-document-editor" role="dialog" aria-modal="true" aria-label={`${output.bureau} ordered packet editor`}><header className="simple-editor-header shared-editor-origin" style={motionStyle}><div><p className="eyebrow">Packet editor</p><h2>{output.bureau} {output.type === 'DISPUTE' ? 'Dispute Packet' : 'Late Payment Packet'}</h2><div className="editor-context-tags"><span>{round}</span><span>{slots.length} ordered positions</span><span>Inline DOCX editing</span></div></div><button className="close-editor" onClick={onClose} aria-label="Close editor">×</button></header><div className="ordered-packet-body"><aside className="editor-packet-map document-rail"><header><p className="eyebrow">Packet order</p><h3>Documents</h3></header><ol>{slots.map((slot) => <li className={active === slot.id ? 'current editable' : 'editable'} key={slot.id}><button type="button" onClick={() => jump(slot.id)}><b>{String(slot.number).padStart(2, '0')}</b><div><strong>{slot.label}</strong><small>{slot.document ? 'Editable DOCX' : slot.id === 'SUPPORTING' ? 'Evidence layout' : slot.configured ? 'Configured' : 'None'}</small></div></button></li>)}</ol></aside><div ref={scroll} className="ordered-packet-scroll">{slots.map((slot) => slot.document ? <EditablePacketSection key={slot.id} slot={slot} onSave={onSave} /> : <PacketInsertSection key={slot.id} slot={slot} round={round} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={onEvidenceChanged} onMessage={onMessage} />)}</div></div></section></div>;
+  return <div className="simple-editor-backdrop"><section className="simple-editor-modal ordered-packet-modal premium-document-editor" role="dialog" aria-modal="true" aria-label={`${output.bureau} ordered packet editor`}><header className="simple-editor-header"><div><p className="eyebrow">Packet editor</p><h2>{output.bureau} {output.type === 'DISPUTE' ? 'Dispute Packet' : 'Late Payment Packet'}</h2><div className="editor-context-tags"><span>{round}</span><span>{slots.length} ordered positions</span><span>Inline DOCX editing</span></div></div><button className="close-editor" onClick={onClose} aria-label="Close editor">×</button></header><div className="ordered-packet-body"><aside className="editor-packet-map document-rail"><header><p className="eyebrow">Packet order</p><h3>Documents</h3></header><ol>{slots.map((slot) => <li className={active === slot.id ? 'current editable' : 'editable'} key={slot.id}><button type="button" onClick={() => jump(slot.id)}><b>{String(slot.number).padStart(2, '0')}</b><div><strong>{slot.label}</strong><small>{slot.document ? 'Editable DOCX' : slot.id === 'SUPPORTING' ? 'Evidence layout' : slot.configured ? 'Configured' : 'None'}</small></div></button></li>)}</ol></aside><div ref={scroll} className="ordered-packet-scroll">{slots.map((slot) => slot.document ? <EditablePacketSection key={slot.id} slot={slot} onSave={onSave} /> : <PacketInsertSection key={slot.id} slot={slot} round={round} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={onEvidenceChanged} onMessage={onMessage} />)}</div></div></section></div>;
 }
