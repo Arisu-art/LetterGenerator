@@ -161,7 +161,7 @@ body {
   border-color: #b7c1cd !important;
 }
 
-/* Ready/completed means green; missing/error/destructive means red. */
+/* Ready/completed means green; neutral is gray; required/error/destructive means red. */
 .packet-status.ready,
 .pill.success,
 .supporting-count.has-files,
@@ -173,16 +173,17 @@ body {
   background: var(--ui-green-soft) !important;
   border-color: var(--ui-green-line) !important;
 }
-.packet-status:not(.ready),
+.packet-status,
+.packet-status.neutral,
 .pill,
 .supporting-count,
 .doc-type,
-.packet-stack-state.managed,
-.packet-stack-state.none {
+.packet-stack-state.managed {
   color: var(--ui-charcoal) !important;
   background: var(--ui-gray-100) !important;
   border-color: var(--ui-gray-200) !important;
 }
+.packet-status.required,
 .alert,
 .failed-output,
 .packet-insert-status.missing,
@@ -243,15 +244,15 @@ input:focus, select:focus, textarea:focus,
   background: var(--ui-green-soft) !important;
   border-color: var(--ui-green-line) !important;
 }
-.template-studio-operational .studio-component-card .packet-status:not(.ready) {
-  color: var(--ui-red) !important;
-  background: var(--ui-red-soft) !important;
-  border-color: var(--ui-red-line) !important;
-}
-.template-studio-operational .linked-component .packet-status:not(.ready) {
+.template-studio-operational .studio-component-card .packet-status.neutral {
   color: var(--ui-charcoal) !important;
   background: var(--ui-gray-100) !important;
   border-color: var(--ui-gray-200) !important;
+}
+.template-studio-operational .studio-component-card .packet-status.required {
+  color: var(--ui-red) !important;
+  background: var(--ui-red-soft) !important;
+  border-color: var(--ui-red-line) !important;
 }
 .template-studio-operational .studio-format {
   color: var(--ui-charcoal) !important;
