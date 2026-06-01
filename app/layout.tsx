@@ -16,8 +16,8 @@ import './template-flow.css';
 import './templates-header-inline.css';
 import './template-classification.css';
 import './progressive-disclosure.css';
-import './global-minimal-ui.css';
 import './template-premium.css';
+import './global-minimal-ui.css';
 
 export const metadata = {
   title: 'LetterGenerator',
