@@ -1,0 +1,254 @@
+/* Focused Packet Editor
+   Permanent layout model: render one selected packet position at a time.
+   This removes collisions between multiple async DOCX/PDF/evidence render surfaces. */
+.focused-packet-editor .ordered-packet-body {
+  display: grid !important;
+  grid-template-columns: 270px minmax(0, 1fr) !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+.focused-packet-editor .editor-packet-map {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-right: 1px solid var(--ui-gray-200);
+}
+.focused-packet-editor .document-rail ol {
+  display: grid;
+  gap: 8px;
+}
+.focused-packet-editor .document-rail li button {
+  min-height: 64px;
+  padding: 9px 10px !important;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) !important;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: transparent;
+  text-align: left;
+}
+.focused-packet-editor .document-rail li button:hover {
+  border-color: var(--ui-gray-200);
+  background: var(--ui-white);
+}
+.focused-packet-editor .document-rail li.current button {
+  border-color: var(--ui-gray-300);
+  background: var(--ui-white);
+  box-shadow: 0 8px 18px rgba(15,23,37,.05);
+}
+.focused-packet-editor .document-rail li button b {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #bfd9f0;
+  border-radius: 12px;
+  color: #236eb6;
+  background: #edf5fc;
+  font-size: 11px;
+}
+.focused-packet-editor .document-rail li.current button b {
+  color: var(--ui-white) !important;
+  background: var(--ui-black) !important;
+  border-color: var(--ui-black) !important;
+}
+.focused-packet-editor .document-rail li button div {
+  min-width: 0;
+}
+.focused-packet-editor .document-rail li button strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-black);
+  font-size: 13px;
+  line-height: 1.3;
+}
+.focused-packet-editor .document-rail li button small {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-muted);
+  font-size: 11px;
+}
+
+.focused-packet-editor .packet-focus-workspace {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--ui-gray-100);
+}
+.focused-packet-editor .packet-focus-navigation {
+  min-height: 69px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--ui-gray-200);
+  background: var(--ui-white);
+}
+.focused-packet-editor .packet-focus-navigation .eyebrow {
+  margin: 0 0 5px;
+  font-size: 9px;
+}
+.focused-packet-editor .packet-focus-navigation strong {
+  color: var(--ui-black);
+  font-size: 15px;
+  letter-spacing: -.025em;
+}
+.focused-packet-editor .packet-focus-controls {
+  display: flex;
+  gap: 8px;
+}
+.focused-packet-editor .packet-focus-controls button {
+  min-height: 42px;
+  padding: 0 15px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.focused-packet-editor .packet-focus-controls button:disabled {
+  opacity: .44;
+  cursor: not-allowed;
+}
+.focused-packet-editor .packet-focus-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
+  scrollbar-gutter: stable;
+}
+.focused-packet-editor .packet-focus-section {
+  display: block !important;
+  width: 100%;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  margin: 0 !important;
+  border: 1px solid var(--ui-gray-200) !important;
+  border-radius: 22px !important;
+  background: var(--ui-white) !important;
+  box-shadow: 0 1px 2px rgba(15,23,37,.03), 0 14px 34px rgba(15,23,37,.05) !important;
+}
+.focused-packet-editor .packet-focus-section .packet-stack-header {
+  position: static !important;
+  min-height: 69px;
+  padding: 12px 16px !important;
+  border-bottom: 1px solid var(--ui-gray-200);
+  background: var(--ui-white);
+  border-radius: 22px 22px 0 0;
+}
+.focused-packet-editor .packet-focus-section .packet-stack-header h3 {
+  font-size: 16px;
+  letter-spacing: -.03em;
+}
+.focused-packet-editor .packet-focus-section .packet-stack-header p {
+  margin-top: 4px;
+  color: var(--ui-muted);
+  font-size: 11px;
+}
+.focused-packet-editor .packet-focus-section .packet-inline-docx-host {
+  min-height: 520px !important;
+  padding: 22px 18px 32px !important;
+  display: block !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  background: #e7ebf0 !important;
+  border-radius: 0 0 22px 22px;
+}
+.focused-packet-editor .packet-focus-section .packet-inline-docx-host .docx-wrapper,
+.focused-packet-editor .packet-focus-section .packet-inline-docx-host .packet-inline-docx-wrapper {
+  display: block !important;
+  width: max-content !important;
+  min-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+}
+.focused-packet-editor .packet-focus-section .packet-inline-docx-host .docx,
+.focused-packet-editor .packet-focus-section .packet-inline-docx-host .packet-inline-docx {
+  display: block !important;
+  min-height: 792px !important;
+  height: auto !important;
+  max-height: none !important;
+  max-width: none !important;
+  margin: 0 auto 18px !important;
+  transform: none !important;
+  box-shadow: 0 10px 28px rgba(15,23,37,.14) !important;
+}
+.focused-packet-editor .packet-focus-section .packet-static-file-view,
+.focused-packet-editor .packet-focus-section .packet-static-docx-host,
+.focused-packet-editor .packet-focus-section .packet-supporting-inline,
+.focused-packet-editor .packet-focus-section .packet-insert-status {
+  display: block !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  border-radius: 0 0 22px 22px;
+}
+.focused-packet-editor .packet-focus-section .packet-static-file-view,
+.focused-packet-editor .packet-focus-section .packet-static-docx-host {
+  min-height: 650px !important;
+}
+.focused-packet-editor .packet-focus-section .packet-static-file-view iframe {
+  min-height: 620px !important;
+}
+.focused-packet-editor .packet-focus-section .packet-supporting-inline {
+  padding: 14px !important;
+}
+.focused-packet-editor .packet-focus-section .packet-insert-status {
+  min-height: 260px !important;
+  display: grid !important;
+  place-content: center;
+}
+.focused-packet-editor .professional-evidence-editor {
+  width: 100%;
+}
+
+/* Eliminate transitions inside precision editor surfaces permanently. */
+.focused-packet-editor,
+.focused-packet-editor *,
+.focused-packet-editor *::before,
+.focused-packet-editor *::after {
+  view-transition-name: none !important;
+}
+
+@media (max-width: 920px) {
+  .focused-packet-editor .ordered-packet-body {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .focused-packet-editor .editor-packet-map {
+    border-right: 0;
+    border-bottom: 1px solid var(--ui-gray-200);
+    overflow-y: hidden;
+    overflow-x: auto;
+  }
+  .focused-packet-editor .document-rail ol {
+    display: flex;
+    gap: 8px;
+  }
+  .focused-packet-editor .document-rail li {
+    flex: 0 0 210px;
+  }
+}
+@media (max-width: 680px) {
+  .focused-packet-editor .packet-focus-navigation {
+    display: grid;
+  }
+  .focused-packet-editor .packet-focus-scroll {
+    padding: 9px;
+  }
+  .focused-packet-editor .packet-focus-section .packet-inline-docx-host {
+    min-height: 360px !important;
+    padding: 10px 4px 18px !important;
+  }
+}
