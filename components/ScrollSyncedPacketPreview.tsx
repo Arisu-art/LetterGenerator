@@ -45,7 +45,7 @@ export default function ScrollSyncedPacketPreview() {
   const activeIndex = useRef(0);
 
   useEffect(() => {
-    const locate = () => setBody(document.querySelector('.simple-editor-body'));
+    const locate = () => setBody(document.querySelector<HTMLElement>('.simple-editor-body'));
     locate();
     const mutation = new MutationObserver(locate);
     mutation.observe(document.body, { childList: true, subtree: true });
