@@ -1,0 +1,146 @@
+/* Source Data command-center: key actions visible without page scrolling. */
+@media (min-width: 1161px) {
+  .main-area:has(.source-case-workspace) {
+    height: 100vh;
+    overflow: hidden;
+  }
+  .main-area:has(.source-case-workspace) .header {
+    min-height: 96px !important;
+    flex: none;
+  }
+  .source-case-workspace {
+    min-height: 0;
+    height: calc(100vh - 150px);
+    display: grid !important;
+    grid-template-columns: minmax(520px, 1.48fr) minmax(390px, .82fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 14px !important;
+    align-content: stretch !important;
+  }
+  .source-case-workspace > .source-workspace {
+    display: contents !important;
+  }
+  .source-input-panel {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    min-height: 0;
+    height: 100%;
+    padding: 22px !important;
+    display: flex;
+    flex-direction: column;
+    border-radius: 25px !important;
+  }
+  .source-input-panel .panel-heading {
+    margin-bottom: 13px !important;
+  }
+  .source-input-panel .panel-heading h2,
+  .source-results-panel .panel-heading h2 {
+    font-size: 23px !important;
+  }
+  .source-actions {
+    margin-bottom: 11px !important;
+  }
+  .normalization-actions {
+    margin-bottom: 11px !important;
+  }
+  .source-input-panel .source-area {
+    flex: 1;
+    min-height: 0 !important;
+    height: auto;
+    resize: none;
+    padding: 14px 16px;
+  }
+  .source-results-panel {
+    grid-column: 2;
+    grid-row: 1;
+    position: static !important;
+    padding: 20px !important;
+    border-radius: 24px !important;
+  }
+  .source-results-panel .panel-heading {
+    margin-bottom: 13px !important;
+  }
+  .detection-table {
+    gap: 7px !important;
+  }
+  .detection-row {
+    min-height: 52px !important;
+    padding: 9px 11px !important;
+    display: grid !important;
+    grid-template-columns: minmax(96px, .62fr) minmax(116px, 1fr) minmax(100px, .88fr);
+    align-items: center;
+    gap: 8px !important;
+  }
+  .detection-row strong {
+    font-size: 12px !important;
+  }
+  .source-results-panel .action-button {
+    min-height: 48px !important;
+    margin-top: 13px !important;
+  }
+  .source-supporting-panel {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
+    padding: 18px !important;
+    border-radius: 24px !important;
+    overflow: auto;
+  }
+  .source-supporting-panel .supporting-header {
+    margin-bottom: 12px !important;
+    gap: 10px !important;
+  }
+  .source-supporting-panel .supporting-header h2 {
+    margin: 4px 0 !important;
+    font-size: 19px !important;
+  }
+  .source-supporting-panel .supporting-header p {
+    font-size: 11px !important;
+    line-height: 1.42 !important;
+  }
+  .source-supporting-panel .supporting-count {
+    padding: 6px 9px !important;
+    font-size: 9px !important;
+  }
+  .source-supporting-panel .progressive-trigger {
+    min-height: 55px !important;
+    padding: 10px 12px !important;
+  }
+  .source-supporting-panel .progressive-copy strong {
+    font-size: 12px !important;
+  }
+  .source-supporting-panel .progressive-copy small {
+    font-size: 10px !important;
+  }
+  .source-supporting-panel .progressive-content-inner {
+    padding: 9px !important;
+  }
+  .source-supporting-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .supporting-dropzone {
+    min-height: 94px !important;
+    padding: 13px 15px !important;
+    border-radius: 14px !important;
+  }
+  .supporting-dropzone strong {
+    font-size: 12px !important;
+  }
+  .supporting-dropzone span,
+  .supporting-dropzone input {
+    font-size: 10px !important;
+  }
+  .source-supporting-list {
+    max-height: 140px;
+    overflow: auto;
+  }
+}
+
+/* Source Data still stacks cleanly on narrower screens. */
+@media (max-width: 1160px) {
+  .source-supporting-panel {
+    margin-top: 0 !important;
+  }
+}
