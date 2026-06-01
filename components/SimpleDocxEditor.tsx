@@ -64,8 +64,9 @@ function EditablePacketSection({ slot, onSave }: { slot: Slot; onSave: Props['on
 }
 
 function PacketInsertSection({ slot, round, evidenceKey, evidence, onEvidenceChanged, onMessage }: { slot: Slot; round: Props['round']; evidenceKey?: string; evidence?: PacketAssets; onEvidenceChanged?: Props['onEvidenceChanged']; onMessage?: Props['onMessage'] }) {
+  const viewable = slot.id === 'SUPPORTING' || slot.id === 'FCRA' || slot.id === 'ATTACHMENT';
   const state = slot.id === 'SUPPORTING' ? 'Layout editor' : slot.configured ? 'Configured' : 'None';
-  return <article className="packet-stack-section packet-stack-insert" data-slot={slot.id}><header className="packet-stack-header"><b>{String(slot.number).padStart(2, '0')}</b><div><h3>{slot.label}</h3><p>{slot.message}</p></div><span className={`packet-stack-state ${slot.id === 'SUPPORTING' ? 'managed' : slot.configured ? 'ready' : 'none'}`}>{state}</span></header><PacketInsertViewer kind={slot.id as 'SUPPORTING' | 'FCRA' | 'ATTACHMENT'} round={round} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={onEvidenceChanged} onMessage={onMessage} /></article>;
+  return <article className="packet-stack-section packet-stack-insert" data-slot={slot.id}><header className="packet-stack-header"><b>{String(slot.number).padStart(2, '0')}</b><div><h3>{slot.label}</h3><p>{slot.message}</p></div><span className={`packet-stack-state ${slot.id === 'SUPPORTING' ? 'managed' : slot.configured ? 'ready' : 'none'}`}>{state}</span></header>{viewable ? <PacketInsertViewer kind={slot.id as 'SUPPORTING' | 'FCRA' | 'ATTACHMENT'} round={round} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={onEvidenceChanged} onMessage={onMessage} /> : <div className="packet-insert-status missing"><strong>None</strong><span>No generated document for this packet position.</span></div>}</article>;
 }
 
 export default function SimpleDocxEditor({ round, output, documents, evidenceKey, evidence, onEvidenceChanged, onMessage, onClose, onSave }: Props) {
