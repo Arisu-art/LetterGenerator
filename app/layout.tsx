@@ -19,7 +19,7 @@ import './progressive-disclosure.css';
 import './template-premium.css';
 import './global-minimal-ui.css';
 import './workflow-premium.css';
-import './source-above-fold.css';
+import './guided-source-flow.css';
 
 export const metadata = {
   title: 'LetterGenerator',
