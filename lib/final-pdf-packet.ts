@@ -4,9 +4,26 @@ import { PDFDocument } from 'pdf-lib';
 
 export type PdfPacketPart = {
   label: string;
-  kind: 'DOCX' | 'PDF';
-  blob: Blob;
+  kind: 'DOCX' | 'PDF' | 'BLANK';
+  blob?: Blob | null;
 };
+
+function toPdfBlob(bytes: Uint8Array) {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return new Blob([copy.buffer], { type: 'application/pdf' });
+}
+
+/** Produces a true blank US-letter page used as a reserved packet position. */
+export async function createBlankPdf() {
+  const document = await PDFDocument.create();
+  document.addPage([612, 792]);
+  return toPdfBlob(await document.save());
+}
+
+async function addBlankPage(target: PDFDocument) {
+  target.addPage([612, 792]);
+}
 
 async function addRenderedDocx(target: PDFDocument, blob: Blob) {
   const [{ renderAsync }, html2canvas] = await Promise.all([
@@ -40,21 +57,24 @@ async function addRenderedDocx(target: PDFDocument, blob: Blob) {
     host.remove();
   }
 }
+
 async function addStaticPdf(target: PDFDocument, blob: Blob) {
   const source = await PDFDocument.load(await blob.arrayBuffer());
   const copied = await target.copyPages(source, source.getPageIndices());
   copied.forEach((page) => target.addPage(page));
 }
 
-/** Creates one read-only PDF packet in the exact configured order. */
+/** Creates one read-only PDF packet in the configured order, retaining empty positions as blank pages. */
 export async function assembleFinalPdf(parts: PdfPacketPart[]) {
   const output = await PDFDocument.create();
   for (const part of parts) {
-    if (part.kind === 'DOCX') await addRenderedDocx(output, part.blob);
-    else await addStaticPdf(output, part.blob);
+    if (part.kind === 'BLANK' || !part.blob) {
+      await addBlankPage(output);
+    } else if (part.kind === 'DOCX') {
+      await addRenderedDocx(output, part.blob);
+    } else {
+      await addStaticPdf(output, part.blob);
+    }
   }
-  const bytes = await output.save();
-  const copy = new Uint8Array(bytes.byteLength);
-  copy.set(bytes);
-  return new Blob([copy.buffer], { type: 'application/pdf' });
+  return toPdfBlob(await output.save());
 }
