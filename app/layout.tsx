@@ -14,6 +14,7 @@ import './source-normalization.css';
 import './packet-ui.css';
 import './template-flow.css';
 import './template-classification.css';
+import './packet-component-preview.css';
 
 export const metadata = {
   title: 'LetterGenerator',
