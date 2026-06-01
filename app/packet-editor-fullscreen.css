@@ -1,0 +1,168 @@
+/* Full-screen Packet Editor refinement.
+   Keep the single consolidated command header, maximize selected content,
+   and suppress Supporting Documents' duplicated embedded heading only in this context. */
+
+/* True document workspace: no modal gutter or rounded inset frame. */
+.simple-editor-backdrop:has(.consolidated-packet-editor) {
+  padding: 0 !important;
+  background: #f2f4f6 !important;
+  backdrop-filter: none !important;
+}
+.consolidated-packet-editor {
+  width: 100vw !important;
+  max-width: none !important;
+  height: 100dvh !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.consolidated-packet-editor .editor-command-header {
+  min-height: 86px !important;
+  padding: 13px 18px !important;
+  flex-shrink: 0;
+}
+.consolidated-packet-editor .ordered-packet-body {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+.consolidated-packet-editor .packet-focus-workspace,
+.consolidated-packet-editor .packet-focus-scroll {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+.consolidated-packet-editor .packet-focus-scroll {
+  padding: 10px !important;
+  background: #edf0f3 !important;
+}
+.consolidated-packet-editor .packet-focus-section {
+  min-height: 100% !important;
+  border-radius: 16px !important;
+  box-shadow: 0 1px 2px rgba(15,23,37,.025), 0 8px 22px rgba(15,23,37,.045) !important;
+}
+
+/* Keep rail compact so the active document receives most of the width. */
+.consolidated-packet-editor .ordered-packet-body {
+  grid-template-columns: 238px minmax(0, 1fr) !important;
+}
+.consolidated-packet-editor .editor-packet-map {
+  padding: 15px 10px !important;
+}
+.consolidated-packet-editor .editor-packet-map header {
+  padding: 0 7px;
+  margin-bottom: 11px !important;
+}
+.consolidated-packet-editor .document-rail ol {
+  gap: 6px !important;
+}
+.consolidated-packet-editor .document-rail li button {
+  min-height: 56px !important;
+  padding: 8px !important;
+  border-radius: 13px !important;
+}
+.consolidated-packet-editor .document-rail li button b {
+  width: 36px !important;
+  height: 36px !important;
+}
+
+/* Static configured inserts (FCRA and Attachment): fill the available viewer surface. */
+.consolidated-packet-editor .packet-focus-scroll:has(.packet-static-file-view),
+.consolidated-packet-editor .packet-focus-scroll:has(.packet-static-docx-host) {
+  overflow: hidden !important;
+}
+.consolidated-packet-editor .packet-focus-section:has(.packet-static-file-view),
+.consolidated-packet-editor .packet-focus-section:has(.packet-static-docx-host) {
+  height: 100% !important;
+  overflow: hidden !important;
+  background: #e8ecef !important;
+}
+.consolidated-packet-editor .packet-static-file-view,
+.consolidated-packet-editor .packet-static-docx-host {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  border-radius: 16px !important;
+  background: #e8ecef !important;
+}
+.consolidated-packet-editor .packet-static-file-view iframe {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  border: 0 !important;
+}
+
+/* Editable DOCX: maximize vertical workspace while retaining readable page gutter. */
+.consolidated-packet-editor .packet-stack-editable {
+  min-height: 100% !important;
+}
+.consolidated-packet-editor .packet-document-toolbar {
+  min-height: 50px !important;
+  padding: 6px 11px !important;
+  border-radius: 16px 16px 0 0 !important;
+}
+.consolidated-packet-editor .packet-inline-docx-host {
+  min-height: calc(100dvh - 156px) !important;
+  padding: 14px 10px 22px !important;
+  border-radius: 0 0 16px 16px !important;
+}
+
+/* Supporting Documents: the top command header already identifies Evidence layout.
+   Keep Auto-align accessible, remove only the duplicated title copy inside the embed. */
+.consolidated-packet-editor .packet-supporting-inline {
+  height: 100% !important;
+  padding: 0 !important;
+  border-radius: 16px !important;
+}
+.consolidated-packet-editor .professional-evidence-editor {
+  min-height: 100% !important;
+  height: auto !important;
+  padding: 12px !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  box-shadow: none !important;
+}
+.consolidated-packet-editor .professional-evidence-editor .support-layout-header {
+  min-height: 40px;
+  margin: 0 !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+}
+.consolidated-packet-editor .professional-evidence-editor .support-layout-header > div {
+  display: none !important;
+}
+.consolidated-packet-editor .professional-evidence-editor .support-layout-header button {
+  min-height: 38px;
+  color: var(--ui-charcoal) !important;
+  background: var(--ui-white) !important;
+  border-color: var(--ui-gray-primary-line) !important;
+}
+.consolidated-packet-editor .professional-evidence-editor .support-layout-grid {
+  min-height: 0;
+  grid-template-columns: minmax(450px, 1fr) 302px !important;
+}
+.consolidated-packet-editor .professional-evidence-editor .support-page-canvas {
+  width: min(100%, 650px) !important;
+}
+
+/* Empty positions are centered in the full content workspace. */
+.consolidated-packet-editor .packet-insert-status {
+  min-height: 100% !important;
+  border-radius: 16px !important;
+}
+
+@media (max-width: 1100px) {
+  .consolidated-packet-editor .professional-evidence-editor .support-layout-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+@media (max-width: 920px) {
+  .consolidated-packet-editor .ordered-packet-body {
+    grid-template-columns: 1fr !important;
+  }
+  .consolidated-packet-editor .packet-focus-scroll {
+    padding: 7px !important;
+  }
+}
