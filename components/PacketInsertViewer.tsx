@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import SupportingDocumentsLayoutEditor from './SupportingDocumentsLayoutEditor';
+import { getActivePacketEvidence, setActivePacketEvidence, subscribeActivePacketEvidence } from '../lib/active-packet-evidence';
 import type { PacketAssets } from '../lib/packet-assets';
 import { readTemplateExhibit, type ExhibitKind } from '../lib/template-exhibits';
 import type { Round } from '../lib/reference-store';
@@ -58,14 +59,21 @@ function StaticTemplateViewer({ kind, round }: { kind: ExhibitKind; round: Round
 }
 
 export default function PacketInsertViewer({ kind, round, evidenceKey = '', evidence, onEvidenceChanged, onMessage }: Props) {
+  const [published, setPublished] = useState(() => getActivePacketEvidence());
   const [message, setMessage] = useState('');
+
+  useEffect(() => subscribeActivePacketEvidence(() => setPublished(getActivePacketEvidence())), []);
+
   if (kind !== 'SUPPORTING') return <StaticTemplateViewer kind={kind} round={round} />;
-  if (!evidenceKey || !evidence?.supporting.length) return <EmptyInsert message="No supporting documents have been uploaded for this packet." />;
+  const key = evidenceKey || published?.key || '';
+  const assets = evidence || published?.assets;
+  if (!key || !assets?.supporting.length) return <EmptyInsert message="No supporting documents have been uploaded for this packet." />;
+
   return <div className="packet-supporting-inline">
     <SupportingDocumentsLayoutEditor
-      storageKey={evidenceKey}
-      assets={evidence}
-      onChanged={(assets) => onEvidenceChanged?.(assets)}
+      storageKey={key}
+      assets={assets}
+      onChanged={(next) => { setActivePacketEvidence(key, next); onEvidenceChanged?.(next); }}
       onMessage={(next) => { setMessage(next); onMessage?.(next); }}
     />
     {message && <p className="packet-supporting-message">{message}</p>}
