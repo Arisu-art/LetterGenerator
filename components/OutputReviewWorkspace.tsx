@@ -60,6 +60,7 @@ export default function OutputReviewWorkspace({ round, outputs, zipName, warning
   const affidavits = outputs.filter((item) => item.role === 'AFFIDAVIT').length;
   const ftcReports = outputs.filter((item) => item.role === 'FTC').length;
   const visible = useMemo(() => outputs.filter((item) => filterMatches(item, filter)).sort((a, b) => a.bureau.localeCompare(b.bureau) || (a.sequence || 1) - (b.sequence || 1)), [filter, outputs]);
+  const displayedWarnings = useMemo(() => Array.from(new Set(warnings)), [warnings]);
   const filters: Array<{ id: Filter; label: string; count: number }> = [
     { id: 'ALL', label: 'All editable documents', count: outputs.length },
     { id: 'LETTERS', label: 'Letters', count: letters },
@@ -87,7 +88,7 @@ export default function OutputReviewWorkspace({ round, outputs, zipName, warning
       <nav className="document-filter-tabs" aria-label="Filter generated documents">{filters.map((item) => <button key={item.id} className={filter === item.id ? 'active' : ''} onClick={() => setFilter(item.id)}><span>{item.label}</span><strong>{item.count}</strong></button>)}</nav>
       <div className="review-cards">{visible.map((output) => <article className="review-card" key={output.path}><div className="review-card-head"><span className={`doc-type ${output.type === 'LATE_PAYMENT' ? 'late' : ''}`}>{roleLabel(output)}</span><span>{output.bureau}</span></div><p className="review-order">{orderNote(output)}</p><h3>{output.path.split('/').pop()}</h3><p>{output.detail}</p><div className="review-actions"><button className="edit-document" onClick={() => setSelectedPath(output.path)}>Open and Edit</button></div></article>)}</div>
       {!visible.length && <div className="library-empty">No editable documents in this category.</div>}
-      {warnings.length > 0 && <div className="failed-output-list">{warnings.map((warning) => <article className="failed-output" key={warning}><strong>Needs attention</strong><p>{warning}</p></article>)}</div>}
+      {displayedWarnings.length > 0 && <div className="failed-output-list">{displayedWarnings.map((warning, index) => <article className="failed-output" key={`warning-${index}`}><strong>Needs attention</strong><p>{warning}</p></article>)}</div>}
     </section>
     {selected && <SimpleDocxEditor output={selected} onClose={() => setSelectedPath(null)} onSave={onReplace} />}
     {pdf && <PdfPacketPreview packet={pdf} onClose={() => setSelectedPdf(null)} onDownload={(packet) => onPdfDownload?.(packet)} />}
