@@ -17,6 +17,7 @@ import './templates-header-inline.css';
 import './template-classification.css';
 import './progressive-disclosure.css';
 import './global-minimal-ui.css';
+import './template-premium.css';
 
 export const metadata = {
   title: 'LetterGenerator',
