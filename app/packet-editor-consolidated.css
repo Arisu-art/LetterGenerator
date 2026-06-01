@@ -1,0 +1,220 @@
+/* Consolidated Packet Editor chrome
+   One command header owns packet identity, current document, navigation and close actions. */
+.consolidated-packet-editor {
+  grid-template-rows: auto minmax(0, 1fr) !important;
+}
+.consolidated-packet-editor .editor-command-header {
+  min-height: 92px !important;
+  padding: 15px 21px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 22px !important;
+  border-bottom: 1px solid var(--ui-gray-200) !important;
+  background: var(--ui-white) !important;
+}
+.editor-command-identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.editor-packet-name {
+  min-width: 250px;
+}
+.consolidated-packet-editor .editor-packet-name h2 {
+  margin: 4px 0 9px !important;
+  font-size: 22px !important;
+  line-height: 1.08 !important;
+  letter-spacing: -.055em !important;
+  white-space: nowrap;
+}
+.consolidated-packet-editor .editor-context-tags {
+  gap: 6px;
+}
+.consolidated-packet-editor .editor-context-tags span {
+  min-height: 24px !important;
+  padding: 0 10px !important;
+  font-size: 10px;
+}
+.editor-command-separator {
+  width: 1px;
+  height: 56px;
+  flex: none;
+  background: var(--ui-gray-200);
+}
+.editor-active-document {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+.editor-active-document .eyebrow {
+  margin: 0;
+  font-size: 9px;
+}
+.editor-active-document strong {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ui-black);
+  font-size: 16px;
+  font-weight: 730;
+  line-height: 1.15;
+  letter-spacing: -.03em;
+  white-space: nowrap;
+}
+.editor-active-document strong b {
+  width: 33px;
+  height: 33px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--ui-white);
+  background: var(--ui-black);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+.editor-active-document small {
+  color: var(--ui-muted);
+  font-size: 11px;
+  line-height: 1;
+}
+.editor-command-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.consolidated-packet-editor .editor-command-actions .packet-focus-controls {
+  display: flex;
+  gap: 7px;
+}
+.consolidated-packet-editor .editor-command-actions .packet-focus-controls button {
+  min-height: 44px;
+  padding: 0 15px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+.consolidated-packet-editor .editor-command-actions .close-editor {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+}
+
+/* The content area starts immediately beneath the single command bar. */
+.consolidated-packet-editor .packet-focus-workspace {
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+.consolidated-packet-editor .packet-focus-scroll {
+  padding: 17px !important;
+}
+.consolidated-packet-editor .packet-focus-section {
+  border-radius: 20px !important;
+}
+.consolidated-packet-editor .packet-focus-section .packet-stack-header {
+  display: none !important;
+}
+
+/* Functional save bar only; it does not repeat packet or document titles. */
+.consolidated-packet-editor .packet-document-toolbar {
+  min-height: 56px;
+  padding: 8px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 11px;
+  border-bottom: 1px solid var(--ui-gray-200);
+  border-radius: 20px 20px 0 0;
+  background: var(--ui-white);
+}
+.packet-edit-state {
+  min-height: 30px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 999px;
+  color: var(--ui-muted);
+  background: var(--ui-gray-100);
+  font-size: 10px;
+  font-weight: 720;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.packet-edit-state.changed {
+  color: var(--ui-red);
+  border-color: var(--ui-red-line);
+  background: var(--ui-red-soft);
+}
+.consolidated-packet-editor .packet-document-toolbar button {
+  min-height: 39px;
+  padding: 0 14px;
+  border: 1px solid var(--ui-black);
+  border-radius: 11px;
+  color: var(--ui-white);
+  background: var(--ui-black);
+  font-size: 11px;
+  font-weight: 720;
+}
+.consolidated-packet-editor .packet-document-toolbar button:disabled {
+  color: var(--ui-charcoal);
+  border-color: var(--ui-gray-200);
+  background: var(--ui-gray-100);
+  box-shadow: none;
+}
+.consolidated-packet-editor .packet-inline-docx-host {
+  border-radius: 0 0 20px 20px !important;
+}
+.consolidated-packet-editor .packet-stack-insert .packet-static-file-view,
+.consolidated-packet-editor .packet-stack-insert .packet-static-docx-host,
+.consolidated-packet-editor .packet-stack-insert .packet-supporting-inline,
+.consolidated-packet-editor .packet-stack-insert .packet-insert-status {
+  border-radius: 20px !important;
+}
+
+/* Rail remains navigation only: lighter, less repetitive, more scannable. */
+.consolidated-packet-editor .editor-packet-map {
+  padding-top: 18px !important;
+}
+.consolidated-packet-editor .editor-packet-map header {
+  margin-bottom: 14px !important;
+}
+.consolidated-packet-editor .editor-packet-map h3 {
+  margin-top: 5px !important;
+  font-size: 18px !important;
+}
+.consolidated-packet-editor .document-rail li button {
+  min-height: 59px !important;
+}
+
+@media (max-width: 1120px) {
+  .consolidated-packet-editor .editor-command-header {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+  .editor-command-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+@media (max-width: 720px) {
+  .editor-command-identity {
+    width: 100%;
+    display: grid;
+    gap: 13px;
+  }
+  .editor-command-separator {
+    width: 100%;
+    height: 1px;
+  }
+  .editor-packet-name {
+    min-width: 0;
+  }
+  .editor-active-document strong,
+  .consolidated-packet-editor .editor-packet-name h2 {
+    white-space: normal;
+  }
+  .editor-command-actions {
+    justify-content: space-between;
+  }
+}
