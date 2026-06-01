@@ -1,4 +1,15 @@
-export type PacketAsset = { id: string; name: string; type: string; size: number; pages?: number };
+export type SupportingPlacement = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  cropX: number;
+  cropY: number;
+  cropWidth: number;
+  cropHeight: number;
+};
+
+export type PacketAsset = { id: string; name: string; type: string; size: number; pages?: number; placement?: SupportingPlacement };
 export type PacketAssets = { supporting: PacketAsset[]; legalPdf: PacketAsset | null };
 
 const DB_NAME = 'lettergenerator-private-templates';
@@ -55,9 +66,7 @@ export function loadPacketAssets(round: string): PacketAssets {
     return { supporting: Array.isArray(value.supporting) ? value.supporting : [], legalPdf: value.legalPdf || null };
   } catch { return blank(); }
 }
-function savePacketAssets(round: string, value: PacketAssets) {
-  localStorage.setItem(`${META}${round}`, JSON.stringify(value));
-}
+function savePacketAssets(round: string, value: PacketAssets) { localStorage.setItem(`${META}${round}`, JSON.stringify(value)); }
 export async function addSupportingAssets(round: string, files: File[]) {
   const value = loadPacketAssets(round);
   const added: PacketAsset[] = [];
@@ -85,6 +94,18 @@ export function moveSupportingAsset(round: string, id: string, offset: -1 | 1) {
   const supporting = [...value.supporting];
   [supporting[index], supporting[destination]] = [supporting[destination], supporting[index]];
   const next = { ...value, supporting };
+  savePacketAssets(round, next);
+  return next;
+}
+export function saveSupportingPlacement(round: string, id: string, placement: SupportingPlacement) {
+  const value = loadPacketAssets(round);
+  const next = { ...value, supporting: value.supporting.map((asset) => asset.id === id ? { ...asset, placement } : asset) };
+  savePacketAssets(round, next);
+  return next;
+}
+export function resetSupportingPlacements(round: string) {
+  const value = loadPacketAssets(round);
+  const next = { ...value, supporting: value.supporting.map(({ placement, ...asset }) => asset) };
   savePacketAssets(round, next);
   return next;
 }
