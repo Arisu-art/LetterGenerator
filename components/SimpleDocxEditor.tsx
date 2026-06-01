@@ -30,11 +30,11 @@ function EditablePacketSection({ slot, onSave }: { slot: Slot; onSave: Props['on
   const [paragraphs, setParagraphs] = useState<EditableParagraph[]>([]);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState('Opening editable DOCX...');
+  const [status, setStatus] = useState('Loading document');
   useEffect(() => {
     let alive = true;
     setDirty(false);
-    setStatus('Opening editable DOCX...');
+    setStatus('Loading document');
     void Promise.all([readEditableParagraphs(output.blob), import('docx-preview')]).then(async ([items, docx]) => {
       if (!alive || !host.current) return;
       setParagraphs(items);
@@ -50,23 +50,22 @@ function EditablePacketSection({ slot, onSave }: { slot: Slot; onSave: Props['on
         node.setAttribute('aria-label', `${slot.label} paragraph ${index + 1}`);
         node.addEventListener('input', () => { setDirty(true); setParagraphs((current) => current.map((entry) => entry.id === item.id ? { ...entry, text: textOf(node), dirty: true } : entry)); });
       });
-      setStatus('Editable DOCX component');
+      setStatus('Editable DOCX');
     }).catch((error: Error) => { if (alive) setStatus(error.message); });
     return () => { alive = false; };
   }, [output.blob, slot.label]);
   async function save() {
-    setSaving(true); setStatus('Saving section...');
-    try { const blob = await saveEditedParagraphs(output.blob, paragraphs); await onSave(output, new File([blob], fileName(output), { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })); setDirty(false); setStatus('Saved to packet'); }
+    setSaving(true); setStatus('Saving');
+    try { const blob = await saveEditedParagraphs(output.blob, paragraphs); await onSave(output, new File([blob], fileName(output), { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })); setDirty(false); setStatus('Saved'); }
     catch (error) { setStatus(error instanceof Error ? error.message : 'Save failed.'); }
     finally { setSaving(false); }
   }
-  return <article className="packet-stack-section packet-stack-editable" data-slot={slot.id}><header className="packet-stack-header"><b>{String(slot.number).padStart(2, '0')}</b><div><h3>{slot.label}</h3><p>{output.bureau} · {status}</p></div><button disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving...' : dirty ? 'Save Section' : 'Saved'}</button></header><div ref={host} className="packet-inline-docx-host" /></article>;
+  return <article className="packet-stack-section packet-stack-editable" data-slot={slot.id}><header className="packet-stack-header"><b>{String(slot.number).padStart(2, '0')}</b><div><h3>{slot.label}</h3><p>{status}</p></div><button disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}</button></header><div ref={host} className="packet-inline-docx-host" /></article>;
 }
 
 function PacketInsertSection({ slot, round, evidenceKey, evidence, onEvidenceChanged, onMessage }: { slot: Slot; round: Props['round']; evidenceKey?: string; evidence?: PacketAssets; onEvidenceChanged?: Props['onEvidenceChanged']; onMessage?: Props['onMessage'] }) {
-  const viewable = slot.id === 'SUPPORTING' || slot.id === 'FCRA' || slot.id === 'ATTACHMENT';
   const state = slot.id === 'SUPPORTING' ? 'Layout editor' : slot.configured ? 'Configured' : 'None';
-  return <article className="packet-stack-section packet-stack-insert" data-slot={slot.id}><header className="packet-stack-header"><b>{String(slot.number).padStart(2, '0')}</b><div><h3>{slot.label}</h3><p>{slot.message}</p></div><span className={`packet-stack-state ${slot.id === 'SUPPORTING' ? 'managed' : slot.configured ? 'ready' : 'none'}`}>{state}</span></header>{viewable ? <PacketInsertViewer kind={slot.id as 'SUPPORTING' | 'FCRA' | 'ATTACHMENT'} round={round} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={onEvidenceChanged} onMessage={onMessage} /> : <div className="packet-insert-status missing"><strong>None</strong><span>Not configured for this packet position.</span></div>}</article>;
+  return <article className="packet-stack-section packet-stack-insert" data-slot={slot.id}><header className="packet-stack-header"><b>{String(slot.number).padStart(2, '0')}</b><div><h3>{slot.label}</h3><p>{slot.message}</p></div><span className={`packet-stack-state ${slot.id === 'SUPPORTING' ? 'managed' : slot.configured ? 'ready' : 'none'}`}>{state}</span></header><PacketInsertViewer kind={slot.id as 'SUPPORTING' | 'FCRA' | 'ATTACHMENT'} round={round} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={onEvidenceChanged} onMessage={onMessage} /></article>;
 }
 
 export default function SimpleDocxEditor({ round, output, documents, evidenceKey, evidence, onEvidenceChanged, onMessage, onClose, onSave }: Props) {
@@ -78,12 +77,12 @@ export default function SimpleDocxEditor({ round, output, documents, evidenceKey
   const ftc = documents.find((document) => roleOf(document) === 'FTC');
   const slots: Slot[] = output.type === 'DISPUTE' ? [
     { id: 'LETTER', number: 1, label: 'Dispute Letter', document: letter, message: 'Editable DOCX component' },
-    { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', configured: Boolean(evidence?.supporting.length), message: 'Editable one-page image layout' },
-    { id: 'FCRA', number: 3, label: 'FCRA', configured: Boolean(exhibits.FCRA), message: exhibits.FCRA ? 'Configured template insert' : 'No template configured' },
-    { id: 'AFFIDAVIT', number: 4, label: 'Affidavit', document: affidavit, configured: Boolean(affidavit), message: affidavit ? 'Editable DOCX component' : 'No generated document' },
-    { id: 'ATTACHMENT', number: 5, label: 'Attachment', configured: Boolean(exhibits.ATTACHMENT), message: exhibits.ATTACHMENT ? 'Configured template insert' : 'No template configured' },
-    { id: 'FTC', number: 6, label: 'FTC Report', document: ftc, configured: Boolean(ftc), message: ftc ? 'Editable DOCX component' : 'No generated document' }
-  ] : [{ id: 'LETTER', number: 1, label: 'Late Payment Letter', document: letter, message: 'Editable DOCX component' }, { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', configured: Boolean(evidence?.supporting.length), message: 'Editable one-page image layout' }];
+    { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', configured: Boolean(evidence?.supporting.length), message: 'One-page evidence layout' },
+    { id: 'FCRA', number: 3, label: 'FCRA', configured: Boolean(exhibits.FCRA), message: exhibits.FCRA ? 'Configured insert' : 'Not configured' },
+    { id: 'AFFIDAVIT', number: 4, label: 'Affidavit', document: affidavit, configured: Boolean(affidavit), message: affidavit ? 'Editable DOCX component' : 'Not generated' },
+    { id: 'ATTACHMENT', number: 5, label: 'Attachment', configured: Boolean(exhibits.ATTACHMENT), message: exhibits.ATTACHMENT ? 'Configured insert' : 'Not configured' },
+    { id: 'FTC', number: 6, label: 'FTC Report', document: ftc, configured: Boolean(ftc), message: ftc ? 'Editable DOCX component' : 'Not generated' }
+  ] : [{ id: 'LETTER', number: 1, label: 'Late Payment Letter', document: letter, message: 'Editable DOCX component' }, { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', configured: Boolean(evidence?.supporting.length), message: 'One-page evidence layout' }];
   useEffect(() => {
     const root = scroll.current; if (!root) return;
     const sections = Array.from(root.querySelectorAll<HTMLElement>('[data-slot]'));
@@ -91,5 +90,5 @@ export default function SimpleDocxEditor({ round, output, documents, evidenceKey
     sections.forEach((section) => observer.observe(section)); return () => observer.disconnect();
   }, [documents.length, output.path]);
   function jump(id: SlotId) { scroll.current?.querySelector<HTMLElement>(`[data-slot="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-  return <div className="simple-editor-backdrop"><section className="simple-editor-modal ordered-packet-modal" role="dialog" aria-modal="true" aria-label={`${output.bureau} ordered packet editor`}><header className="simple-editor-header"><div><p className="eyebrow">Editable round packet</p><h2>{output.bureau} {output.type === 'DISPUTE' ? 'Dispute Packet' : 'Late Payment Packet'}</h2><span>{round} · Standard filing order · editable components appear inline</span></div><button className="close-editor" onClick={onClose} aria-label="Close editor">×</button></header><div className="editor-view-switch document-mode"><strong>Ordered Packet Editor</strong><span>Scroll one bureau packet; final PDF creation occurs only when requested from Outputs.</span></div><div className="ordered-packet-body"><aside className="editor-packet-map document-rail"><header><p className="eyebrow">Standard order</p><h3>{output.bureau}</h3><span>Each position remains visible in this {round} packet.</span></header><ol>{slots.map((slot) => <li className={active === slot.id ? 'current editable' : 'editable'} key={slot.id}><button type="button" onClick={() => jump(slot.id)}><b>{String(slot.number).padStart(2, '0')}</b><div><strong>{slot.label}</strong><small>{slot.document ? 'Editable DOCX' : slot.id === 'SUPPORTING' ? 'One-page layout' : slot.configured ? 'Configured insert' : 'None'}</small></div></button></li>)}</ol><p className="map-instruction">Letter, Affidavit and FTC edit inline. Supporting Documents remain movable and croppable at position 02.</p></aside><div ref={scroll} className="ordered-packet-scroll">{slots.map((slot) => slot.document ? <EditablePacketSection key={slot.id} slot={slot} onSave={onSave} /> : <PacketInsertSection key={slot.id} slot={slot} round={round} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={onEvidenceChanged} onMessage={onMessage} />)}</div></div></section></div>;
+  return <div className="simple-editor-backdrop"><section className="simple-editor-modal ordered-packet-modal premium-document-editor" role="dialog" aria-modal="true" aria-label={`${output.bureau} ordered packet editor`}><header className="simple-editor-header"><div><p className="eyebrow">Packet editor</p><h2>{output.bureau} {output.type === 'DISPUTE' ? 'Dispute Packet' : 'Late Payment Packet'}</h2><div className="editor-context-tags"><span>{round}</span><span>{slots.length} ordered positions</span><span>Inline DOCX editing</span></div></div><button className="close-editor" onClick={onClose} aria-label="Close editor">×</button></header><div className="ordered-packet-body"><aside className="editor-packet-map document-rail"><header><p className="eyebrow">Packet order</p><h3>Documents</h3></header><ol>{slots.map((slot) => <li className={active === slot.id ? 'current editable' : 'editable'} key={slot.id}><button type="button" onClick={() => jump(slot.id)}><b>{String(slot.number).padStart(2, '0')}</b><div><strong>{slot.label}</strong><small>{slot.document ? 'Editable DOCX' : slot.id === 'SUPPORTING' ? 'Evidence layout' : slot.configured ? 'Configured' : 'None'}</small></div></button></li>)}</ol></aside><div ref={scroll} className="ordered-packet-scroll">{slots.map((slot) => slot.document ? <EditablePacketSection key={slot.id} slot={slot} onSave={onSave} /> : <PacketInsertSection key={slot.id} slot={slot} round={round} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={onEvidenceChanged} onMessage={onMessage} />)}</div></div></section></div>;
 }
