@@ -25,7 +25,6 @@ function toPdfBlob(bytes: Uint8Array) {
   return new Blob([copy.buffer], { type: 'application/pdf' });
 }
 
-/** Produces a true blank US-letter page used as a reserved packet position. */
 export async function createBlankPdf() {
   const document = await PDFDocument.create();
   document.addPage([612, 792]);
@@ -59,9 +58,9 @@ async function addRenderedDocx(target: PDFDocument, blob: Blob) {
     });
     const renderedSections = Array.from(host.querySelectorAll('.packet-pdf-docx.docx')) as HTMLElement[];
     const pages = renderedSections.length ? renderedSections : Array.from(host.querySelectorAll('.docx')) as HTMLElement[];
-    if (!pages.length) throw new Error('Rendered DOCX pages were not available for PDF finalization.');
+    if (!pages.length) return addBlankPage(target);
     for (const page of pages) {
-      const canvas = await html2canvas(page, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+      const canvas = await html2canvas(page, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff', logging: false });
       const embedded = await target.embedPng(canvas.toDataURL('image/png'));
       const pdfPage = target.addPage([embedded.width, embedded.height]);
       pdfPage.drawImage(embedded, { x: 0, y: 0, width: embedded.width, height: embedded.height });
@@ -80,7 +79,6 @@ async function addStaticPdf(target: PDFDocument, blob: Blob) {
   return copied.length;
 }
 
-/** Creates one ordered PDF packet and records the exact page range for each packet item. */
 export async function assembleFinalPdfWithRanges(parts: PdfPacketPart[]): Promise<AssembledPdfPacket> {
   const output = await PDFDocument.create();
   const ranges: PacketPageRange[] = [];
@@ -97,7 +95,6 @@ export async function assembleFinalPdfWithRanges(parts: PdfPacketPart[]): Promis
   return { blob: toPdfBlob(await output.save()), ranges };
 }
 
-/** Creates one read-only PDF packet in the configured order, retaining empty positions as blank pages. */
 export async function assembleFinalPdf(parts: PdfPacketPart[]) {
   return (await assembleFinalPdfWithRanges(parts)).blob;
 }
