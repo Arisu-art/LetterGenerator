@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import SimpleDocxEditor from './SimpleDocxEditor';
-import PdfPacketPreview, { type FinalPdfPacket } from './PdfPacketPreview';
+import type { FinalPdfPacket } from './PdfPacketPreview';
 
 export type DocumentRole = 'LETTER' | 'AFFIDAVIT' | 'FTC';
 export type ReviewOutput = {
@@ -46,17 +46,15 @@ function filterMatches(output: ReviewOutput, filter: Filter) {
   return output.role === filter;
 }
 function orderNote(output: ReviewOutput) {
-  if (output.role === 'AFFIDAVIT') return 'Order 04 · Source-populated editable DOCX';
-  if (output.role === 'FTC') return 'Order 06 · Source-populated editable DOCX';
+  if (output.role === 'AFFIDAVIT') return 'Order 04 · Editable DOCX';
+  if (output.role === 'FTC') return 'Order 06 · Editable DOCX';
   return output.type === 'DISPUTE' ? 'Order 01 · Dispute letter DOCX' : 'Order 01 · Late Payment letter DOCX';
 }
 
-export default function OutputReviewWorkspace({ round, outputs, zipName, warnings, finalPackets = [], finalizing = false, finalZipName, onZip, onFinalZip, onFinalize, onPreviewPacket, onPdfDownload, onReplace }: Props) {
+export default function OutputReviewWorkspace({ round, outputs, zipName, warnings, finalPackets = [], finalizing = false, finalZipName, onZip, onFinalZip, onFinalize, onPdfDownload, onReplace }: Props) {
   const [filter, setFilter] = useState<Filter>('ALL');
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
   const selected = outputs.find((item) => item.path === selectedPath) || null;
-  const pdf = finalPackets.find((item) => item.path === selectedPdf) || null;
   const letters = outputs.filter((item) => !item.role || item.role === 'LETTER').length;
   const affidavits = outputs.filter((item) => item.role === 'AFFIDAVIT').length;
   const ftcReports = outputs.filter((item) => item.role === 'FTC').length;
@@ -70,28 +68,27 @@ export default function OutputReviewWorkspace({ round, outputs, zipName, warning
   ];
   return <section className="outputs-workspace">
     <section className="panel package-overview">
-      <header className="package-header"><div><p className="eyebrow">Review and finalization</p><h2>{round} document packets</h2><p>Edit generated DOCX files first. Open any document to preview its complete merged packet before download.</p></div><span className="package-count">{outputs.length} EDITABLE DOCX</span></header>
-      <div className="packet-stage-strip" aria-label="Review workflow">
+      <header className="package-header"><div><p className="eyebrow">Review and delivery</p><h2>{round} document packets</h2><p>Edit each generated DOCX directly. Final PDF packet creation runs only when you explicitly finalize for download.</p></div><span className="package-count">{outputs.length} EDITABLE DOCX</span></header>
+      <div className="packet-stage-strip" aria-label="Document workflow">
         <article className={outputs.length ? 'ready' : ''}><i>01</i><div><strong>Generated DOCX</strong><small>Letter, Affidavit and FTC</small></div></article>
         <span>→</span>
-        <article className={outputs.length ? 'active' : ''}><i>02</i><div><strong>Inspect + preview</strong><small>Full ordered packet in editor</small></div></article>
+        <article className={outputs.length ? 'active' : ''}><i>02</i><div><strong>Edit documents</strong><small>Direct synchronized document view</small></div></article>
         <span>→</span>
-        <article className={finalPackets.length ? 'ready' : ''}><i>03</i><div><strong>Final PDF</strong><small>Download-ready package</small></div></article>
+        <article className={finalPackets.length ? 'ready' : ''}><i>03</i><div><strong>Download packet</strong><small>Final PDF when requested</small></div></article>
       </div>
       <div className="delivery-grid">
-        {zipName && <div className="package-delivery"><div><strong>{zipName}</strong><span>Editable working files and manifest</span></div><button className="package-download" onClick={onZip}>Download Working ZIP <i>↓</i></button></div>}
-        {onFinalize && <div className="finalize-delivery"><div><strong>Final merged PDF packets</strong><span>Letter → Supporting Documents → ordered Dispute inserts</span></div><button className="finalize-pdf-button" disabled={finalizing || !outputs.length} onClick={() => void onFinalize()}>{finalizing ? 'Finalizing PDF packets...' : 'Finalize PDF Packets'}</button></div>}
+        {zipName && <div className="package-delivery"><div><strong>{zipName}</strong><span>All editable DOCX files and manifest</span></div><button className="package-download" onClick={onZip}>Download All DOCX <i>↓</i></button></div>}
+        {onFinalize && <div className="finalize-delivery"><div><strong>Final PDF packets</strong><span>Generate only for final delivery</span></div><button className="finalize-pdf-button" disabled={finalizing || !outputs.length} onClick={() => void onFinalize()}>{finalizing ? 'Finalizing PDF packets...' : 'Create Final PDF Download'}</button></div>}
       </div>
     </section>
-    {finalPackets.length > 0 && <section className="panel final-packet-library"><header className="library-header"><div><h2>Final PDF packets</h2><p>Review completed page order before delivering the filing-ready package.</p></div>{finalZipName && onFinalZip ? <button className="final-package-download" onClick={onFinalZip}>Download Final PDF ZIP</button> : <span className="package-count">{finalPackets.length} PDF</span>}</header><div className="final-packet-cards">{finalPackets.map((packet) => <article className="final-packet-card" key={packet.path}><span className={`doc-type ${packet.type === 'LATE_PAYMENT' ? 'late' : ''}`}>{packet.type === 'DISPUTE' ? 'Dispute PDF' : 'Late Payment PDF'}</span><h3>{packet.path.split('/').pop()}</h3><ol>{packet.sequence.map((step) => <li key={step}>{step}</li>)}</ol><div><button onClick={() => setSelectedPdf(packet.path)}>Review PDF</button>{onPdfDownload && <button onClick={() => onPdfDownload(packet)}>Download</button>}</div></article>)}</div></section>}
+    {finalPackets.length > 0 && <section className="panel final-packet-library"><header className="library-header"><div><h2>Final PDF downloads</h2><p>Generated filing-order packets are ready for delivery.</p></div>{finalZipName && onFinalZip ? <button className="final-package-download" onClick={onFinalZip}>Download All Final PDFs</button> : <span className="package-count">{finalPackets.length} PDF</span>}</header><div className="final-packet-cards">{finalPackets.map((packet) => <article className="final-packet-card" key={packet.path}><span className={`doc-type ${packet.type === 'LATE_PAYMENT' ? 'late' : ''}`}>{packet.type === 'DISPUTE' ? 'Dispute PDF' : 'Late Payment PDF'}</span><h3>{packet.path.split('/').pop()}</h3><ol>{packet.sequence.map((step) => <li key={step}>{step}</li>)}</ol>{onPdfDownload && <div><button onClick={() => onPdfDownload(packet)}>Download PDF</button></div>}</article>)}</div></section>}
     <section className="panel documents-library">
-      <header className="library-header"><div><p className="eyebrow">Editable DOCX workspace</p><h2>Review every generated document</h2><p>Open Letters, Affidavits and FTC Reports. From the same editor, switch to Complete Packet Preview to see Supporting Documents and static PDF pages in order.</p></div></header>
+      <header className="library-header"><div><p className="eyebrow">Editable DOCX workspace</p><h2>Edit every generated document</h2><p>Open a document and use the document rail to switch among generated editable files without building a heavy merged preview.</p></div></header>
       <nav className="document-filter-tabs" aria-label="Filter generated documents">{filters.map((item) => <button key={item.id} className={filter === item.id ? 'active' : ''} onClick={() => setFilter(item.id)}><span>{item.label}</span><strong>{item.count}</strong></button>)}</nav>
-      <div className="review-cards">{visible.map((output) => <article className="review-card" key={output.path}><div className="review-card-head"><span className={`doc-type ${output.type === 'LATE_PAYMENT' ? 'late' : ''}`}>{roleLabel(output)}</span><span>{output.bureau}</span></div><p className="review-order">{orderNote(output)}</p><h3>{output.path.split('/').pop()}</h3><p>{output.detail}</p><div className="review-actions"><button className="edit-document" onClick={() => setSelectedPath(output.path)}>Open, Edit and Preview</button></div></article>)}</div>
+      <div className="review-cards">{visible.map((output) => <article className="review-card" key={output.path}><div className="review-card-head"><span className={`doc-type ${output.type === 'LATE_PAYMENT' ? 'late' : ''}`}>{roleLabel(output)}</span><span>{output.bureau}</span></div><p className="review-order">{orderNote(output)}</p><h3>{output.path.split('/').pop()}</h3><p>{output.detail}</p><div className="review-actions"><button className="edit-document" onClick={() => setSelectedPath(output.path)}>Open and Edit</button></div></article>)}</div>
       {!visible.length && <div className="library-empty">No editable documents in this category.</div>}
       {displayedWarnings.length > 0 && <div className="failed-output-list">{displayedWarnings.map((warning, index) => <article className="failed-output" key={`warning-${index}`}><strong>Needs attention</strong><p>{warning}</p></article>)}</div>}
     </section>
-    {selected && <SimpleDocxEditor output={selected} onClose={() => setSelectedPath(null)} onSave={onReplace} onPreviewPacket={onPreviewPacket} />}
-    {pdf && <PdfPacketPreview packet={pdf} onClose={() => setSelectedPdf(null)} onDownload={(packet) => onPdfDownload?.(packet)} />}
+    {selected && <SimpleDocxEditor output={selected} documents={outputs} onSelect={(next) => setSelectedPath(next.path)} onClose={() => setSelectedPath(null)} onSave={onReplace} />}
   </section>;
 }
