@@ -27,6 +27,7 @@ import './packet-editor-recovery.css';
 import './packet-editor-focused.css';
 import './packet-editor-consolidated.css';
 import './neutral-workspace-system.css';
+import './packet-editor-fullscreen.css';
 
 export const metadata = {
   title: 'LetterGenerator',
