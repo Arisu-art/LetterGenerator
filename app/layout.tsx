@@ -26,6 +26,7 @@ import './shared-transitions.css';
 import './packet-editor-recovery.css';
 import './packet-editor-focused.css';
 import './packet-editor-consolidated.css';
+import './neutral-workspace-system.css';
 
 export const metadata = {
   title: 'LetterGenerator',
