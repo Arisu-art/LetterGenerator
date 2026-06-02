@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import JSZip from 'jszip';
 import GuidedSourceDataFlow from './GuidedSourceDataFlow';
 import OutputReviewWorkspace, { type ReviewOutput } from './OutputReviewWorkspace';
 import type { FinalPdfPacket } from './PdfPacketPreview';
-import TemplatePacketConfigurator from './TemplatePacketConfigurator';
+import TemplateProgressiveWorkspace from './TemplateProgressiveWorkspace';
 import { assembleFinalPdf, type PdfPacketPart } from '../lib/final-pdf-packet';
 import { addOrderedPacketFolders } from '../lib/ordered-packet-archive';
 import { isDocx, renderReferenceDisputeDocx } from '../lib/docx-renderer';
@@ -13,12 +13,11 @@ import { renderLatePaymentReference } from '../lib/late-reference-renderer';
 import { bureauInfo, createNormalizedSourceCopy, detectRoutes, parseSource, type Bureau, type LetterRoute, type LetterType } from '../lib/letter-engine';
 import { loadPacketAssets, type PacketAssets } from '../lib/packet-assets';
 import { createSupportingDocumentsPdf } from '../lib/packet-renderer';
-import { defaultReferences, loadReferenceMeta, readReferenceFile, removeReferenceFile, rounds, saveReferenceFile, saveReferenceMeta, type LetterReference, type Round } from '../lib/reference-store';
+import { defaultReferences, loadReferenceMeta, readReferenceFile, removeReferenceFile, saveReferenceFile, saveReferenceMeta, type LetterReference, type Round } from '../lib/reference-store';
 import { renderMappedAppendix } from '../lib/supplemental-template-renderer';
 import { exhibitTitles, loadTemplateExhibits, readTemplateExhibit, type ExhibitKind, type TemplateExhibits } from '../lib/template-exhibits';
 
 type Panel = 'Dashboard' | 'Templates' | 'Source Data' | 'Outputs' | 'Settings';
-type Tone = 'neutral' | 'success' | 'warning' | 'accent';
 const panels: Panel[] = ['Dashboard', 'Templates', 'Source Data', 'Outputs', 'Settings'];
 const typeLabel: Record<LetterType, string> = { DISPUTE: 'Dispute Letter', LATE_PAYMENT: 'Late Payment Letter' };
 const disputeRequirements: ExhibitKind[] = ['FCRA', 'AFFIDAVIT', 'ATTACHMENT', 'FTC'];
@@ -29,7 +28,6 @@ function clean(value: string) { return (value || 'CLIENT').replace(/[\/:*?"<>|]+
 function fileBase(value: string) { return clean(value).replace(/[^A-Z0-9]+/g, '_'); }
 function deliver(name: string, blob: Blob) { const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url); }
 function sequence(type: LetterType) { return type === 'LATE_PAYMENT' ? ['01 Late Payment Letter', '02 Supporting Documents'] : ['01 Dispute Letter', '02 Supporting Documents', '03 FCRA', '04 Affidavit', '05 Attachment', '06 FTC']; }
-function Pill({ children, tone = 'neutral' }: { children: ReactNode; tone?: Tone }) { return <span className={`pill ${tone}`}>{children}</span>; }
 
 export default function LetterGeneratorWorkspaceV2() {
   const [panel, setPanel] = useState<Panel>('Dashboard');
@@ -149,7 +147,7 @@ export default function LetterGeneratorWorkspaceV2() {
 
   function allowed(item: Panel) { return item === 'Outputs' ? Boolean(workingZip) : true; }
   function dashboard() { return <div className="dashboard-grid"><section className="panel dashboard-hero"><p className="eyebrow">Document operations</p><h2>Build ordered bureau PDF packets.</h2><p>Configure templates, load source data, review editable documents and download filing-order packets.</p><div className="dashboard-actions"><button className="action-button" onClick={() => setPanel('Templates')}>Configure Templates</button><button className="secondary-button" onClick={() => setPanel('Source Data')}>Load Source Data</button></div></section><article className="metric-tile"><small>Routes</small><strong>{routes.length}</strong><span>Detected letters</span></article><article className="metric-tile"><small>Editable docs</small><strong>{reviewDocs.length}</strong><span>Letters, Affidavit, FTC</span></article><article className="metric-tile"><small>PDF packets</small><strong>{finalPackets.length}</strong><span>Final output</span></article></div>; }
-  function templatesView() { return <div className="templates-packet-workspace"><section className="panel template-round-control"><div className="panel-heading"><div><h2>Reusable packet references</h2></div><Pill tone="accent">{round}</Pill></div><nav className="round-selector">{rounds.map((item, index) => <button key={item} className={round === item ? 'selected' : ''} onClick={() => { setRound(item); clearOutputs(); }}><span className="round-index">0{index + 1}</span><span className="round-copy"><strong>{item}</strong><small>{round === item ? 'Active packet' : 'Select round'}</small></span></button>)}</nav></section><TemplatePacketConfigurator round={round} slots={currentReferences} supportingReady={evidence.supporting.length > 0} onUploadLetter={uploadReference} onRemoveLetter={removeReference} onExhibitsChange={(next) => { setTemplates(next); clearOutputs(); }} onMessage={setStatus} /></div>; }
+  function templatesView() { return <TemplateProgressiveWorkspace round={round} slots={currentReferences} supportingReady={evidence.supporting.length > 0} onSelectRound={(next) => { setRound(next); clearOutputs(); }} onUploadLetter={uploadReference} onRemoveLetter={removeReference} onExhibitsChange={(next) => { setTemplates(next); clearOutputs(); }} onMessage={setStatus} />; }
   function sourceView() { return <GuidedSourceDataFlow source={source} originalSource={originalSource} normalized={normalized} verified={verified} parsed={parsed} routes={routes} sourceWarnings={sourceWarnings} evidenceKey={evidenceKey} evidence={evidence} canGenerate={canGenerate} missingLetters={missingLetters.map((type) => typeLabel[type])} missingInsertCount={missingDisputeNodes.length} strict={strict} busy={busy} onNormalize={normalizeInput} onEditSource={(value) => { setSource(value); setNormalized(false); clearOutputs(); }} onRestore={() => { setSource(originalSource); setNormalized(false); setCaseId(''); setEvidence(emptyEvidence()); clearOutputs(); }} onEvidenceChanged={(next) => { setEvidence(next); clearOutputs(); }} onMessage={setStatus} onGenerate={generateReviewDocuments} />; }
   function outputsView() { return <OutputReviewWorkspace round={round} outputs={reviewDocs} zipName={workingZip?.name} warnings={warnings} finalPackets={finalPackets} finalizing={finalizing} finalZipName={finalZip?.name} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={(next) => { void updateEvidenceDuringReview(next); }} onMessage={setStatus} onZip={() => workingZip && deliver(workingZip.name, workingZip.blob)} onFinalZip={() => finalZip && deliver(finalZip.name, finalZip.blob)} onFinalize={finalizePdfPackets} onPreviewPacket={previewPacket} onPdfDownload={(packet) => deliver(packet.path.split('/').pop() || 'packet.pdf', packet.blob)} onReplace={saveEdited} />; }
   return <main className="app-shell"><aside className="sidebar"><div className="brand"><span /><div><strong>LetterGenerator</strong><small>Packet workflow</small></div></div><nav aria-label="Primary navigation">{panels.map((item) => <button key={item} className={panel === item ? 'active' : ''} disabled={!allowed(item)} onClick={() => setPanel(item)}><strong>{item}</strong></button>)}</nav></aside><section className="main-area"><header className="header"><div><p className="eyebrow">{panel === 'Dashboard' ? 'Document operations' : `${round} workflow`}</p><h1>{panel}</h1></div></header>{panel === 'Dashboard' && dashboard()}{panel === 'Templates' && templatesView()}{panel === 'Source Data' && sourceView()}{panel === 'Outputs' && outputsView()}{panel === 'Settings' && <section className="panel settings"><label className="setting"><input type="checkbox" checked={strict} onChange={(event) => setStrict(event.target.checked)} /><span><strong>Strict template validation</strong><small>Block generation only when required letter DOCX references are missing.</small></span></label></section>}</section></main>;
