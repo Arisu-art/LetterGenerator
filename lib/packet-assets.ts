@@ -1,3 +1,5 @@
+export type SupportingRotation = 0 | 90 | 180 | 270;
+
 export type SupportingPlacement = {
   x: number;
   y: number;
@@ -7,6 +9,7 @@ export type SupportingPlacement = {
   cropY: number;
   cropWidth: number;
   cropHeight: number;
+  rotation?: SupportingRotation;
 };
 
 export type PacketAsset = { id: string; name: string; type: string; size: number; pages?: number; placement?: SupportingPlacement };
