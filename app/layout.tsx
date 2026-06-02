@@ -31,6 +31,7 @@ import './packet-editor-fullscreen.css';
 import './evidence-command-header.css';
 import './template-progressive-studio.css';
 import './source-progressive-studio.css';
+import './workflow-geometry-normalization.css';
 
 export const metadata = {
   title: 'LetterGenerator',
