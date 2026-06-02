@@ -20,6 +20,8 @@ type Props = {
 
 function positionCount(packet: LetterType) { return packet === 'DISPUTE' ? '6 positions' : '2 positions'; }
 function packetTitle(packet: LetterType) { return packet === 'DISPUTE' ? 'Dispute Packet' : 'Late Payment Packet'; }
+function packetOrder(packet: LetterType) { return packet === 'DISPUTE' ? 'Letter → Supporting → FCRA → Affidavit → Attachment → FTC' : 'Late Payment Letter → Supporting Documents'; }
+function packetType(packet: LetterType) { return packet === 'DISPUTE' ? 'Standard filing order' : 'Optional route'; }
 
 export default function TemplateProgressiveWorkspace({ round, slots, supportingReady, onSelectRound, onUploadLetter, onRemoveLetter, onExhibitsChange, onMessage }: Props) {
   const [stage, setStage] = useState<Stage>('ROUND');
@@ -81,11 +83,12 @@ export default function TemplateProgressiveWorkspace({ round, slots, supportingR
     </section>}
 
     {stage === 'EDITOR' && packet && <section className="template-selected-editor" aria-label={`${packetTitle(packet)} configuration`}>
-      <header className="panel template-selected-command">
+      <header className="panel template-selected-command template-merged-command">
         <div className="template-selected-identity">
-          <p className="eyebrow">{round} · Selected packet</p>
+          <p className="eyebrow">{round} · {packetType(packet)}</p>
           <h2>{packetTitle(packet)}</h2>
-          <div className="template-selected-badges"><span>{positionCount(packet)}</span><span>Reusable reference</span></div>
+          <p className="template-selected-order">{packetOrder(packet)}</p>
+          <div className="template-selected-badges"><span>{positionCount(packet)}</span><span>Reusable</span>{packet === 'DISPUTE' && <span>Order locked</span>}</div>
         </div>
         <div className="template-selected-actions">
           <button type="button" className="secondary-button" onClick={() => setStage('PACKET')}>Change packet</button>
@@ -97,6 +100,7 @@ export default function TemplateProgressiveWorkspace({ round, slots, supportingR
         slots={slots}
         supportingReady={supportingReady}
         focusedPacket={packet}
+        embedded
         onUploadLetter={onUploadLetter}
         onRemoveLetter={onRemoveLetter}
         onExhibitsChange={onExhibitsChange}
