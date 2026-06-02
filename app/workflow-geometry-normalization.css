@@ -1,0 +1,258 @@
+/* Final active-workflow geometry layer.
+   One page column, one border scale, one task heading per active surface. */
+:root {
+  --workflow-content-width: 1320px;
+  --workflow-radius-page: 25px;
+  --workflow-radius-stage: 26px;
+  --workflow-radius-panel: 20px;
+  --workflow-radius-control: 13px;
+  --workflow-stage-padding: 24px;
+  --workflow-stage-gap: 14px;
+}
+
+/* Align the page title card and every operational workspace to the same column. */
+.main-area {
+  padding: 18px clamp(14px, 2.1vw, 28px) 28px !important;
+}
+.main-area > .header,
+.templates-progressive-workspace,
+.progressive-source-workspace,
+.progressive-output-workspace,
+.guided-output-workspace,
+.dashboard-grid,
+.main-area > .settings {
+  width: min(var(--workflow-content-width), 100%) !important;
+  max-width: var(--workflow-content-width) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+.main-area > .header {
+  min-height: 86px !important;
+  margin-bottom: var(--workflow-stage-gap) !important;
+  padding: 18px 23px !important;
+  border-radius: var(--workflow-radius-page) !important;
+}
+
+/* Outer work surfaces use one consistent frame. */
+.template-selection-stage,
+.template-selected-command,
+.focused-template-configurator,
+.source-progressive-stage,
+.source-progressive-evidence,
+.output-stage {
+  border: 1px solid var(--ui-gray-200) !important;
+  border-radius: var(--workflow-radius-stage) !important;
+  box-shadow: 0 1px 2px rgba(15,23,37,.03), 0 14px 34px rgba(15,23,37,.05) !important;
+}
+.templates-progressive-workspace,
+.progressive-source-workspace,
+.progressive-output-workspace {
+  gap: var(--workflow-stage-gap) !important;
+}
+.template-selection-stage,
+.source-progressive-stage,
+.output-stage {
+  padding: var(--workflow-stage-padding) !important;
+}
+.template-selected-command {
+  padding: 19px var(--workflow-stage-padding) !important;
+}
+.embedded-template-configurator .template-focused-workflow {
+  padding: 14px !important;
+}
+
+/* Source Data evidence: parent owns title; embedded evidence begins with compact status and controls. */
+.source-progressive-evidence {
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow: hidden;
+}
+.source-progressive-evidence > .source-progressive-command {
+  min-height: 0 !important;
+  padding: 21px var(--workflow-stage-padding) !important;
+  border-bottom: 1px solid var(--ui-gray-200);
+}
+.source-progressive-evidence .source-supporting-embedded {
+  min-height: min(540px, calc(100dvh - 325px));
+  margin: 13px !important;
+  padding: 13px !important;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: var(--workflow-radius-panel);
+  background: var(--ui-white);
+  overflow: auto;
+}
+.embedded-evidence-summary {
+  min-height: 43px;
+  padding: 0 4px 0 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+.embedded-evidence-summary strong {
+  color: var(--ui-black);
+}
+.source-supporting-embedded .supporting-disclosure {
+  margin: 0 !important;
+  border-radius: 16px !important;
+  box-shadow: none !important;
+}
+.source-supporting-embedded .source-supporting-grid {
+  border-radius: 0 0 16px 16px;
+}
+.source-supporting-embedded .professional-evidence-editor {
+  padding: 12px !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+/* The arrange disclosure already provides the layout identity. */
+.source-supporting-embedded .professional-evidence-editor .evidence-heading {
+  display: none !important;
+}
+.source-supporting-embedded .professional-evidence-editor .evidence-command-bar {
+  min-height: 48px;
+  justify-content: flex-end !important;
+  padding: 0 0 10px !important;
+  border-bottom: 1px solid var(--ui-gray-200);
+}
+.source-supporting-embedded .professional-evidence-editor .evidence-command-bar > .evidence-toolbar-separator:first-of-type {
+  display: none !important;
+}
+
+/* Source command alignment: progress and actions form one restrained utility column. */
+.source-progressive-command,
+.output-progressive-command {
+  gap: 20px !important;
+}
+.source-command-right,
+.output-command-right {
+  gap: 9px !important;
+}
+.source-inline-progress,
+.output-inline-progress {
+  border-radius: 16px !important;
+}
+.source-stage-actions button {
+  min-height: 45px !important;
+}
+
+/* Outputs now matches Source Data: no detached strip, progress belongs to the active task header. */
+.progressive-output-workspace {
+  display: grid;
+  align-content: start;
+}
+.progressive-output-workspace .output-stage {
+  display: grid;
+  gap: 18px !important;
+}
+.output-progressive-command {
+  min-height: 98px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.output-stage-heading {
+  max-width: 650px;
+}
+.output-stage-heading h2 {
+  margin: 6px 0 8px !important;
+}
+.output-command-right {
+  flex: none;
+  display: grid;
+  justify-items: end;
+}
+.output-inline-progress {
+  min-height: 51px;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--ui-gray-200);
+  background: var(--ui-gray-50);
+}
+.output-inline-progress .output-flow-step {
+  min-width: 104px;
+  min-height: 39px;
+  padding: 5px 9px;
+  gap: 7px;
+  border-radius: 12px;
+}
+.output-inline-progress .output-flow-step b {
+  width: 27px;
+  height: 27px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+.output-inline-progress .output-flow-step small {
+  font-size: 11px;
+}
+.output-inline-progress .output-flow-step.active {
+  border-color: var(--ui-gray-primary-line) !important;
+  background: var(--ui-white) !important;
+  box-shadow: 0 3px 9px rgba(34,40,48,.045);
+}
+.output-inline-progress .output-flow-step.active b {
+  color: var(--ui-white) !important;
+  background: var(--ui-gray-primary) !important;
+}
+.output-inline-progress .output-flow-step.done b {
+  color: var(--ui-green) !important;
+  border-color: var(--ui-green-line) !important;
+  background: var(--ui-green-soft) !important;
+}
+
+/* Harmonize nested cards and inputs rather than allowing each page to invent geometry. */
+.studio-component-card,
+.source-method-card,
+.guided-route-card,
+.output-packet-grid .review-card,
+.output-final-cards .final-packet-card,
+.output-delivery-option {
+  border-radius: var(--workflow-radius-panel) !important;
+}
+.secondary-button,
+.action-button,
+.edit-document,
+.reveal-action,
+.file-input,
+.supporting-dropzone {
+  border-radius: var(--workflow-radius-control) !important;
+}
+
+@media (max-width: 1100px) {
+  .source-progressive-command,
+  .output-progressive-command {
+    display: grid !important;
+  }
+  .source-command-right,
+  .output-command-right {
+    justify-items: start;
+  }
+}
+@media (max-width: 720px) {
+  :root {
+    --workflow-stage-padding: 17px;
+    --workflow-radius-page: 19px;
+    --workflow-radius-stage: 20px;
+    --workflow-radius-panel: 16px;
+  }
+  .main-area {
+    padding: 12px 10px 18px !important;
+  }
+  .source-inline-progress,
+  .output-inline-progress {
+    width: 100%;
+    display: grid;
+  }
+  .source-progressive-evidence .source-supporting-embedded {
+    margin: 9px !important;
+    padding: 9px !important;
+  }
+}
