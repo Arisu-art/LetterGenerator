@@ -62,3 +62,17 @@ export function markFilingSent(id: string) {
   write(FILINGS_KEY, next);
   return next;
 }
+export function clearOperationsRecords() {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(CASES_KEY);
+    localStorage.removeItem(FILINGS_KEY);
+  }
+  return { cases: [] as ClientCaseRecord[], filings: [] as FilingRecord[] };
+}
+export function exportOperationsRecords() {
+  return {
+    exportedAt: new Date().toISOString(),
+    records: { cases: loadClientCases(), filings: loadFilings() },
+    notice: 'Operational metadata only. Raw source input and document file contents are not included.'
+  };
+}
