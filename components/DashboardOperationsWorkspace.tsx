@@ -8,7 +8,6 @@ type Props = {
   activeCaseId?: string;
   onNewCase: () => void;
   onOpenTemplates: () => void;
-  onOpenSource: () => void;
   onOpenOutputs: () => void;
   onOpenTracker: () => void;
   onContinueCase: (record: ClientCaseRecord) => void;
@@ -24,12 +23,12 @@ function shortDate(value?: string) {
 }
 function statusTone(status: ClientCaseStatus) { return status === 'PDF_READY' ? 'ready' : status === 'REVIEW_READY' ? 'active' : 'neutral'; }
 function actionFor(record: ClientCaseRecord | undefined) {
-  if (!record) return { title: 'Start the first client case', copy: 'Load a source TXT file and produce an ordered bureau packet.', button: 'New Case', target: 'new' as const };
-  if (record.status === 'PDF_READY') return { title: 'Final packets ready for delivery', copy: `${record.clientName} has ${record.pdfCount} PDF packet${record.pdfCount === 1 ? '' : 's'} prepared.`, button: 'Open Tracker', target: 'tracker' as const };
+  if (!record) return { title: 'Start a client case', copy: 'Load source data and build an ordered bureau packet.', button: 'Start New Case', target: 'new' as const };
+  if (record.status === 'PDF_READY') return { title: 'Final packets ready for delivery', copy: `${record.clientName} has ${record.pdfCount} PDF packet${record.pdfCount === 1 ? '' : 's'} prepared.`, button: 'Open Filing Tracker', target: 'tracker' as const };
   if (record.status === 'REVIEW_READY') return { title: 'Continue packet review', copy: `${record.clientName} has editable documents ready for finalization.`, button: 'Open Outputs', target: 'outputs' as const };
-  return { title: 'Continue source preparation', copy: `${record.clientName} requires supporting evidence before packet review.`, button: 'Continue Case', target: 'source' as const };
+  return { title: 'Complete required evidence', copy: `${record.clientName} needs Supporting Documents before review generation.`, button: 'Continue Case', target: 'case' as const };
 }
-export default function DashboardOperationsWorkspace({ cases, filings, activeCaseId, onNewCase, onOpenTemplates, onOpenSource, onOpenOutputs, onOpenTracker, onContinueCase }: Props) {
+export default function DashboardOperationsWorkspace({ cases, filings, activeCaseId, onNewCase, onOpenTemplates, onOpenOutputs, onOpenTracker, onContinueCase }: Props) {
   const activeCase = cases.find((record) => record.id === activeCaseId) || cases[0];
   const primary = actionFor(activeCase);
   const readyToSend = filings.filter((record) => record.status === 'PDF_READY');
@@ -40,12 +39,11 @@ export default function DashboardOperationsWorkspace({ cases, filings, activeCas
     else if (primary.target === 'tracker') onOpenTracker();
     else if (primary.target === 'outputs') onOpenOutputs();
     else if (activeCase) onContinueCase(activeCase);
-    else onOpenSource();
   }
   return <section className="saas-dashboard-workspace unified-client-dashboard">
     <section className="panel dashboard-command-card">
-      <div className="dashboard-command-copy"><p className="eyebrow">Next action</p><h2>{primary.title}</h2><p>{primary.copy}</p><div className="dashboard-command-actions"><button type="button" className="action-button" onClick={executePrimary}>{primary.button}</button><button type="button" className="secondary-button" onClick={onNewCase}>New Case</button></div></div>
-      <aside className="dashboard-active-case" aria-label="Active case summary">{activeCase ? <><p className="eyebrow">Current case</p><strong>{activeCase.clientName}</strong><span>{activeCase.round} · {activeCase.bureaus.length} bureau{activeCase.bureaus.length === 1 ? '' : 's'}</span><div><small>{activeCase.evidenceCount} evidence</small><small>{activeCase.pdfCount} PDFs</small></div><button type="button" className="secondary-button" onClick={() => onContinueCase(activeCase)}>Open case</button></> : <><p className="eyebrow">Setup</p><strong>No active case</strong><span>Configure packet references before beginning client work.</span><button type="button" className="secondary-button" onClick={onOpenTemplates}>Open Templates</button></>}</aside>
+      <div className="dashboard-command-copy"><p className="eyebrow">Client operations</p><h2>{primary.title}</h2><p>{primary.copy}</p><div className="dashboard-command-actions"><button type="button" className="action-button" onClick={executePrimary}>{primary.button}</button>{activeCase && <button type="button" className="secondary-button" onClick={onNewCase}>New Case</button>}</div></div>
+      <aside className="dashboard-active-case" aria-label="Current case summary">{activeCase ? <><p className="eyebrow">Current case</p><strong>{activeCase.clientName}</strong><span>{activeCase.round} · {activeCase.bureaus.length} bureau{activeCase.bureaus.length === 1 ? '' : 's'}</span><div><small>{activeCase.evidenceCount} evidence</small><small>{activeCase.pdfCount} PDFs</small></div><em className={`operations-status ${statusTone(activeCase.status)}`}>{caseStatus[activeCase.status]}</em></> : <><p className="eyebrow">Before your first case</p><strong>Packet templates</strong><span>Confirm reusable templates before beginning production.</span><button type="button" className="secondary-button" onClick={onOpenTemplates}>Open Templates</button></>}</aside>
     </section>
     <div className="dashboard-operational-metrics" aria-label="Operational summary">
       <article><small>Client cases</small><strong>{cases.length}</strong><span>{reviewCases.length} awaiting review</span></article>
@@ -54,17 +52,17 @@ export default function DashboardOperationsWorkspace({ cases, filings, activeCas
     </div>
     <div className="dashboard-bottom-grid">
       <section className="panel dashboard-action-queue">
-        <header><div><p className="eyebrow">Work queue</p><h3>Attention required</h3></div><button type="button" className="text-action" onClick={onOpenTracker}>Filing tracker</button></header>
-        <div className="queue-items">{readyToSend.length > 0 && <button type="button" className="queue-row urgent" onClick={onOpenTracker}><span>Delivery</span><strong>{readyToSend.length} PDF packet{readyToSend.length === 1 ? '' : 's'} ready to mark sent</strong><small>Open Tracker →</small></button>}{reviewCases.length > 0 && <button type="button" className="queue-row" onClick={onOpenOutputs}><span>Review</span><strong>{reviewCases.length} case{reviewCases.length === 1 ? '' : 's'} prepared for final PDF creation</strong><small>Open Outputs →</small></button>}{!readyToSend.length && !reviewCases.length && <button type="button" className="queue-row empty" onClick={onNewCase}><span>Ready</span><strong>No pending delivery or review actions</strong><small>Start Case →</small></button>}</div>
+        <header><div><p className="eyebrow">Work queue</p><h3>Attention required</h3></div></header>
+        <div className="queue-items">{readyToSend.length > 0 && <button type="button" className="queue-row urgent" onClick={onOpenTracker}><span>Delivery</span><strong>{readyToSend.length} PDF packet{readyToSend.length === 1 ? '' : 's'} ready to mark sent</strong><small>Open Tracker →</small></button>}{reviewCases.length > 0 && <button type="button" className="queue-row" onClick={onOpenOutputs}><span>Review</span><strong>{reviewCases.length} case{reviewCases.length === 1 ? '' : 's'} prepared for final PDF creation</strong><small>Open Outputs →</small></button>}{!readyToSend.length && !reviewCases.length && <div className="queue-row empty static-row"><span>Clear</span><strong>No pending delivery or review actions</strong><small>Up to date</small></div>}</div>
       </section>
       <section className="panel dashboard-recent-delivery">
-        <header><div><p className="eyebrow">Delivery</p><h3>Recent packets</h3></div><button type="button" className="text-action" onClick={onOpenTracker}>Tracker</button></header>
-        {filings.length ? <div className="delivery-mini-list">{filings.slice(0, 4).map((record) => <article key={record.id}><div><strong>{record.clientName}</strong><span>{record.bureau} · {record.packetType === 'DISPUTE' ? 'Dispute' : 'Late Payment'}</span></div><small>{shortDate(record.sentAt || record.generatedAt)}</small><b className={record.status === 'SENT' ? 'sent' : ''}>{record.status === 'SENT' ? 'Sent' : 'PDF Ready'}</b></article>)}</div> : <div className="delivery-empty"><p>No final packet records yet.</p><button type="button" className="secondary-button" onClick={onNewCase}>New Case</button></div>}
+        <header><div><p className="eyebrow">Delivery</p><h3>Recent packets</h3></div>{filings.length > 0 && <button type="button" className="text-action" onClick={onOpenTracker}>View tracker</button>}</header>
+        {filings.length ? <div className="delivery-mini-list">{filings.slice(0, 4).map((record) => <article key={record.id}><div><strong>{record.clientName}</strong><span>{record.bureau} · {record.packetType === 'DISPUTE' ? 'Dispute' : 'Late Payment'}</span></div><small>{shortDate(record.sentAt || record.generatedAt)}</small><b className={record.status === 'SENT' ? 'sent' : ''}>{record.status === 'SENT' ? 'Sent' : 'PDF Ready'}</b></article>)}</div> : <div className="delivery-empty"><p>No final packet records yet.</p></div>}
       </section>
     </div>
     <section className="panel dashboard-case-portfolio">
-      <header><div><p className="eyebrow">Client cases</p><h3>Active case portfolio</h3><p>Continue packet work, confirm evidence and monitor final PDF readiness.</p></div><span className="operations-count">{cases.length} case{cases.length === 1 ? '' : 's'}</span></header>
-      {cases.length === 0 ? <div className="dashboard-cases-empty"><strong>No cases yet</strong><p>Start a case to create its workflow record.</p><button type="button" className="action-button" onClick={onNewCase}>Start New Case</button></div> : <div className="dashboard-case-list" role="list">{cases.map((record) => <article className={`dashboard-case-row ${record.id === activeCaseId ? 'current' : ''}`} key={record.id} role="listitem"><div className="dashboard-case-identity"><strong>{record.clientName}</strong><span>{record.round} · Updated {shortDate(record.updatedAt)}</span></div><div className="dashboard-case-stats"><span><b>{record.bureaus.length}</b> bureau</span><span><b>{record.evidenceCount}</b> evidence</span><span><b>{record.pdfCount}</b> PDF</span></div><em className={`operations-status ${statusTone(record.status)}`}>{caseStatus[record.status]}</em><button type="button" className="secondary-button" onClick={() => onContinueCase(record)}>{record.id === activeCaseId ? 'Continue' : record.status === 'PDF_READY' ? 'Track' : 'View'}</button></article>)}</div>}
+      <header><div><p className="eyebrow">Client cases</p><h3>Case portfolio</h3><p>Resume active work or track finalized packet status.</p></div><span className="operations-count">{cases.length} case{cases.length === 1 ? '' : 's'}</span></header>
+      {cases.length === 0 ? <div className="dashboard-cases-empty"><strong>No case records yet</strong><p>Begin from the primary action above.</p></div> : <div className="dashboard-case-list" role="list">{cases.map((record) => <article className={`dashboard-case-row ${record.id === activeCaseId ? 'current' : ''}`} key={record.id} role="listitem"><div className="dashboard-case-identity"><strong>{record.clientName}</strong><span>{record.round} · Updated {shortDate(record.updatedAt)}</span></div><div className="dashboard-case-stats"><span><b>{record.bureaus.length}</b> bureau</span><span><b>{record.evidenceCount}</b> evidence</span><span><b>{record.pdfCount}</b> PDF</span></div><em className={`operations-status ${statusTone(record.status)}`}>{caseStatus[record.status]}</em><button type="button" className="secondary-button" onClick={() => onContinueCase(record)}>{record.id === activeCaseId ? 'Continue' : record.status === 'PDF_READY' ? 'Track' : 'View'}</button></article>)}</div>}
     </section>
   </section>;
 }
