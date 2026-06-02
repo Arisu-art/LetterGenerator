@@ -35,6 +35,7 @@ import './workflow-geometry-normalization.css';
 import './client-operations.css';
 import './client-navigation-routes.css';
 import './word-style-image-crop.css';
+import './dashboard-settings-operations.css';
 
 export const metadata = {
   title: 'LetterGenerator',
