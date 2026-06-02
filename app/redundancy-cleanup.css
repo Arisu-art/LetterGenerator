@@ -1,0 +1,57 @@
+/* Final redundancy cleanup: one heading/action layer per workspace. */
+.main-area:has(.unified-client-dashboard) > .header {
+  display: none !important;
+}
+.main-area:has(.unified-client-dashboard) {
+  padding-top: clamp(18px, 2vw, 26px) !important;
+}
+.dashboard-command-single {
+  min-height: 196px;
+  display: block !important;
+}
+.dashboard-command-single .dashboard-command-copy {
+  height: 100%;
+  max-width: 760px;
+}
+.dashboard-action-queue .static-row {
+  cursor: default;
+}
+.dashboard-action-queue .static-row:hover {
+  transform: none;
+  border-color: var(--ui-gray-200);
+  background: var(--ui-white);
+}
+.simplified-source-command {
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+.simplified-source-command .source-progressive-heading {
+  max-width: min(760px, 100%);
+}
+.simplified-source-command .source-command-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.simplified-source-command .source-command-actions > .pill {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+}
+.simplified-source-command .source-stage-actions {
+  margin: 0 !important;
+}
+@media (max-width: 920px) {
+  .dashboard-command-single {
+    min-height: 0;
+  }
+  .simplified-source-command {
+    display: grid !important;
+    gap: 16px !important;
+  }
+  .simplified-source-command .source-command-actions {
+    justify-content: start;
+  }
+}
