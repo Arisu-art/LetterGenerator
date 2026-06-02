@@ -8,6 +8,7 @@ type Props = {
   activeCaseId?: string;
   onNewCase: () => void;
   onOpenTemplates: () => void;
+  onOpenSource?: () => void;
   onOpenOutputs: () => void;
   onOpenTracker: () => void;
   onContinueCase: (record: ClientCaseRecord) => void;
