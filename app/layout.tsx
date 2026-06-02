@@ -38,6 +38,7 @@ import './word-style-image-crop.css';
 import './dashboard-settings-operations.css';
 import './consolidated-dashboard-required-evidence.css';
 import './redundancy-cleanup.css';
+import './button-system-normalization.css';
 
 export const metadata = {
   title: 'LetterGenerator',
