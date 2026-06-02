@@ -33,6 +33,7 @@ import './template-progressive-studio.css';
 import './source-progressive-studio.css';
 import './workflow-geometry-normalization.css';
 import './client-operations.css';
+import './client-navigation-routes.css';
 
 export const metadata = {
   title: 'LetterGenerator',
