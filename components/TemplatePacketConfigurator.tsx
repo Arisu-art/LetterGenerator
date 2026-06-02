@@ -23,6 +23,7 @@ type Props = {
   slots: Slot[];
   supportingReady: boolean;
   focusedPacket?: PacketFocus;
+  embedded?: boolean;
   onUploadLetter: (slot: Slot, file: File) => Promise<void>;
   onRemoveLetter: (slot: Slot) => Promise<void>;
   onExhibitsChange: (value: TemplateExhibits) => void;
@@ -41,7 +42,7 @@ function kindLabel(kind: ExhibitKind) {
   return exhibitModes[kind] === 'GENERATED_DOCX' ? 'Editable DOCX' : 'Static PDF';
 }
 
-export default function TemplatePacketConfigurator({ round, slots, supportingReady, focusedPacket = 'DISPUTE', onUploadLetter, onRemoveLetter, onExhibitsChange, onMessage }: Props) {
+export default function TemplatePacketConfigurator({ round, slots, supportingReady, focusedPacket = 'DISPUTE', embedded = false, onUploadLetter, onRemoveLetter, onExhibitsChange, onMessage }: Props) {
   const [activeNode, setActiveNode] = useState<NodeId>(null);
   const [exhibits, setExhibits] = useState<TemplateExhibits>({ FCRA: null, AFFIDAVIT: null, ATTACHMENT: null, FTC: null });
   const dispute = slots.find((slot) => slot.type === 'DISPUTE');
@@ -88,12 +89,12 @@ export default function TemplatePacketConfigurator({ round, slots, supportingRea
   if (focusedPacket === 'DISPUTE' && !dispute) return <section className="panel template-config-empty">No Dispute Letter reference slot is available for {round}.</section>;
   if (focusedPacket === 'LATE_PAYMENT' && !late) return <section className="panel template-config-empty">No Late Payment Letter reference slot is available for {round}.</section>;
 
-  return <section className={`template-studio template-studio-operational progressive-surface focused-template-configurator ${focusedPacket === 'DISPUTE' ? 'dispute-focused' : 'late-focused'}`} aria-label="Selected packet template configuration">
+  return <section className={`template-studio template-studio-operational progressive-surface focused-template-configurator ${embedded ? 'embedded-template-configurator' : ''} ${focusedPacket === 'DISPUTE' ? 'dispute-focused' : 'late-focused'}`} aria-label="Selected packet template configuration">
     {focusedPacket === 'DISPUTE' && dispute && <div className="template-focused-workflow">
-      <header className="template-section-heading template-operational-heading">
+      {!embedded && <header className="template-section-heading template-operational-heading">
         <div className="template-title-block"><p className="eyebrow">Standard filing order</p><h3>Dispute Packet</h3><span>Letter → Supporting → FCRA → Affidavit → Attachment → FTC</span></div>
         <div className="template-info-tags" aria-label="Packet attributes"><Tag>Reusable</Tag><Tag>Order locked</Tag></div>
-      </header>
+      </header>}
       <div className="studio-component-grid primary-visible-grid">
         <ComponentCard number="01" title="Dispute Letter" meta={dispute.file || 'Upload the required dispute letter template.'} tone={dispute.file ? 'ready' : 'required'} status={dispute.file ? 'Ready' : 'Required'} format="Editable DOCX" className="primary-component"><LetterActions slot={dispute} node="DISPUTE_LETTER" /></ComponentCard>
         <ComponentCard number="02" title="Supporting Documents" meta="Client evidence is arranged in Source Data." tone={supportingReady ? 'ready' : 'neutral'} status={supportingReady ? 'Available' : 'Per client'} format="Image layout" className="linked-component" />
@@ -101,10 +102,10 @@ export default function TemplatePacketConfigurator({ round, slots, supportingRea
       </div>
     </div>}
     {focusedPacket === 'LATE_PAYMENT' && late && <div className="template-focused-workflow late-payment-focused">
-      <header className="template-section-heading template-operational-heading">
+      {!embedded && <header className="template-section-heading template-operational-heading">
         <div className="template-title-block"><p className="eyebrow">Optional route</p><h3>Late Payment Packet</h3><span>Late Payment Letter → Supporting Documents</span></div>
         <div className="template-info-tags" aria-label="Packet attributes"><Tag>Reusable</Tag><Tag>2 positions</Tag></div>
-      </header>
+      </header>}
       <div className="studio-component-grid primary-visible-grid compact-template-grid">
         <ComponentCard number="01" title="Late Payment Letter" meta={late.file || 'Upload only when required.'} tone={late.file ? 'ready' : 'neutral'} status={late.file ? 'Ready' : 'Optional'} format="Editable DOCX" className="primary-component"><LetterActions slot={late} node="LATE_LETTER" /></ComponentCard>
         <ComponentCard number="02" title="Supporting Documents" meta="Uses evidence from Source Data." tone={supportingReady ? 'ready' : 'neutral'} status={supportingReady ? 'Available' : 'Per client'} format="Image layout" className="linked-component" />
