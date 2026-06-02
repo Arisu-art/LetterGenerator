@@ -8,7 +8,6 @@ type Props = {
   activeCaseId?: string;
   onNewCase: () => void;
   onOpenTemplates: () => void;
-  onOpenSource?: () => void;
   onOpenOutputs: () => void;
   onOpenTracker: () => void;
   onContinueCase: (record: ClientCaseRecord) => void;
@@ -42,9 +41,8 @@ export default function DashboardOperationsWorkspace({ cases, filings, activeCas
     else if (activeCase) onContinueCase(activeCase);
   }
   return <section className="saas-dashboard-workspace unified-client-dashboard">
-    <section className="panel dashboard-command-card">
-      <div className="dashboard-command-copy"><p className="eyebrow">Client operations</p><h2>{primary.title}</h2><p>{primary.copy}</p><div className="dashboard-command-actions"><button type="button" className="action-button" onClick={executePrimary}>{primary.button}</button>{activeCase && <button type="button" className="secondary-button" onClick={onNewCase}>New Case</button>}</div></div>
-      <aside className="dashboard-active-case" aria-label="Current case summary">{activeCase ? <><p className="eyebrow">Current case</p><strong>{activeCase.clientName}</strong><span>{activeCase.round} · {activeCase.bureaus.length} bureau{activeCase.bureaus.length === 1 ? '' : 's'}</span><div><small>{activeCase.evidenceCount} evidence</small><small>{activeCase.pdfCount} PDFs</small></div><em className={`operations-status ${statusTone(activeCase.status)}`}>{caseStatus[activeCase.status]}</em></> : <><p className="eyebrow">Before your first case</p><strong>Packet templates</strong><span>Confirm reusable templates before beginning production.</span><button type="button" className="secondary-button" onClick={onOpenTemplates}>Open Templates</button></>}</aside>
+    <section className="panel dashboard-command-card dashboard-command-single">
+      <div className="dashboard-command-copy"><p className="eyebrow">Client operations</p><h2>{primary.title}</h2><p>{primary.copy}</p><div className="dashboard-command-actions"><button type="button" className="action-button" onClick={executePrimary}>{primary.button}</button>{activeCase ? <button type="button" className="secondary-button" onClick={onNewCase}>New Case</button> : <button type="button" className="secondary-button" onClick={onOpenTemplates}>Review Templates</button>}</div></div>
     </section>
     <div className="dashboard-operational-metrics" aria-label="Operational summary">
       <article><small>Client cases</small><strong>{cases.length}</strong><span>{reviewCases.length} awaiting review</span></article>
@@ -57,7 +55,7 @@ export default function DashboardOperationsWorkspace({ cases, filings, activeCas
         <div className="queue-items">{readyToSend.length > 0 && <button type="button" className="queue-row urgent" onClick={onOpenTracker}><span>Delivery</span><strong>{readyToSend.length} PDF packet{readyToSend.length === 1 ? '' : 's'} ready to mark sent</strong><small>Open Tracker →</small></button>}{reviewCases.length > 0 && <button type="button" className="queue-row" onClick={onOpenOutputs}><span>Review</span><strong>{reviewCases.length} case{reviewCases.length === 1 ? '' : 's'} prepared for final PDF creation</strong><small>Open Outputs →</small></button>}{!readyToSend.length && !reviewCases.length && <div className="queue-row empty static-row"><span>Clear</span><strong>No pending delivery or review actions</strong><small>Up to date</small></div>}</div>
       </section>
       <section className="panel dashboard-recent-delivery">
-        <header><div><p className="eyebrow">Delivery</p><h3>Recent packets</h3></div>{filings.length > 0 && <button type="button" className="text-action" onClick={onOpenTracker}>View tracker</button>}</header>
+        <header><div><p className="eyebrow">Delivery</p><h3>Recent packets</h3></div>{filings.length > 0 && readyToSend.length === 0 && <button type="button" className="text-action" onClick={onOpenTracker}>View tracker</button>}</header>
         {filings.length ? <div className="delivery-mini-list">{filings.slice(0, 4).map((record) => <article key={record.id}><div><strong>{record.clientName}</strong><span>{record.bureau} · {record.packetType === 'DISPUTE' ? 'Dispute' : 'Late Payment'}</span></div><small>{shortDate(record.sentAt || record.generatedAt)}</small><b className={record.status === 'SENT' ? 'sent' : ''}>{record.status === 'SENT' ? 'Sent' : 'PDF Ready'}</b></article>)}</div> : <div className="delivery-empty"><p>No final packet records yet.</p></div>}
       </section>
     </div>
