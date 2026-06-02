@@ -1,8 +1,19 @@
-/* Simple picture crop model for Supporting Documents.
-   Select image -> Crop -> drag visible image inside its frame -> Done. */
+/* Functional Word-style picture crop model for Supporting Documents.
+   Select image -> Crop -> drag handles or pan image -> Done. */
 .word-crop-editor .word-crop-grid {
   grid-template-columns: minmax(0, 1fr) 286px !important;
   gap: 15px !important;
+}
+.word-crop-editor .support-canvas-item {
+  touch-action: none;
+}
+.word-crop-editor .support-cropped-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
 }
 .word-crop-editor .support-page-canvas.tool-position .support-canvas-item.selected {
   cursor: move;
@@ -14,7 +25,7 @@
   cursor: move !important;
   outline: 1px solid #1f2329 !important;
   outline-offset: 0 !important;
-  overflow: hidden;
+  overflow: visible;
 }
 .word-crop-editor .support-page-canvas.tool-crop .support-canvas-item.selected::after {
   display: none !important;
@@ -25,13 +36,15 @@
   inset: 0;
   z-index: 2;
   pointer-events: none;
-  box-shadow: inset 0 0 0 1px rgba(20, 23, 28, .18);
+  box-shadow: inset 0 0 0 1px rgba(20, 23, 28, .28);
 }
 .word-crop-editor .crop-handle {
   position: absolute;
-  z-index: 4;
+  z-index: 6;
   display: block;
-  pointer-events: none;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
   background: #171a1f;
   border-radius: 1px;
 }
@@ -39,30 +52,58 @@
 .word-crop-editor .crop-handle.top-right,
 .word-crop-editor .crop-handle.bottom-left,
 .word-crop-editor .crop-handle.bottom-right {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   background: transparent;
 }
-.word-crop-editor .crop-handle.top-left { top: -1px; left: -1px; border-top: 4px solid #171a1f; border-left: 4px solid #171a1f; }
-.word-crop-editor .crop-handle.top-right { top: -1px; right: -1px; border-top: 4px solid #171a1f; border-right: 4px solid #171a1f; }
-.word-crop-editor .crop-handle.bottom-left { bottom: -1px; left: -1px; border-bottom: 4px solid #171a1f; border-left: 4px solid #171a1f; }
-.word-crop-editor .crop-handle.bottom-right { bottom: -1px; right: -1px; border-bottom: 4px solid #171a1f; border-right: 4px solid #171a1f; }
+.word-crop-editor .crop-handle.top-left { top: -3px; left: -3px; border-top: 4px solid #171a1f; border-left: 4px solid #171a1f; cursor: nwse-resize; }
+.word-crop-editor .crop-handle.top-right { top: -3px; right: -3px; border-top: 4px solid #171a1f; border-right: 4px solid #171a1f; cursor: nesw-resize; }
+.word-crop-editor .crop-handle.bottom-left { bottom: -3px; left: -3px; border-bottom: 4px solid #171a1f; border-left: 4px solid #171a1f; cursor: nesw-resize; }
+.word-crop-editor .crop-handle.bottom-right { bottom: -3px; right: -3px; border-bottom: 4px solid #171a1f; border-right: 4px solid #171a1f; cursor: nwse-resize; }
 .word-crop-editor .crop-handle.top,
 .word-crop-editor .crop-handle.bottom {
-  left: calc(50% - 11px);
+  left: calc(50% - 14px);
+  width: 28px;
+  height: 10px;
+  background: transparent;
+  cursor: ns-resize;
+}
+.word-crop-editor .crop-handle.top::after,
+.word-crop-editor .crop-handle.bottom::after {
+  content: '';
+  position: absolute;
+  left: 3px;
   width: 22px;
   height: 4px;
+  border-radius: 1px;
+  background: #171a1f;
 }
-.word-crop-editor .crop-handle.top { top: -1px; }
-.word-crop-editor .crop-handle.bottom { bottom: -1px; }
+.word-crop-editor .crop-handle.top { top: -4px; }
+.word-crop-editor .crop-handle.top::after { top: 1px; }
+.word-crop-editor .crop-handle.bottom { bottom: -4px; }
+.word-crop-editor .crop-handle.bottom::after { bottom: 1px; }
 .word-crop-editor .crop-handle.left,
 .word-crop-editor .crop-handle.right {
-  top: calc(50% - 11px);
+  top: calc(50% - 14px);
+  width: 10px;
+  height: 28px;
+  background: transparent;
+  cursor: ew-resize;
+}
+.word-crop-editor .crop-handle.left::after,
+.word-crop-editor .crop-handle.right::after {
+  content: '';
+  position: absolute;
+  top: 3px;
   width: 4px;
   height: 22px;
+  border-radius: 1px;
+  background: #171a1f;
 }
-.word-crop-editor .crop-handle.left { left: -1px; }
-.word-crop-editor .crop-handle.right { right: -1px; }
+.word-crop-editor .crop-handle.left { left: -4px; }
+.word-crop-editor .crop-handle.left::after { left: 1px; }
+.word-crop-editor .crop-handle.right { right: -4px; }
+.word-crop-editor .crop-handle.right::after { right: 1px; }
 .word-crop-controls {
   align-self: start;
   padding: 16px !important;
@@ -132,6 +173,7 @@
   font-size: 15px;
   font-weight: 600;
 }
+.word-rotate-actions,
 .word-position-actions {
   padding-top: 12px;
   display: grid;
@@ -139,9 +181,10 @@
   gap: 8px;
   border-top: 1px solid var(--ui-gray-200);
 }
+.word-rotate-actions button,
 .word-position-actions button {
   min-height: 42px;
-  padding: 0 9px;
+  padding: 0 8px;
   border: 1px solid var(--ui-gray-200);
   border-radius: 11px;
   color: var(--ui-charcoal);
@@ -149,6 +192,7 @@
   font-size: 11px;
   font-weight: 710;
 }
+.word-rotate-actions button:hover,
 .word-position-actions button:hover {
   border-color: var(--ui-gray-primary-line);
   background: var(--ui-gray-primary-soft);
