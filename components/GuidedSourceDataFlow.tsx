@@ -120,7 +120,7 @@ export default function GuidedSourceDataFlow({ source, originalSource, normalize
       <SourceStageHeader stage="EVIDENCE" eyebrow="Step 02 · Evidence" title="Supporting documents" description="Add evidence for packet position 02, or continue with a blank position.">
         <div className="source-stage-actions"><button type="button" className="secondary-button" onClick={() => showStage('SOURCE')}>Back</button><button type="button" className="action-button" onClick={confirmEvidence}>{evidence.supporting.length ? 'Confirm Evidence' : 'Skip Evidence'}</button></div>
       </SourceStageHeader>
-      {evidenceKey && <SupportingDocumentsSetup storageKey={evidenceKey} clientName={parsed.name} onChanged={onEvidenceChanged} onMessage={onMessage} />}
+      {evidenceKey && <SupportingDocumentsSetup embedded storageKey={evidenceKey} clientName={parsed.name} onChanged={onEvidenceChanged} onMessage={onMessage} />}
     </section>}
 
     {stage === 'GENERATE' && <section className="panel source-progressive-stage routes-stage generation-stage shared-stage-surface" style={{ viewTransitionName: 'source-work-stage' }}>
