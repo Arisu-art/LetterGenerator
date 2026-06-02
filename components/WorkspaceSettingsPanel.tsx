@@ -20,15 +20,15 @@ export default function WorkspaceSettingsPanel({ preferences, caseCount, filingC
   function update(values: Partial<WorkspacePreferences>) { onChange({ ...preferences, ...values }); }
   return <section className="settings-workspace operations-workspace">
     <section className="panel settings-command">
-      <div className="settings-command-copy"><p className="eyebrow">Workspace control</p><h2>Workflow defaults and privacy</h2><p>Control how packets are validated, finalized and retained on this device.</p></div>
+      <div className="settings-command-copy"><p className="eyebrow">Workspace control</p><h2>Workflow defaults and privacy</h2><p>Control validation, delivery routing and local operational records.</p></div>
       <div className="settings-summary"><span><strong>{caseCount}</strong><small>Case records</small></span><span><strong>{filingCount}</strong><small>Filing records</small></span></div>
     </section>
     <div className="settings-grid">
       <section className="panel settings-group">
         <header><p className="eyebrow">Workflow defaults</p><h3>Packet production</h3></header>
+        <div className="settings-required-rule"><strong>Supporting Documents required</strong><p>Every packet must include at least one evidence image in position 02 before review generation or final PDF delivery.</p><span>Permanent rule</span></div>
         <label className="settings-select"><span><strong>Default filing round</strong><small>Applied when starting a new client case.</small></span><select value={preferences.defaultRound} onChange={(event) => update({ defaultRound: event.target.value as Round })}>{rounds.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
         <Toggle checked={preferences.strictValidation} onChange={(checked) => update({ strictValidation: checked })} title="Strict template validation" description="Block review generation when a required letter DOCX is missing." />
-        <Toggle checked={preferences.requireEvidenceForFinalPdf} onChange={(checked) => update({ requireEvidenceForFinalPdf: checked })} title="Require evidence before final PDF" description="Prevent final packet delivery until Supporting Documents includes at least one image." />
         <Toggle checked={preferences.openTrackerAfterFinalization} onChange={(checked) => update({ openTrackerAfterFinalization: checked })} title="Open Filing Tracker after finalization" description="Move directly to delivery tracking after PDF packets are created." />
       </section>
       <section className="panel settings-group settings-privacy">
