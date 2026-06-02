@@ -45,7 +45,14 @@ export default function SupportingDocumentsLayoutEditor({ storageKey, assets, to
   }
   function doneCrop() { setTool('POSITION'); onMessage('Image crop saved for packet position 02.'); }
   function resetCrop() { edit({ cropX: 0, cropY: 0, cropWidth: 1, cropHeight: 1 }); setTool('POSITION'); onMessage('Selected image crop reset.'); }
-  function start(event: PointerEvent<HTMLDivElement>, asset: PacketAsset, index: number) { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); choose(asset.id); setDrag({ id: asset.id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, placement: placement(asset, index, workingAssets.supporting.length), mode: tool }); }
+  function start(event: PointerEvent<HTMLDivElement>, asset: PacketAsset, index: number) {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const isSelected = asset.id === selectedId;
+    const dragMode: ToolMode = isSelected ? tool : 'POSITION';
+    choose(asset.id);
+    setDrag({ id: asset.id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, placement: placement(asset, index, workingAssets.supporting.length), mode: dragMode });
+  }
   function move(event: PointerEvent<HTMLDivElement>) {
     if (!drag || drag.pointerId !== event.pointerId || !page.current) return;
     const bounds = page.current.getBoundingClientRect();
