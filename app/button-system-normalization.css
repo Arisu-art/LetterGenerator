@@ -1,0 +1,122 @@
+/* Unified workflow button standard.
+   Buttons remain horizontal, consistent in height and aligned by intent. */
+.main-area :where(button.action-button, button.secondary-button, button.danger-button),
+.main-area :where(.text-action, .evidence-auto-align) {
+  min-height: 48px !important;
+  height: 48px !important;
+  padding: 0 18px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 14px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+}
+.main-area :where(button.action-button, button.secondary-button) {
+  min-width: 132px;
+  font-size: 13px !important;
+  font-weight: 720 !important;
+}
+/* Dashboard: primary and secondary decisions are a balanced pair, never a banner and square. */
+.dashboard-command-actions {
+  display: inline-grid !important;
+  grid-template-columns: repeat(2, 184px);
+  gap: 10px !important;
+  justify-content: start;
+  align-items: center;
+}
+.dashboard-command-actions button {
+  width: 184px !important;
+  min-width: 184px !important;
+  max-width: 184px !important;
+  min-height: 50px !important;
+  height: 50px !important;
+}
+/* Required Evidence: Back and Continue are aligned controls, not mismatched tiles. */
+.required-evidence-stage .source-stage-actions {
+  display: inline-grid !important;
+  grid-template-columns: 156px 194px;
+  align-items: center;
+  gap: 10px !important;
+}
+.required-evidence-stage .source-stage-actions button {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 48px !important;
+  height: 48px !important;
+}
+/* Source and Generate footers keep primary hierarchy while using the shared form. */
+.progressive-source-workspace .guided-stage-footer :where(.action-button, .secondary-button) {
+  min-width: 188px;
+}
+.generate-footer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+}
+.generate-footer button {
+  min-width: 210px !important;
+}
+/* Evidence image editor: all operation rows use the same button geometry. */
+.word-crop-actions,
+.word-rotate-actions,
+.word-position-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 9px !important;
+}
+.word-crop-actions button,
+.word-rotate-actions button,
+.word-position-actions button {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 48px !important;
+  height: 48px !important;
+  padding: 0 10px !important;
+  border-radius: 13px !important;
+  white-space: nowrap !important;
+  font-size: 11px !important;
+}
+/* Table/list row operations stay compact but never square. */
+.dashboard-case-row .secondary-button,
+.settings-record-action > span,
+.text-action,
+.evidence-auto-align {
+  min-width: 112px !important;
+}
+.dashboard-case-row .secondary-button {
+  min-height: 44px !important;
+  height: 44px !important;
+}
+.text-action,
+.evidence-auto-align {
+  min-height: 42px !important;
+  height: 42px !important;
+  border-radius: 12px !important;
+}
+/* Disable width artifacts from older card layouts. */
+.dashboard-command-actions .action-button,
+.dashboard-command-actions .secondary-button,
+.required-evidence-stage .source-stage-actions .action-button,
+.required-evidence-stage .source-stage-actions .secondary-button {
+  flex: none !important;
+}
+@media (max-width: 680px) {
+  .dashboard-command-actions,
+  .required-evidence-stage .source-stage-actions {
+    width: 100%;
+    grid-template-columns: 1fr !important;
+  }
+  .dashboard-command-actions button,
+  .required-evidence-stage .source-stage-actions button,
+  .generate-footer button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  .generate-footer {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+  }
+}
