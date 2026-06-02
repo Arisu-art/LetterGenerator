@@ -22,7 +22,7 @@ type Props = {
   round: Round;
   slots: Slot[];
   supportingReady: boolean;
-  focusedPacket: PacketFocus;
+  focusedPacket?: PacketFocus;
   onUploadLetter: (slot: Slot, file: File) => Promise<void>;
   onRemoveLetter: (slot: Slot) => Promise<void>;
   onExhibitsChange: (value: TemplateExhibits) => void;
@@ -41,7 +41,7 @@ function kindLabel(kind: ExhibitKind) {
   return exhibitModes[kind] === 'GENERATED_DOCX' ? 'Editable DOCX' : 'Static PDF';
 }
 
-export default function TemplatePacketConfigurator({ round, slots, supportingReady, focusedPacket, onUploadLetter, onRemoveLetter, onExhibitsChange, onMessage }: Props) {
+export default function TemplatePacketConfigurator({ round, slots, supportingReady, focusedPacket = 'DISPUTE', onUploadLetter, onRemoveLetter, onExhibitsChange, onMessage }: Props) {
   const [activeNode, setActiveNode] = useState<NodeId>(null);
   const [exhibits, setExhibits] = useState<TemplateExhibits>({ FCRA: null, AFFIDAVIT: null, ATTACHMENT: null, FTC: null });
   const dispute = slots.find((slot) => slot.type === 'DISPUTE');
