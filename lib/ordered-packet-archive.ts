@@ -11,11 +11,11 @@ type PacketType = 'DISPUTE' | 'LATE_PAYMENT';
 export type PacketRoute = { type: PacketType; bureau: string };
 
 function safe(value: string) {
-  return value.replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+  return value.replace(/[\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
 }
 
 function docByRole(docs: ReviewOutput[], bureau: string, type: PacketType, role: 'LETTER' | 'AFFIDAVIT' | 'FTC') {
-  return docs.find((doc) => doc.bureau === bureau && doc.type === type && (role === 'LETTER' ? (!doc.role || doc.role === 'LETTER') : doc.role === role));
+  return docs.find((doc) => doc.type === type && (role === 'AFFIDAVIT' ? doc.role === role && (doc.bureau === bureau || doc.bureau === 'CLIENT') : doc.bureau === bureau && (role === 'LETTER' ? (!doc.role || doc.role === 'LETTER') : doc.role === role)));
 }
 
 async function pdfOrBlank(file: Blob | null, blank: Blob) {
@@ -24,8 +24,8 @@ async function pdfOrBlank(file: Blob | null, blank: Blob) {
 
 /**
  * Adds per-bureau filing-order folders to the working ZIP.
- * Every detected route is retained; unavailable template positions are blank PDF pages.
- * The optional routeHints parameter is compatible with routes detected before a letter DOCX exists.
+ * A single case-level affidavit may be reused at position 04 in each dispute packet.
+ * Every detected route is retained; unavailable configured positions remain blank PDF pages.
  */
 export async function addOrderedPacketFolders(
   zip: JSZip,
