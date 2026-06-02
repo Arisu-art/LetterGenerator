@@ -6,6 +6,7 @@ export type ParseDiagnostic = { level: 'warning' | 'info'; message: string; line
 export type PreservedSourceLine = { line: number; text: string; reason: string };
 export type ParsedSource = {
   name: string; address: string[]; dob: string; ssn: string; phone: string; email: string;
+  affidavitState: string; affidavitCounty: string;
   dispute: Record<Bureau, SourceItem[]>; inquiry: Record<Bureau, SourceItem[]>; late: Record<Bureau, SourceItem[]>;
   preserved: PreservedSourceLine[]; diagnostics: ParseDiagnostic[];
 };
@@ -24,7 +25,7 @@ type ItemStore = Record<Bureau, SourceItem[]>;
 const DATE_PATTERN = /\b(?:0?[1-9]|1[0-2])[\/-](?:0?[1-9]|[12]\d|3[01])[\/-](?:\d{2}|\d{4})\b/;
 const ACCOUNT_NAME = /^(?:ACCOUNT|CREDITOR|FURNISHER|COMPANY)\s*(?:NAME)?\s*[:#-]\s*(.+)$/i;
 const ACCOUNT_NUMBER = /^(?:ACCOUNT|ACCT)\s*(?:NUMBER|NO\.?|#)\s*[:#-]\s*(.+)$/i;
-const KNOWN_HEADER = /^(NAME|CLIENT|CONSUMER(?:\s+NAME)?|ADDRESS|DOB|SSN|PHONE|TELEPHONE|MOBILE|EMAIL|E-?MAIL)\s*:/i;
+const KNOWN_HEADER = /^(NAME|CLIENT|CONSUMER(?:\s+NAME)?|ADDRESS|DOB|SSN|PHONE|TELEPHONE|MOBILE|EMAIL|E-?MAIL|AFFIDAVIT\s+STATE|AFFIDAVIT\s+COUNTY)\s*:/i;
 const RESERVED_HEADER = /^(PHONE|TELEPHONE|MOBILE|EMAIL|E-?MAIL)\s*:/i;
 function itemMap(): ItemStore { return { TRANSUNION: [], EQUIFAX: [], EXPERIAN: [] }; }
 function normalized(value: string) { return value.replace(/[\[\]{}()=*#_]+/g, ' ').replace(/[:\-|/]+$/g, '').replace(/[\-_]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase(); }
@@ -72,7 +73,7 @@ function looksLikeRecord(line: string) { return ACCOUNT_NAME.test(line) || ACCOU
 function pushPreserved(parsed: ParsedSource, line: number, text: string, reason: string) { if (!parsed.preserved.some((item) => item.line === line && item.text === text)) parsed.preserved.push({ line, text, reason }); }
 
 export function parseSource(text: string): ParsedSource {
-  const parsed: ParsedSource = { name: '', address: [], dob: '', ssn: '', phone: '', email: '', dispute: itemMap(), inquiry: itemMap(), late: itemMap(), preserved: [], diagnostics: [] };
+  const parsed: ParsedSource = { name: '', address: [], dob: '', ssn: '', phone: '', email: '', affidavitState: '', affidavitCounty: '', dispute: itemMap(), inquiry: itemMap(), late: itemMap(), preserved: [], diagnostics: [] };
   const header: Array<{ text: string; line: number }> = [];
   let section: Section = 'header'; let bureau: Bureau | '' = ''; let buffer: string[] = []; let bufferLine = 0;
   const flush = () => {
@@ -106,6 +107,7 @@ export function parseSource(text: string): ParsedSource {
   parsed.name = headerField(headerLines, /^(?:NAME|CLIENT|CONSUMER(?:\s+NAME)?)\s*:\s*/i) || firstUnlabelled?.text || '';
   parsed.dob = headerField(headerLines, /^DOB\s*:\s*/i); parsed.ssn = headerField(headerLines, /^SSN\s*:\s*/i);
   parsed.phone = headerField(headerLines, /^(?:PHONE|TELEPHONE|MOBILE)\s*:\s*/i); parsed.email = headerField(headerLines, /^(?:EMAIL|E-?MAIL)\s*:\s*/i);
+  parsed.affidavitState = headerField(headerLines, /^AFFIDAVIT\s+STATE\s*:\s*/i); parsed.affidavitCounty = headerField(headerLines, /^AFFIDAVIT\s+COUNTY\s*:\s*/i);
   const labelledAddress = header.filter((item) => /^ADDRESS\s*:/i.test(item.text)).map((item) => item.text.replace(/^ADDRESS\s*:\s*/i, '')).filter(Boolean);
   const continuationAddress = header.filter((item) => item.text !== parsed.name && !KNOWN_HEADER.test(item.text)).map((item) => item.text).filter(Boolean);
   parsed.address = [...labelledAddress, ...continuationAddress];
@@ -124,11 +126,12 @@ export function detectRoutes(parsed: ParsedSource): LetterRoute[] {
 }
 export function createNormalizedSourceCopy(source: string): NormalizedSourceCopy {
   const parsed = parseSource(source); const sections: string[] = [`NAME: ${parsed.name}`, ...parsed.address.map((line, index) => `${index === 0 ? 'ADDRESS: ' : ''}${line}`), `DOB: ${parsed.dob}`, `SSN: ${parsed.ssn}`];
+  if (parsed.affidavitState || parsed.affidavitCounty) sections.push(`AFFIDAVIT STATE: ${parsed.affidavitState}`, `AFFIDAVIT COUNTY: ${parsed.affidavitCounty}`);
   const disputes = bureaus.flatMap((bureau) => parsed.dispute[bureau].length ? ['', bureau, ...parsed.dispute[bureau].map((item) => item.displayText).join('\n\n').split('\n')] : []);
   const inquiries = bureaus.flatMap((bureau) => parsed.inquiry[bureau].length ? ['', bureau, ...parsed.inquiry[bureau].map((item) => item.displayText)] : []);
   const late = bureaus.flatMap((bureau) => parsed.late[bureau].length ? ['', bureau, ...parsed.late[bureau].map((item) => item.displayText).join('\n\n').split('\n')] : []);
   if (disputes.length) sections.push('', 'DISPUTE ACCOUNTS', ...disputes); if (inquiries.length) sections.push('', 'HARD INQUIRIES', ...inquiries); if (late.length) sections.push('', 'LATE PAYMENTS', ...late);
   if (parsed.phone || parsed.email || parsed.preserved.length) { sections.push('', 'PRESERVED SOURCE DATA - NOT INSERTED UNLESS A TEMPLATE MAPS IT'); if (parsed.phone) sections.push(`PHONE: ${parsed.phone}`); if (parsed.email) sections.push(`EMAIL: ${parsed.email}`); parsed.preserved.filter((item) => !RESERVED_HEADER.test(item.text)).forEach((item) => sections.push(`[LINE ${item.line}] ${item.text}`)); }
-  return { text: sections.filter((line, index, all) => line || all[index - 1] !== '').join('\n').trim(), usedFields: ['Name', 'Address', 'DOB', 'SSN', 'Dispute accounts', 'Hard inquiries', 'Late payments'], reservedFields: [parsed.phone ? 'Phone' : '', parsed.email ? 'Email' : ''].filter(Boolean), preservedLines: parsed.preserved };
+  return { text: sections.filter((line, index, all) => line || all[index - 1] !== '').join('\n').trim(), usedFields: ['Name', 'Address', 'DOB', 'SSN', parsed.affidavitState ? 'Affidavit state' : '', parsed.affidavitCounty ? 'Affidavit county' : '', 'Dispute accounts', 'Hard inquiries', 'Late payments'].filter(Boolean), reservedFields: [parsed.phone ? 'Phone' : '', parsed.email ? 'Email' : ''].filter(Boolean), preservedLines: parsed.preserved };
 }
-export const recommendedSourceFormat = `NAME: CLIENT FULL NAME\nADDRESS: STREET ADDRESS\nCITY, STATE ZIP\nDOB: MM/DD/YYYY\nSSN: XXX-XX-1234\n\nDISPUTE ACCOUNTS\nTRANSUNION\nAccount Name: EXAMPLE BANK\nAccount Number: XXXX1234\n\nEQUIFAX\nNONE\n\nEXPERIAN\nAccount Name: EXAMPLE CARD\nAccount Number: XXXX9876\n\nHARD INQUIRIES\nTRANSUNION\nEXAMPLE LENDER - 08/08/2024\n\nLATE PAYMENTS\nEQUIFAX\nAccount Name: EXAMPLE AUTO\nAccount Number: XXXX5678\nLate Payment: 30 Days Late - 01/2025`;
+export const recommendedSourceFormat = `NAME: CLIENT FULL NAME\nADDRESS: STREET ADDRESS\nCITY, STATE ZIP\nDOB: MM/DD/YYYY\nSSN: XXX-XX-1234\nAFFIDAVIT STATE:\nAFFIDAVIT COUNTY:\n\nDISPUTE ACCOUNTS\nTRANSUNION\nAccount Name: EXAMPLE BANK\nAccount Number: XXXX1234\n\nEQUIFAX\nNONE\n\nEXPERIAN\nAccount Name: EXAMPLE CARD\nAccount Number: XXXX9876\n\nHARD INQUIRIES\nTRANSUNION\nEXAMPLE LENDER - 08/08/2024\n\nLATE PAYMENTS\nEQUIFAX\nAccount Name: EXAMPLE AUTO\nAccount Number: XXXX5678\nLate Payment: 30 Days Late - 01/2025`;
