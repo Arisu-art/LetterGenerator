@@ -1,7 +1,7 @@
 import PizZip from 'pizzip';
 import { PDFDocument } from 'pdf-lib';
 import { DOCX_MIME } from './docx-renderer';
-import { loadPacketAssets, loadPacketFile, type PacketAsset, type SupportingPlacement } from './packet-assets';
+import { loadPacketAssets, loadPacketFile, type PacketAsset, type SupportingPlacement, type SupportingRotation } from './packet-assets';
 
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -34,9 +34,7 @@ function verticalSlots(count: number): VerticalSlot[] {
   const safeCount = Math.max(1, count);
   const availableHeight = CANVAS_H - (VERTICAL_MARGIN * 2) - (GAP * (safeCount - 1));
   const slotHeight = availableHeight / safeCount;
-  return Array.from({ length: safeCount }, (_, index) => ({
-    x: HORIZONTAL_MARGIN, y: VERTICAL_MARGIN + index * (slotHeight + GAP), width: CANVAS_W - (HORIZONTAL_MARGIN * 2), height: slotHeight
-  }));
+  return Array.from({ length: safeCount }, (_, index) => ({ x: HORIZONTAL_MARGIN, y: VERTICAL_MARGIN + index * (slotHeight + GAP), width: CANVAS_W - (HORIZONTAL_MARGIN * 2), height: slotHeight }));
 }
 function contain(image: ImageSize, slot: VerticalSlot) {
   const scale = Math.min(slot.width / image.width, slot.height / image.height);
@@ -46,14 +44,28 @@ function contain(image: ImageSize, slot: VerticalSlot) {
 }
 function defaultPlacement(index: number, count: number, image: ImageSize): SupportingPlacement {
   const frame = contain(image, verticalSlots(count)[index]);
-  return { x: frame.x / CANVAS_W, y: frame.y / CANVAS_H, width: frame.width / CANVAS_W, height: frame.height / CANVAS_H, cropX: 0, cropY: 0, cropWidth: 1, cropHeight: 1 };
+  return { x: frame.x / CANVAS_W, y: frame.y / CANVAS_H, width: frame.width / CANVAS_W, height: frame.height / CANVAS_H, cropX: 0, cropY: 0, cropWidth: 1, cropHeight: 1, rotation: 0 };
 }
 function position(value: number, dimension: number) { return Math.round(value * dimension); }
+function rotatedBitmap(bitmap: ImageBitmap, rotation: SupportingRotation) {
+  if (!rotation) return bitmap;
+  const swap = rotation === 90 || rotation === 270;
+  const canvas = document.createElement('canvas');
+  canvas.width = swap ? bitmap.height : bitmap.width;
+  canvas.height = swap ? bitmap.width : bitmap.height;
+  const context = canvas.getContext('2d');
+  if (!context) return bitmap;
+  context.translate(canvas.width / 2, canvas.height / 2);
+  context.rotate((rotation * Math.PI) / 180);
+  context.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2);
+  return canvas;
+}
 function drawPlacedImage(context: CanvasRenderingContext2D, bitmap: ImageBitmap, placement: SupportingPlacement) {
-  const sx = position(placement.cropX, bitmap.width);
-  const sy = position(placement.cropY, bitmap.height);
-  const sw = Math.max(1, position(placement.cropWidth, bitmap.width));
-  const sh = Math.max(1, position(placement.cropHeight, bitmap.height));
+  const source = rotatedBitmap(bitmap, placement.rotation || 0);
+  const sx = position(placement.cropX, source.width);
+  const sy = position(placement.cropY, source.height);
+  const sw = Math.max(1, position(placement.cropWidth, source.width));
+  const sh = Math.max(1, position(placement.cropHeight, source.height));
   const dx = position(placement.x, CANVAS_W);
   const dy = position(placement.y, CANVAS_H);
   const dw = Math.max(1, position(placement.width, CANVAS_W));
@@ -62,7 +74,7 @@ function drawPlacedImage(context: CanvasRenderingContext2D, bitmap: ImageBitmap,
   context.beginPath();
   context.rect(dx, dy, dw, dh);
   context.clip();
-  context.drawImage(bitmap, sx, sy, sw, sh, dx, dy, dw, dh);
+  context.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh);
   context.restore();
 }
 async function buildSingleSupportingPage(items: RenderAsset[]) {
@@ -75,7 +87,9 @@ async function buildSingleSupportingPage(items: RenderAsset[]) {
   context.fillRect(0, 0, CANVAS_W, CANVAS_H);
   for (let index = 0; index < items.length; index += 1) {
     const bitmap = await createImageBitmap(items[index].file);
-    const placement = items[index].asset.placement || defaultPlacement(index, items.length, { width: bitmap.width, height: bitmap.height });
+    const rotation = items[index].asset.placement?.rotation || 0;
+    const renderedSize = rotation === 90 || rotation === 270 ? { width: bitmap.height, height: bitmap.width } : { width: bitmap.width, height: bitmap.height };
+    const placement = items[index].asset.placement || defaultPlacement(index, items.length, renderedSize);
     drawPlacedImage(context, bitmap, placement);
     bitmap.close();
   }
@@ -91,7 +105,6 @@ export async function getSupportingPages(storageKey: string) {
   if (!items.length) return [];
   return [{ name: 'Supporting Documents', image: await buildSingleSupportingPage(items), type: 'SUPPORTING' as const }];
 }
-
 /** Creates the editable one-page PDF evidence insert used at order position 02 in final packets. */
 export async function createSupportingDocumentsPdf(storageKey: string) {
   const pages = await getSupportingPages(storageKey);
@@ -107,7 +120,6 @@ export async function createSupportingDocumentsPdf(storageKey: string) {
   const bytes = await document.save();
   return new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
 }
-
 async function dimensions(blob: Blob) {
   const bitmap = await createImageBitmap(blob);
   const originalWidth = bitmap.width * PX_TO_EMU;
