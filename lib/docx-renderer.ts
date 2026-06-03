@@ -61,21 +61,6 @@ function writeLines(paragraph: Element, lines: string[]) {
     paragraph.appendChild(run);
   });
 }
-function forceTextColor(paragraph: Element, color: string) {
-  const doc = paragraph.ownerDocument;
-  const runs = Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 'r'));
-  runs.forEach((run) => {
-    let rPr = Array.from(run.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'rPr') as Element | undefined;
-    if (!rPr) {
-      rPr = doc.createElementNS(WORD_NS, 'w:rPr');
-      run.insertBefore(rPr, run.firstChild);
-    }
-    Array.from(rPr.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'color').forEach((node) => rPr!.removeChild(node));
-    const textColor = doc.createElementNS(WORD_NS, 'w:color');
-    textColor.setAttributeNS(WORD_NS, 'w:val', color);
-    rPr.appendChild(textColor);
-  });
-}
 function resolved(values: ReferenceDisputeValues) {
   if (values.disputeItems || values.hardInquiryItems) return { accounts: values.disputeItems || [], inquiries: values.hardInquiryItems || [] };
   const combined = values.fraudItems || [];
@@ -87,12 +72,51 @@ function resolved(values: ReferenceDisputeValues) {
 function disputeAddressLines(values: ReferenceDisputeValues) {
   return values.addressLines.map((line) => line.trim()).filter(Boolean).filter((line) => !DISPUTE_EXCLUDED_ADDRESS_FIELD.test(line));
 }
+function accountValues(text: string) {
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+  const accountName = (lines.find((line) => /^(?:Account|Creditor)\s+Name\s*:/i.test(line)) || '').replace(/^(?:Account|Creditor)\s+Name\s*:\s*/i, '');
+  const accountNumber = (lines.find((line) => /^Account\s+Number\s*:/i.test(line)) || '').replace(/^Account\s+Number\s*:\s*/i, '');
+  return { account_name: accountName, account_number: accountNumber, account_line: [accountName, accountNumber].filter(Boolean).join(' - '), display_text: text };
+}
+function disputePlaceholderValues(values: ReferenceDisputeValues): PlaceholderValues {
+  const source = resolved(values);
+  const address = disputeAddressLines(values);
+  const accounts = source.accounts.map(accountValues);
+  const inquiries = source.inquiries.map((text) => ({ inquiry_line: text, display_text: text }));
+  return {
+    consumer_name: values.consumerName,
+    client_name: values.consumerName,
+    name: values.consumerName,
+    address: address.join('\n'),
+    address_inline: address.join(' '),
+    address_line_1: address[0] || '',
+    address_line_2: address.slice(1).join(' '),
+    dob: values.dob,
+    ssn: values.ssn,
+    ssn_masked: values.ssn,
+    date: values.letterDate,
+    letter_date: values.letterDate,
+    document_date: values.letterDate,
+    bureau_name: values.bureauName,
+    bureau_address: values.bureauAddressLines.join('\n'),
+    bureau_address_line_1: values.bureauAddressLines[0] || '',
+    bureau_address_line_2: values.bureauAddressLines.slice(1).join(' '),
+    accounts,
+    dispute_accounts: accounts,
+    hard_inquiries: inquiries,
+    account_lines: accounts.map((item) => item.display_text).join('\n\n'),
+    hard_inquiry_lines: source.inquiries.join('\n')
+  };
+}
 
 export async function renderReferenceDisputeDocx(reference: File, values: ReferenceDisputeValues): Promise<Blob> {
   const zip = new PizZip(await reference.arrayBuffer());
   const file = zip.file('word/document.xml');
   if (!file) throw new Error('DOCX document XML is unavailable.');
-  const xml = new DOMParser().parseFromString(file.asText(), 'application/xml');
+  const documentXml = file.asText();
+  // Placeholder templates are authoritative: populate only their declared insertion tags and never reconstruct their layout.
+  if (/\{\{\s*[#\/^]?[\w.-]+\s*\}\}/.test(documentXml)) return renderDocxTemplate(reference, disputePlaceholderValues(values));
+  const xml = new DOMParser().parseFromString(documentXml, 'application/xml');
   if (xml.getElementsByTagName('parsererror').length) throw new Error('DOCX content could not be read.');
   const body = xml.getElementsByTagNameNS(WORD_NS, 'body')[0];
   if (!body) throw new Error('DOCX body is unavailable.');
@@ -100,7 +124,7 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   let all = paragraphs(body);
   const nonEmpty = all.filter((paragraph) => content(paragraph));
   if (nonEmpty.length < 3) throw new Error('Reference header layout is incomplete.');
-  // Reference-layout templates define these three insertion positions. Only sanctioned dispute-letter fields are inserted.
+  // Legacy reference-layout templates require these existing insertion positions; paragraph styling and spacing remain unchanged.
   writeLines(nonEmpty[0], [values.consumerName, ...disputeAddressLines(values), `DOB: ${values.dob}`, `SSN: ${values.ssn}`]);
   writeLines(nonEmpty[1], [values.letterDate]);
   writeLines(nonEmpty[2], [values.bureauName, ...values.bureauAddressLines]);
@@ -127,7 +151,6 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   if (source.inquiries.length) {
     const node = itemStyle.cloneNode(true) as Element;
     writeLines(node, source.inquiries);
-    forceTextColor(node, '000000');
     insert(node);
     addSpace();
   }
