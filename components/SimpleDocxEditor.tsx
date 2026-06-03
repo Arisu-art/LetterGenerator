@@ -11,6 +11,7 @@ type Props = {
   round: string;
   output: ReviewOutput;
   documents: ReviewOutput[];
+  initialDocumentPath?: string;
   evidenceKey?: string;
   evidence?: PacketAssets;
   onEvidenceChanged?: (assets: PacketAssets) => void;
@@ -24,6 +25,10 @@ function fileName(output: ReviewOutput) { return output.path.split('/').pop() ||
 function roleOf(output: ReviewOutput) { return output.role || 'LETTER'; }
 function textOf(node: HTMLElement) { return (node.innerText || '').replace(/\u00a0/g, ' ').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim(); }
 function stateOf(slot: Slot) { return slot.document ? 'Editable DOCX' : slot.id === 'SUPPORTING' ? 'Evidence layout' : slot.configured ? 'Configured' : 'None'; }
+function slotForDocument(path: string | undefined, documents: ReviewOutput[]): SlotId {
+  const role = documents.find((document) => document.path === path)?.role;
+  return role === 'AFFIDAVIT' || role === 'FTC' ? role : 'LETTER';
+}
 
 function EditablePacketSection({ slot, onSave }: { slot: Slot; onSave: Props['onSave'] }) {
   const output = slot.document!;
@@ -69,8 +74,8 @@ function PacketInsertSection({ slot, round, evidenceKey, evidence, toolbarTarget
   return <article className="packet-focus-section packet-stack-insert" data-slot={slot.id}>{viewable ? <PacketInsertViewer kind={slot.id as 'SUPPORTING' | 'FCRA' | 'ATTACHMENT'} round={round} evidenceKey={evidenceKey} evidence={evidence} toolbarTargetId={slot.id === 'SUPPORTING' ? toolbarTargetId : undefined} onEvidenceChanged={onEvidenceChanged} onMessage={onMessage} /> : <div className="packet-insert-status missing"><strong>None</strong><span>No generated document for this packet position.</span></div>}</article>;
 }
 
-export default function SimpleDocxEditor({ round, output, documents, evidenceKey, evidence, onEvidenceChanged, onMessage, onClose, onSave }: Props) {
-  const [active, setActive] = useState<SlotId>('LETTER');
+export default function SimpleDocxEditor({ round, output, documents, initialDocumentPath, evidenceKey, evidence, onEvidenceChanged, onMessage, onClose, onSave }: Props) {
+  const [active, setActive] = useState<SlotId>(() => slotForDocument(initialDocumentPath, documents));
   const exhibits = useMemo(() => loadTemplateExhibits(round), [round]);
   const letter = documents.find((document) => roleOf(document) === 'LETTER') || output;
   const affidavit = documents.find((document) => roleOf(document) === 'AFFIDAVIT');
@@ -83,7 +88,7 @@ export default function SimpleDocxEditor({ round, output, documents, evidenceKey
     { id: 'ATTACHMENT', number: 5, label: 'Attachment', configured: Boolean(exhibits.ATTACHMENT), message: exhibits.ATTACHMENT ? 'Configured insert' : 'Not configured' },
     { id: 'FTC', number: 6, label: 'FTC Report', document: ftc, configured: Boolean(ftc), message: ftc ? 'Editable DOCX component' : 'Not generated' }
   ] : [{ id: 'LETTER', number: 1, label: 'Late Payment Letter', document: letter, message: 'Editable DOCX component' }, { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', configured: Boolean(evidence?.supporting.length), message: 'One-page evidence layout' }];
-  useEffect(() => { setActive('LETTER'); }, [output.path]);
+  useEffect(() => { setActive(slotForDocument(initialDocumentPath, documents)); }, [initialDocumentPath, output.path, documents]);
   const activeIndex = Math.max(0, slots.findIndex((slot) => slot.id === active));
   const selected = slots[activeIndex];
   const previous = activeIndex > 0 ? slots[activeIndex - 1] : null;
