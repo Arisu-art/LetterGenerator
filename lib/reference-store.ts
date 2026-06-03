@@ -1,7 +1,8 @@
 import type { LetterType } from './letter-engine';
+import { inspectTemplateContract, type TemplateContract } from './template-contracts';
 
 export type Round = '1st Round' | '2nd Round' | '3rd Round' | 'Final';
-export type LetterReference = { id: string; round: Round; type: LetterType; name: string; file: string; size?: number };
+export type LetterReference = { id: string; round: Round; type: LetterType; name: string; file: string; size?: number; contract?: TemplateContract };
 
 const DB_NAME = 'lettergenerator-private-templates';
 const STORE_NAME = 'files';
@@ -39,6 +40,7 @@ export function saveReferenceMeta(values: LetterReference[]) {
   localStorage.setItem(META_KEY, JSON.stringify(values));
 }
 export async function saveReferenceFile(slot: LetterReference, file: File) {
+  const contract = await inspectTemplateContract(file, slot.type === 'DISPUTE' ? 'DISPUTE_LETTER' : 'LATE_PAYMENT_LETTER');
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -47,6 +49,7 @@ export async function saveReferenceFile(slot: LetterReference, file: File) {
     tx.onerror = () => reject(tx.error);
   });
   db.close();
+  return contract;
 }
 export async function readReferenceFile(id: string): Promise<File | null> {
   const db = await openDb();
