@@ -11,11 +11,16 @@ export type AffidavitJurisdiction = {
 };
 
 const NOT_AVAILABLE = 'N/A';
-const STATE_CODES = new Set([
-  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC'
-]);
+const STATE_NAMES: Record<string, string> = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
+  HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
+  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming', DC: 'District of Columbia'
+};
 
 function clean(value: string) { return value.replace(/\s+/g, ' ').trim(); }
+function titleCase(value: string) { return clean(value).toLowerCase().replace(/\b([a-z])/g, (match) => match.toUpperCase()); }
 function currentAddress(source: ParsedSource) { return clean(source.address.join(' ')); }
 function localityLine(source: ParsedSource) {
   return [...source.address].reverse().find((line) => /,\s*[A-Z]{2}(?=\s+\d{5}(?:-\d{4})?\b|\s|$)/i.test(line)) || '';
@@ -24,8 +29,8 @@ function parseCityAndState(source: ParsedSource) {
   const line = localityLine(source);
   const match = line.match(/^\s*([A-Za-z][A-Za-z .'-]*?)\s*,\s*([A-Z]{2})(?=\s+\d{5}(?:-\d{4})?\b|\s|$)/i);
   if (!match) return { city: '', state: '' };
-  const state = match[2].toUpperCase();
-  return { city: clean(match[1]).toUpperCase(), state: STATE_CODES.has(state) ? state : '' };
+  const code = match[2].toUpperCase();
+  return { city: titleCase(match[1]), state: STATE_NAMES[code] || '' };
 }
 
 export function resolveAffidavitJurisdiction(source: ParsedSource): AffidavitJurisdiction {
@@ -44,6 +49,6 @@ export function resolveAffidavitJurisdiction(source: ParsedSource): AffidavitJur
     stateResolved,
     countyResolved,
     reviewRequired,
-    explanation: reviewRequired ? 'Review required: the current address does not contain a usable city and state abbreviation.' : 'State of is mapped from the state abbreviation and County of is mapped from the city in the current address.'
+    explanation: reviewRequired ? 'Review required: the current address does not contain a usable city and U.S. state abbreviation.' : 'State of is expanded from the state abbreviation and County of is mapped from the city in the current address.'
   };
 }
