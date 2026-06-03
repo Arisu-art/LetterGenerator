@@ -75,7 +75,8 @@ function emptyStyledRun(source: Element) {
   const run = source.cloneNode(true) as Element;
   Array.from(run.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'rPr')) run.removeChild(node); });
   const style = Array.from(run.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'rPr') as Element | undefined;
-  style?.getElementsByTagNameNS(WORD_NS, 'highlight').item(0)?.remove();
+  const highlight = style?.getElementsByTagNameNS(WORD_NS, 'highlight').item(0);
+  if (highlight?.parentNode) highlight.parentNode.removeChild(highlight);
   return run;
 }
 function writeParagraph(paragraph: Element, text: string) {
@@ -92,7 +93,7 @@ function writeParagraph(paragraph: Element, text: string) {
 function removeYellowHighlights(body: Element) {
   Array.from(body.getElementsByTagNameNS(WORD_NS, 'highlight')).forEach((highlight) => {
     const value = (highlight.getAttributeNS(WORD_NS, 'val') || highlight.getAttribute('w:val') || '').toLowerCase();
-    if (!value || value === 'yellow') highlight.parentNode?.removeChild(highlight);
+    if ((!value || value === 'yellow') && highlight.parentNode) highlight.parentNode.removeChild(highlight);
   });
 }
 async function renderHighlightedAffidavit(template: File, context: MappedAppendixContext) {
@@ -108,12 +109,12 @@ async function renderHighlightedAffidavit(template: File, context: MappedAppendi
   const state = find(/^State of\s*:/i);
   const county = find(/^County of\s*:/i);
   const opening = find(/^I,\s/i);
-  const personal = find(/^1\.\s*Personal Information\s*:/i);
+  const personal = find(/^(?:1\.\s*)?Personal Information\s*:/i);
   const date = find(/^Date\s*:/i);
   if (state) writeParagraph(state, `State of: ${context.source.affidavitState}`);
   if (county) writeParagraph(county, `County of: ${context.source.affidavitCounty}`);
   if (opening) writeParagraph(opening, `I, ${context.source.name} residing at ${context.source.address.join(' ')} being duly sworn, depose and state as follows:`);
-  if (personal) writeParagraph(personal, `1. Personal Information: I am over the age of 18, and my current address is ${context.source.address.join(' ')}. My Social Security number is ${context.source.ssn}.`);
+  if (personal) writeParagraph(personal, `Personal Information: I am over the age of 18, and my current address is ${context.source.address.join(' ')}. My Social Security number is ${context.source.ssn}.`);
   if (date) writeParagraph(date, `Date: ${context.documentDate}`);
   all = paragraphs(body);
   const close = all.find((paragraph) => /^Sincerely,?$/i.test(content(paragraph)));
