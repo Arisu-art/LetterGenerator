@@ -1,6 +1,5 @@
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
-import { applyLetterFlowRules } from './docx-flow';
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -8,6 +7,7 @@ const XML_NS = 'http://www.w3.org/XML/1998/namespace';
 const ACCOUNTS_HEADING = ['FRAUDULENT ACCOUNTS', ' FOR IMMEDIATE BLOCKING AND DELETION'].join('');
 const LEGAL_HEADING = ['LEGAL DEMAND', ' AND NOTICE OF DUTY'].join('');
 const STATEMENT_PREFIX = ['Pursuant to ', '15 USC'].join('');
+const DISPUTE_EXCLUDED_ADDRESS_FIELD = /^(?:PHONE(?:\s+NO\.?)?|TELEPHONE|MOBILE|EMAIL|E-?MAIL|COUNTRY|DOB|SSN)\s*:/i;
 
 export type TemplateValue = string | number | boolean | Array<Record<string, string>>;
 export type PlaceholderValues = Record<string, TemplateValue>;
@@ -46,6 +46,7 @@ function blankRun(source: Element) {
   Array.from(run.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'rPr')) run.removeChild(node); });
   return run;
 }
+/** Replace mapped text within an existing template paragraph while retaining that paragraph's native formatting and spacing properties. */
 function writeLines(paragraph: Element, lines: string[]) {
   const doc = paragraph.ownerDocument;
   const style = styleOf(paragraph);
@@ -83,6 +84,9 @@ function resolved(values: ReferenceDisputeValues) {
     inquiries: combined.filter((entry) => !/^(Account|Creditor)\s+Name\s*:/i.test(entry.trim()))
   };
 }
+function disputeAddressLines(values: ReferenceDisputeValues) {
+  return values.addressLines.map((line) => line.trim()).filter(Boolean).filter((line) => !DISPUTE_EXCLUDED_ADDRESS_FIELD.test(line));
+}
 
 export async function renderReferenceDisputeDocx(reference: File, values: ReferenceDisputeValues): Promise<Blob> {
   const zip = new PizZip(await reference.arrayBuffer());
@@ -96,7 +100,8 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   let all = paragraphs(body);
   const nonEmpty = all.filter((paragraph) => content(paragraph));
   if (nonEmpty.length < 3) throw new Error('Reference header layout is incomplete.');
-  writeLines(nonEmpty[0], [values.consumerName, ...values.addressLines, `DOB: ${values.dob}`, `SSN: ${values.ssn}`]);
+  // Reference-layout templates define these three insertion positions. Only sanctioned dispute-letter fields are inserted.
+  writeLines(nonEmpty[0], [values.consumerName, ...disputeAddressLines(values), `DOB: ${values.dob}`, `SSN: ${values.ssn}`]);
   writeLines(nonEmpty[1], [values.letterDate]);
   writeLines(nonEmpty[2], [values.bureauName, ...values.bureauAddressLines]);
   all = paragraphs(body);
@@ -130,7 +135,7 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   const close = required(all, 'Sincerely,');
   const signature = all.slice(all.indexOf(close) + 1).find((paragraph) => content(paragraph));
   if (signature) writeLines(signature, [values.consumerName]);
-  applyLetterFlowRules(body);
+  // Do not run automatic flow/spacing normalization. Uploaded DOCX formatting is the layout authority.
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
   return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
