@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { readEditableParagraphs, saveEditedParagraphs, type EditableParagraph } from '../lib/simple-docx-editor';
+import { readEditableParagraphs, saveEditedParagraphs, type EditableParagraph, type ParagraphAlignment } from '../lib/simple-docx-editor';
 import { loadTemplateExhibits } from '../lib/template-exhibits';
 import type { PacketAssets } from '../lib/packet-assets';
 import PacketInsertViewer from './PacketInsertViewer';
@@ -21,6 +21,8 @@ type Props = {
 };
 type SlotId = 'LETTER' | 'SUPPORTING' | 'FCRA' | 'AFFIDAVIT' | 'ATTACHMENT' | 'FTC';
 type Slot = { id: SlotId; number: number; label: string; document?: ReviewOutput; configured?: boolean; message: string };
+const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36];
+const LINE_SPACING = [1, 1.15, 1.5, 2];
 function fileName(output: ReviewOutput) { return output.path.split('/').pop() || 'document.docx'; }
 function roleOf(output: ReviewOutput) { return output.role || 'LETTER'; }
 function textOf(node: HTMLElement) { return (node.innerText || '').replace(/\u00a0/g, ' ').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim(); }
@@ -29,21 +31,40 @@ function slotForDocument(path: string | undefined, documents: ReviewOutput[]): S
   const role = documents.find((document) => document.path === path)?.role;
   return role === 'AFFIDAVIT' || role === 'FTC' ? role : 'LETTER';
 }
+function applyPreviewFormatting(node: HTMLElement, block: EditableParagraph) {
+  const values: Array<[string, string]> = [
+    ['font-weight', block.bold ? '700' : '400'],
+    ['font-style', block.italic ? 'italic' : 'normal'],
+    ['text-decoration', block.underline ? 'underline' : 'none'],
+    ['color', block.color],
+    ['font-size', `${block.fontSize}pt`]
+  ];
+  node.style.setProperty('text-align', block.alignment, 'important');
+  node.style.setProperty('line-height', String(block.lineSpacing), 'important');
+  node.style.setProperty('margin-bottom', `${block.spacingAfter}pt`, 'important');
+  [node, ...Array.from(node.querySelectorAll<HTMLElement>('span'))].forEach((element) => values.forEach(([name, value]) => element.style.setProperty(name, value, 'important')));
+}
 
 function EditablePacketSection({ slot, onSave }: { slot: Slot; onSave: Props['onSave'] }) {
   const output = slot.document!;
   const host = useRef<HTMLDivElement>(null);
+  const paragraphNodes = useRef<Map<string, HTMLElement>>(new Map());
   const [paragraphs, setParagraphs] = useState<EditableParagraph[]>([]);
+  const [activeId, setActiveId] = useState<string>('');
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('Loading document');
+  const selected = paragraphs.find((paragraph) => paragraph.id === activeId) || paragraphs[0];
   useEffect(() => {
     let alive = true;
     setDirty(false);
     setStatus('Loading document');
+    setActiveId('');
+    paragraphNodes.current.clear();
     void Promise.all([readEditableParagraphs(output.blob), import('docx-preview')]).then(async ([items, docx]) => {
       if (!alive || !host.current) return;
       setParagraphs(items);
+      setActiveId(items[0]?.id || '');
       host.current.innerHTML = '';
       await docx.renderAsync(await output.blob.arrayBuffer(), host.current, undefined, { className: 'packet-inline-docx', inWrapper: true, ignoreWidth: false, ignoreHeight: false, breakPages: true, renderHeaders: false, renderFooters: false });
       if (!alive || !host.current) return;
@@ -51,22 +72,54 @@ function EditablePacketSection({ slot, onSave }: { slot: Slot; onSave: Props['on
       items.forEach((item, index) => {
         const node = nodes[index];
         if (!node) return;
+        paragraphNodes.current.set(item.id, node);
         node.contentEditable = 'true';
         node.spellcheck = true;
+        node.dataset.paragraphId = item.id;
         node.setAttribute('aria-label', `${slot.label} paragraph ${index + 1}`);
+        node.addEventListener('focus', () => setActiveId(item.id));
+        node.addEventListener('click', () => setActiveId(item.id));
         node.addEventListener('input', () => { setDirty(true); setParagraphs((current) => current.map((entry) => entry.id === item.id ? { ...entry, text: textOf(node), dirty: true } : entry)); });
       });
       setStatus('Ready to edit');
     }).catch((error: Error) => { if (alive) setStatus(error.message); });
     return () => { alive = false; };
   }, [output.blob, slot.label]);
+  function updateFormatting(change: Partial<EditableParagraph>) {
+    if (!selected) return;
+    const updated = { ...selected, ...change, dirty: true };
+    setParagraphs((current) => current.map((entry) => entry.id === selected.id ? updated : entry));
+    const node = paragraphNodes.current.get(selected.id);
+    if (node) applyPreviewFormatting(node, updated);
+    setDirty(true);
+    setStatus('Formatting changed');
+  }
   async function save() {
     setSaving(true); setStatus('Saving');
-    try { const blob = await saveEditedParagraphs(output.blob, paragraphs); await onSave(output, new File([blob], fileName(output), { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })); setDirty(false); setStatus('Saved'); }
+    try { const blob = await saveEditedParagraphs(output.blob, paragraphs); await onSave(output, new File([blob], fileName(output), { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })); setDirty(false); setParagraphs((current) => current.map((entry) => ({ ...entry, dirty: false }))); setStatus('Saved'); }
     catch (error) { setStatus(error instanceof Error ? error.message : 'Save failed.'); }
     finally { setSaving(false); }
   }
-  return <article className="packet-focus-section packet-stack-editable" data-slot={slot.id}><div className="packet-document-toolbar"><span className={`packet-edit-state ${dirty ? 'changed' : ''}`}>{dirty ? 'Unsaved changes' : status}</span><button type="button" disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}</button></div><div ref={host} className="packet-inline-docx-host" /></article>;
+  return <article className="packet-focus-section packet-stack-editable" data-slot={slot.id}>
+    <div className="packet-document-toolbar">
+      <span className={`packet-edit-state ${dirty ? 'changed' : ''}`}>{dirty ? 'Unsaved changes' : status}</span>
+      <button className="packet-save-button" type="button" disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}</button>
+    </div>
+    <div className="docx-format-toolbar" aria-label="Document formatting toolbar">
+      <div className="docx-format-selection"><span>Selected paragraph</span><strong>{selected ? `Paragraph ${paragraphs.findIndex((item) => item.id === selected.id) + 1}` : 'Select text'}</strong></div>
+      <div className="docx-format-group docx-format-toggles" aria-label="Text style">
+        <button type="button" className={selected?.bold ? 'active' : ''} aria-pressed={Boolean(selected?.bold)} disabled={!selected} onClick={() => updateFormatting({ bold: !selected?.bold })}><b>B</b></button>
+        <button type="button" className={selected?.italic ? 'active' : ''} aria-pressed={Boolean(selected?.italic)} disabled={!selected} onClick={() => updateFormatting({ italic: !selected?.italic })}><i>I</i></button>
+        <button type="button" className={selected?.underline ? 'active' : ''} aria-pressed={Boolean(selected?.underline)} disabled={!selected} onClick={() => updateFormatting({ underline: !selected?.underline })}><u>U</u></button>
+      </div>
+      <label className="docx-format-field"><span>Size</span><select disabled={!selected} value={selected?.fontSize || 11} onChange={(event) => updateFormatting({ fontSize: Number(event.target.value) })}>{FONT_SIZES.map((size) => <option key={size} value={size}>{size} pt</option>)}</select></label>
+      <label className="docx-format-field color-field"><span>Color</span><input type="color" disabled={!selected} value={selected?.color || '#111827'} onChange={(event) => updateFormatting({ color: event.target.value })} /></label>
+      <label className="docx-format-field"><span>Alignment</span><select disabled={!selected} value={selected?.alignment || 'left'} onChange={(event) => updateFormatting({ alignment: event.target.value as ParagraphAlignment })}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option></select></label>
+      <label className="docx-format-field"><span>Line spacing</span><select disabled={!selected} value={selected?.lineSpacing || 1.15} onChange={(event) => updateFormatting({ lineSpacing: Number(event.target.value) })}>{LINE_SPACING.map((spacing) => <option key={spacing} value={spacing}>{spacing}</option>)}</select></label>
+      <label className="docx-format-field"><span>After</span><select disabled={!selected} value={selected?.spacingAfter || 0} onChange={(event) => updateFormatting({ spacingAfter: Number(event.target.value) })}>{[0, 4, 6, 8, 10, 12, 18, 24].map((spacing) => <option key={spacing} value={spacing}>{spacing} pt</option>)}</select></label>
+    </div>
+    <div ref={host} className="packet-inline-docx-host" />
+  </article>;
 }
 
 function PacketInsertSection({ slot, round, evidenceKey, evidence, toolbarTargetId, onEvidenceChanged, onMessage }: { slot: Slot; round: Props['round']; evidenceKey?: string; evidence?: PacketAssets; toolbarTargetId?: string; onEvidenceChanged?: Props['onEvidenceChanged']; onMessage?: Props['onMessage'] }) {
