@@ -74,6 +74,10 @@
   gap: 9px;
   margin-bottom: 16px;
 }
+/* Phone is taken only from source data and is omitted from the review form. */
+.ftc-source-fields > label:nth-child(5) {
+  display: none;
+}
 .ftc-source-fields label,
 .custom-template-field-grid label,
 .ftc-account-card label {
