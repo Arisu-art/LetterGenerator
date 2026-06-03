@@ -115,7 +115,7 @@
   display: none !important;
 }
 
-/* Functional save bar only; it does not repeat packet or document titles. */
+/* Save/status bar. */
 .consolidated-packet-editor .packet-document-toolbar {
   min-height: 56px;
   padding: 8px 13px;
@@ -162,9 +162,108 @@
   background: var(--ui-gray-100);
   box-shadow: none;
 }
+
+/* Restored DOCX paragraph-formatting toolbar. */
+.consolidated-packet-editor .docx-format-toolbar {
+  min-height: 70px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--ui-gray-200);
+  background: #fbfcfd;
+}
+.docx-format-selection {
+  min-width: 118px;
+  display: grid;
+  gap: 4px;
+  padding-right: 12px;
+  border-right: 1px solid var(--ui-gray-200);
+}
+.docx-format-selection span,
+.docx-format-field > span {
+  color: var(--ui-muted);
+  font-size: 9px;
+  font-weight: 740;
+  line-height: 1;
+  letter-spacing: .075em;
+  text-transform: uppercase;
+}
+.docx-format-selection strong {
+  color: var(--ui-black);
+  font-size: 12px;
+  font-weight: 700;
+}
+.docx-format-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.consolidated-packet-editor .docx-format-toggles button {
+  width: 38px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 10px;
+  color: var(--ui-charcoal);
+  background: var(--ui-white);
+  font-size: 15px;
+}
+.consolidated-packet-editor .docx-format-toggles button:hover:not(:disabled),
+.consolidated-packet-editor .docx-format-toggles button.active {
+  color: var(--ui-black);
+  border-color: var(--ui-gray-primary-line);
+  background: var(--ui-gray-100);
+}
+.consolidated-packet-editor .docx-format-toggles button:disabled {
+  opacity: .48;
+}
+.docx-format-field {
+  min-width: 98px;
+  display: grid;
+  gap: 5px;
+}
+.docx-format-field select {
+  min-width: 96px;
+  height: 40px;
+  padding: 0 30px 0 10px;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 10px;
+  color: var(--ui-black);
+  background: var(--ui-white);
+  font-size: 12px;
+  font-weight: 620;
+}
+.docx-format-field select:focus,
+.docx-format-field input:focus {
+  outline: 2px solid var(--ui-gray-primary-line);
+  outline-offset: 1px;
+}
+.docx-format-field.color-field {
+  min-width: 62px;
+}
+.docx-format-field.color-field input {
+  width: 54px;
+  height: 40px;
+  padding: 5px;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 10px;
+  background: var(--ui-white);
+  cursor: pointer;
+}
+.docx-format-field :disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
 .consolidated-packet-editor .packet-inline-docx-host {
   border-radius: 0 0 20px 20px !important;
 }
+
 .consolidated-packet-editor .packet-stack-insert .packet-static-file-view,
 .consolidated-packet-editor .packet-stack-insert .packet-static-docx-host,
 .consolidated-packet-editor .packet-stack-insert .packet-supporting-inline,
@@ -196,6 +295,9 @@
     width: 100%;
     justify-content: flex-end;
   }
+  .consolidated-packet-editor .docx-format-toolbar {
+    align-items: end;
+  }
 }
 @media (max-width: 720px) {
   .editor-command-identity {
@@ -216,5 +318,12 @@
   }
   .editor-command-actions {
     justify-content: space-between;
+  }
+  .docx-format-selection {
+    width: 100%;
+    padding-right: 0;
+    padding-bottom: 9px;
+    border-right: 0;
+    border-bottom: 1px solid var(--ui-gray-200);
   }
 }
