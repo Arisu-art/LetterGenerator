@@ -33,10 +33,11 @@ async function addNonePage(target: PDFDocument, label: string) {
   page.drawLine({ start: { x: 54, y: 693 }, end: { x: 558, y: 693 }, thickness: 1, color: rgb(0.86, 0.9, 0.94) });
   page.drawText('None', { x: 54, y: 420, size: 40, font: bold, color: rgb(0.18, 0.23, 0.32) });
   page.drawText('Not configured for this packet position.', { x: 54, y: 382, size: 13, font: regular, color: rgb(0.39, 0.46, 0.55) });
-  page.drawText('Position retained to preserve final filing order.', { x: 54, y: 358, size: 12, font: regular, color: rgb(0.39, 0.46, 0.55) });
+  page.drawText('Position retained to preserve preview order only.', { x: 54, y: 358, size: 12, font: regular, color: rgb(0.39, 0.46, 0.55) });
   return 1;
 }
 
+/** Used only for non-final previews where a missing position must remain visible. */
 export async function createBlankPdf(label = 'Packet component') {
   const document = await PDFDocument.create();
   await addNonePage(document, label);
@@ -60,7 +61,7 @@ async function addRenderedDocx(target: PDFDocument, blob: Blob, label: string) {
     });
     const candidates = Array.from(host.querySelectorAll('.packet-pdf-docx.docx, .packet-pdf-docx .docx, .docx')) as HTMLElement[];
     const pages = candidates.filter((node, index) => candidates.indexOf(node) === index && !node.querySelector('.docx'));
-    if (!pages.length) return addNonePage(target, label);
+    if (!pages.length) throw new Error(`${label} could not be rendered into PDF pages.`);
     for (const page of pages) {
       const canvas = await html2canvas(page, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff', logging: false });
       const embedded = await target.embedPng(canvas.toDataURL('image/png'));
@@ -74,18 +75,22 @@ async function addRenderedDocx(target: PDFDocument, blob: Blob, label: string) {
   return count;
 }
 
-async function addStaticPdf(target: PDFDocument, blob: Blob) {
-  const source = await PDFDocument.load(await blob.arrayBuffer());
-  const copied = await target.copyPages(source, source.getPageIndices());
-  copied.forEach((page) => target.addPage(page));
-  return copied.length;
+async function addStaticPdf(target: PDFDocument, blob: Blob, label: string) {
+  try {
+    const source = await PDFDocument.load(await blob.arrayBuffer());
+    const copied = await target.copyPages(source, source.getPageIndices());
+    if (!copied.length) throw new Error(`${label} PDF contains no pages.`);
+    copied.forEach((page) => target.addPage(page));
+    return copied.length;
+  } catch (error) {
+    throw new Error(`${label} could not be included as PDF: ${error instanceof Error ? error.message : 'unreadable file'}`);
+  }
 }
 
-async function addPart(target: PDFDocument, part: PdfPacketPart) {
-  if (part.kind === 'BLANK' || !part.blob) return addNonePage(target, part.label);
+async function addRequiredPart(target: PDFDocument, part: PdfPacketPart) {
+  if (part.kind === 'BLANK' || !part.blob) throw new Error(`Missing required final packet component: ${part.label}. Configure or generate it before creating final PDFs.`);
   if (part.kind === 'DOCX') return addRenderedDocx(target, part.blob, part.label);
-  try { return await addStaticPdf(target, part.blob); }
-  catch { return addNonePage(target, part.label); }
+  return addStaticPdf(target, part.blob, part.label);
 }
 
 export async function assembleFinalPdfWithRanges(parts: PdfPacketPart[]): Promise<AssembledPdfPacket> {
@@ -93,10 +98,11 @@ export async function assembleFinalPdfWithRanges(parts: PdfPacketPart[]): Promis
   const ranges: PacketPageRange[] = [];
   let page = 1;
   for (const part of parts) {
-    const count = await addPart(output, part);
-    ranges.push({ label: part.label, startPage: page, endPage: page + Math.max(1, count) - 1 });
-    page += Math.max(1, count);
+    const count = await addRequiredPart(output, part);
+    ranges.push({ label: part.label, startPage: page, endPage: page + count - 1 });
+    page += count;
   }
+  if (!ranges.length) throw new Error('No files were supplied for the final PDF packet.');
   return { blob: toPdfBlob(await output.save()), ranges };
 }
 
