@@ -69,7 +69,22 @@ function headerField(lines: string[], label: RegExp) { const line = lines.find((
 function looksLikeRecord(line: string) { return ACCOUNT_NAME.test(line) || ACCOUNT_NUMBER.test(line) || FRAUD_BEGAN.test(line) || DATE_DISCOVERED.test(line) || FRAUD_AMOUNT.test(line) || DATE_PATTERN.test(line) || MONTH_YEAR_PATTERN.test(line); }
 function pushPreserved(parsed: ParsedSource, line: number, text: string, reason: string) { if (!parsed.preserved.some((item) => item.line === line && item.text === text)) parsed.preserved.push({ line, text, reason }); }
 function splitName(name: string) { const parts = safeLine(name).split(' ').filter(Boolean); return { firstName: parts[0] || '', middleName: parts.length > 2 ? parts.slice(1, -1).join(' ') : '', lastName: parts.length > 1 ? parts[parts.length - 1] : '' }; }
-function seedFtcFromDisputes(parsed: ParsedSource) { if (parsed.ftcAccounts.length) return; bureaus.forEach((bureau) => parsed.dispute[bureau].forEach((item) => { if (!item.ftcDerived?.dateDiscovered || !item.ftcDerived?.fraudulentAmount) return; const lines = item.displayText.split('\n'); const accountName = (lines.find((line) => /^Account Name:/i.test(line)) || '').replace(/^Account Name:\s*/i, ''); const accountNumber = (lines.find((line) => /^Account Number:/i.test(line)) || '').replace(/^Account Number:\s*/i, ''); appendUniqueFtc(parsed.ftcAccounts, { accountName, accountNumber, fraudBegan: ftcFraudMonthYearFromReportDate(parsed.ftcReportDate || automatedFtcReportDate()), dateDiscovered: item.ftcDerived.dateDiscovered, fraudulentAmount: item.ftcDerived.fraudulentAmount }, parsed.diagnostics); })); if (parsed.ftcAccounts.length) parsed.diagnostics.push({ level: 'info', message: 'FTC affected items were inferred from compact dispute details. Use an FTC AFFECTED ACCOUNTS section to control the exact five reported entries and order.' }); }
+function inferredFtcCandidates(parsed: ParsedSource) {
+  const candidates: FtcAffectedAccount[] = []; const seen = new Set<string>();
+  bureaus.forEach((bureau) => parsed.dispute[bureau].forEach((item) => {
+    if (!item.ftcDerived?.dateDiscovered || !item.ftcDerived?.fraudulentAmount) return;
+    const lines = item.displayText.split('\n'); const accountName = (lines.find((line) => /^Account Name:/i.test(line)) || '').replace(/^Account Name:\s*/i, ''); const accountNumber = (lines.find((line) => /^Account Number:/i.test(line)) || '').replace(/^Account Number:\s*/i, ''); const key = `${normalized(accountName)}|${normalized(accountNumber)}|${normalized(item.ftcDerived.dateDiscovered)}`;
+    if (seen.has(key)) return; seen.add(key); candidates.push({ accountName, accountNumber, fraudBegan: ftcFraudMonthYearFromReportDate(parsed.ftcReportDate || automatedFtcReportDate()), dateDiscovered: item.ftcDerived.dateDiscovered, fraudulentAmount: item.ftcDerived.fraudulentAmount });
+  }));
+  return candidates;
+}
+function seedFtcFromDisputes(parsed: ParsedSource) {
+  if (parsed.ftcAccounts.length) return;
+  const candidates = inferredFtcCandidates(parsed);
+  if (candidates.length > MAX_FTC_ACCOUNTS) { parsed.diagnostics.push({ level: 'warning', message: `FTC selection requires review: ${candidates.length} source accounts contain fraud amount/date data, exceeding the ${MAX_FTC_ACCOUNTS}-item FTC limit. Add an explicit FTC AFFECTED ACCOUNTS section with the exact selected items and order.` }); return; }
+  candidates.forEach((candidate) => appendUniqueFtc(parsed.ftcAccounts, candidate, parsed.diagnostics));
+  if (parsed.ftcAccounts.length) parsed.diagnostics.push({ level: 'info', message: 'FTC affected items were inferred from compact dispute details because the source supplied no explicit FTC AFFECTED ACCOUNTS section.' });
+}
 
 export function parseSource(text: string): ParsedSource {
   const parsed: ParsedSource = { name: '', firstName: '', middleName: '', lastName: '', address: [], country: '', dob: '', ssn: '', phone: '', email: '', affidavitState: '', affidavitCounty: '', ftcReportNumber: '', ftcReportDate: automatedFtcReportDate(), ftcAccounts: [], templateFields: {}, dispute: itemMap(), inquiry: itemMap(), late: itemMap(), preserved: [], diagnostics: [] };
