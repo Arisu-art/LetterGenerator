@@ -2,22 +2,22 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { exhibitAccept, exhibitKinds, exhibitModes, exhibitTitles, loadTemplateExhibits, removeTemplateExhibit, saveTemplateExhibit, type ExhibitAsset, type ExhibitKind, type TemplateExhibits } from '../lib/template-exhibits';
+import type { LetterReference, Round } from '../lib/reference-store';
+import type { LetterType } from '../lib/letter-engine';
 
-type Round = '1st Round' | '2nd Round' | '3rd Round' | 'Final';
-type PacketFocus = 'DISPUTE' | 'LATE_PAYMENT';
-type Slot = { id: string; round: Round; type: PacketFocus; name: string; file: string; size?: number; contract?: { mode: string; tags: string[]; customFields: Array<{ key: string }> } };
+type PacketFocus = LetterType;
 type NodeId = 'DISPUTE_LETTER' | 'LATE_LETTER' | ExhibitKind | null;
 type StatusTone = 'ready' | 'required' | 'neutral';
-type Props = { round: Round; slots: Slot[]; supportingReady: boolean; focusedPacket?: PacketFocus; embedded?: boolean; onUploadLetter: (slot: Slot, file: File) => Promise<void>; onRemoveLetter: (slot: Slot) => Promise<void>; onExhibitsChange: (value: TemplateExhibits) => void; onMessage: (message: string) => void };
+type Props = { round: Round; slots: LetterReference[]; supportingReady: boolean; focusedPacket?: PacketFocus; embedded?: boolean; onUploadLetter: (slot: LetterReference, file: File) => Promise<void>; onRemoveLetter: (slot: LetterReference) => Promise<void>; onExhibitsChange: (value: TemplateExhibits) => void; onMessage: (message: string) => void };
 function Badge({ tone = 'neutral', children }: { tone?: StatusTone; children: ReactNode }) { return <span className={`packet-status ${tone}`}>{children}</span>; }
 function Tag({ children }: { children: ReactNode }) { return <span className="template-info-tag">{children}</span>; }
 function mappingMeta(asset?: ExhibitAsset | null) {
-  if (!asset?.contract) return exhibitModes[asset?.kind || 'FTC'] === 'GENERATED_DOCX' ? 'Populated from client source data' : 'Inserted unchanged in final packet';
+  if (!asset?.contract) return asset && exhibitModes[asset.kind] === 'GENERATED_DOCX' ? 'Populated from client source data' : 'Inserted unchanged in final packet';
   if (asset.contract.mode === 'LEGACY_HIGHLIGHTED') return 'Highlighted layout mapping · source fields detected';
   if (asset.contract.mode === 'PLACEHOLDERS') { const extra = asset.contract.customFields.length ? ` · ${asset.contract.customFields.length} custom field${asset.contract.customFields.length === 1 ? '' : 's'}` : ''; return `Placeholder mapping · ${asset.contract.tags.length} tag${asset.contract.tags.length === 1 ? '' : 's'}${extra}`; }
   return 'Inserted unchanged in final packet';
 }
-function letterMeta(slot?: Slot) {
+function letterMeta(slot?: LetterReference) {
   if (!slot?.file) return slot?.type === 'DISPUTE' ? 'Upload the required dispute letter template.' : 'Upload only when required.';
   if (slot.contract?.mode === 'PLACEHOLDERS') return `${slot.file} · Placeholder mapping`;
   return `${slot.file} · Reference layout mapping`;
@@ -30,7 +30,7 @@ export default function TemplatePacketConfigurator({ round, slots, supportingRea
   useEffect(() => setActiveNode(null), [focusedPacket]);
   async function uploadExhibit(kind: ExhibitKind, file: File) { try { const next = await saveTemplateExhibit(round, kind, file); setExhibits(next); onExhibitsChange(next); const contract = next[kind]?.contract; onMessage(`${exhibitTitles[kind]} saved${contract?.mode === 'PLACEHOLDERS' ? `; ${contract.tags.length} placeholder tag(s) mapped to Source Data.` : contract?.mode === 'LEGACY_HIGHLIGHTED' ? '; highlighted fields will be mapped from Source Data.' : '.'}`); setActiveNode(null); } catch (error) { onMessage(error instanceof Error ? error.message : 'File could not be saved.'); } }
   async function removeExhibit(kind: ExhibitKind) { const next = await removeTemplateExhibit(round, kind); setExhibits(next); onExhibitsChange(next); onMessage(`${exhibitTitles[kind]} removed from ${round}.`); }
-  function LetterActions({ slot, node }: { slot: Slot; node: NodeId }) { const active = activeNode === node; return <div className={`contextual-actions studio-actions ${active ? 'visible' : ''}`}><button className="reveal-action" type="button" aria-expanded={active} onClick={() => setActiveNode(active ? null : node)}>{active ? 'Close' : slot.file ? 'Replace' : 'Upload'}</button><div className="contextual-action-region" aria-hidden={!active}><div><label><span>Select DOCX</span><input type="file" accept=".docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onUploadLetter(slot, file).then(() => setActiveNode(null)); event.target.value = ''; }} /></label>{slot.file && <button type="button" className="remove-node" onClick={() => void onRemoveLetter(slot)}>Remove</button>}</div></div></div>; }
+  function LetterActions({ slot, node }: { slot: LetterReference; node: NodeId }) { const active = activeNode === node; return <div className={`contextual-actions studio-actions ${active ? 'visible' : ''}`}><button className="reveal-action" type="button" aria-expanded={active} onClick={() => setActiveNode(active ? null : node)}>{active ? 'Close' : slot.file ? 'Replace' : 'Upload'}</button><div className="contextual-action-region" aria-hidden={!active}><div><label><span>Select DOCX</span><input type="file" accept=".docx" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onUploadLetter(slot, file).then(() => setActiveNode(null)); event.target.value = ''; }} /></label>{slot.file && <button type="button" className="remove-node" onClick={() => void onRemoveLetter(slot)}>Remove</button>}</div></div></div>; }
   function ExhibitActions({ kind }: { kind: ExhibitKind }) { const active = activeNode === kind, fileFormat = exhibitModes[kind] === 'GENERATED_DOCX' ? 'DOCX' : 'PDF'; return <div className={`contextual-actions studio-actions ${active ? 'visible' : ''}`}><button className="reveal-action" type="button" aria-expanded={active} onClick={() => setActiveNode(active ? null : kind)}>{active ? 'Close' : exhibits[kind] ? 'Replace' : 'Upload'}</button><div className="contextual-action-region" aria-hidden={!active}><div><label><span>Select {fileFormat}</span><input type="file" accept={exhibitAccept[kind]} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadExhibit(kind, file); event.target.value = ''; }} /></label>{exhibits[kind] && <button type="button" className="remove-node" onClick={() => void removeExhibit(kind)}>Remove</button>}</div></div></div>; }
   function Card({ number, title, meta, tone, status, fileFormat, children, className = '' }: { number: string; title: string; meta: string; tone?: StatusTone; status: string; fileFormat: string; children?: ReactNode; className?: string }) { return <article className={`studio-component-card ${tone === 'ready' ? 'is-ready' : ''} ${className}`}><span className="studio-sequence">{number}</span><div className="studio-component-copy"><div className="studio-component-title"><h4>{title}</h4><span className="studio-format">{fileFormat}</span></div><p>{meta}</p></div><Badge tone={tone}>{status}</Badge>{children}</article>; }
   if (focusedPacket === 'DISPUTE' && !dispute) return <section className="panel template-config-empty">No Dispute Letter reference slot is available for {round}.</section>;
