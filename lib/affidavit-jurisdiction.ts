@@ -11,47 +11,39 @@ export type AffidavitJurisdiction = {
 };
 
 const NOT_AVAILABLE = 'N/A';
-const STATE_NAMES: Record<string, string> = {
-  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
-  HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
-  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
-  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
-  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming', DC: 'District of Columbia'
-};
-const STATE_BY_NAME = Object.entries(STATE_NAMES).sort((a, b) => b[1].length - a[1].length);
+const STATE_CODES = new Set([
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC'
+]);
 
 function clean(value: string) { return value.replace(/\s+/g, ' ').trim(); }
 function currentAddress(source: ParsedSource) { return clean(source.address.join(' ')); }
-function stateInAddress(address: string) {
-  const named = STATE_BY_NAME.find(([, name]) => new RegExp(`\\b${name.replace(/\s+/g, '\\s+')}\\b`, 'i').test(address));
-  if (named) return named[1];
-  const abbreviated = address.match(/(?:,|\s)\s*([A-Z]{2})(?=\s+\d{5}(?:-\d{4})?\b|\s*,|\s*$)/i);
-  return abbreviated && STATE_NAMES[abbreviated[1].toUpperCase()] ? STATE_NAMES[abbreviated[1].toUpperCase()] : '';
+function localityLine(source: ParsedSource) {
+  return [...source.address].reverse().find((line) => /,\s*[A-Z]{2}(?=\s+\d{5}(?:-\d{4})?\b|\s|$)/i.test(line)) || '';
 }
-function countyInAddress(address: string) {
-  const county = address.match(/\b([A-Za-z][A-Za-z .'-]*?\s+County)\b/i);
-  if (county) return clean(county[1]).replace(/\bcounty\b/i, 'County');
-  const prefixed = address.match(/\bCounty\s+of\s+([A-Za-z][A-Za-z .'-]*?)\b(?=,|\s+[A-Z]{2}\b|\s+\d{5}\b|$)/i);
-  return prefixed ? `${clean(prefixed[1])} County` : '';
+function parseCityAndState(source: ParsedSource) {
+  const line = localityLine(source);
+  const match = line.match(/^\s*([A-Za-z][A-Za-z .'-]*?)\s*,\s*([A-Z]{2})(?=\s+\d{5}(?:-\d{4})?\b|\s|$)/i);
+  if (!match) return { city: '', state: '' };
+  const state = match[2].toUpperCase();
+  return { city: clean(match[1]).toUpperCase(), state: STATE_CODES.has(state) ? state : '' };
 }
 
 export function resolveAffidavitJurisdiction(source: ParsedSource): AffidavitJurisdiction {
   const address = currentAddress(source);
   if (!address) {
-    return { state: NOT_AVAILABLE, county: NOT_AVAILABLE, addressPresent: false, stateResolved: false, countyResolved: false, reviewRequired: true, explanation: 'Current address is missing. State and county are marked N/A for review.' };
+    return { state: NOT_AVAILABLE, county: NOT_AVAILABLE, addressPresent: false, stateResolved: false, countyResolved: false, reviewRequired: true, explanation: 'Current address is missing. State of and County of are marked N/A for review.' };
   }
-  const state = clean(source.affidavitState) || stateInAddress(address);
-  const county = clean(source.affidavitCounty) || countyInAddress(address);
-  const stateResolved = Boolean(state);
-  const countyResolved = Boolean(county);
+  const locality = parseCityAndState(source);
+  const stateResolved = Boolean(locality.state);
+  const countyResolved = Boolean(locality.city);
   const reviewRequired = !stateResolved || !countyResolved;
   return {
-    state: state || NOT_AVAILABLE,
-    county: county || NOT_AVAILABLE,
+    state: locality.state || NOT_AVAILABLE,
+    county: locality.city || NOT_AVAILABLE,
     addressPresent: true,
     stateResolved,
     countyResolved,
     reviewRequired,
-    explanation: reviewRequired ? 'Review required: the current address does not explicitly identify every jurisdiction value.' : 'Jurisdiction resolved from the current address or reviewed source override.'
+    explanation: reviewRequired ? 'Review required: the current address does not contain a usable city and state abbreviation.' : 'State of is mapped from the state abbreviation and County of is mapped from the city in the current address.'
   };
 }
