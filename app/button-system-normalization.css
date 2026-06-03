@@ -2,12 +2,15 @@
    Buttons remain horizontal, consistent in height and aligned by intent. */
 .main-area :where(button.action-button, button.secondary-button, button.danger-button),
 .main-area :where(.text-action, .evidence-auto-align) {
+  box-sizing: border-box !important;
   min-height: 48px !important;
   height: 48px !important;
+  margin: 0 !important;
   padding: 0 18px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
+  vertical-align: middle !important;
   border-radius: 14px !important;
   line-height: 1 !important;
   white-space: nowrap !important;
@@ -17,6 +20,23 @@
   min-width: 132px;
   font-size: 13px !important;
   font-weight: 720 !important;
+}
+/* Any workflow row containing a primary/secondary pair must use one baseline and one visual box. */
+.main-area :where(.source-stage-actions, .guided-stage-footer, .output-stage-footer, .generate-footer, .dashboard-command-actions),
+.main-area :where(header, footer, div):has(> button.action-button):has(> button.secondary-button) {
+  align-items: center !important;
+}
+.main-area :where(.source-stage-actions, .guided-stage-footer, .output-stage-footer, .generate-footer, .dashboard-command-actions) > :where(button.action-button, button.secondary-button),
+.main-area :where(header, footer, div):has(> button.action-button):has(> button.secondary-button) > :where(button.action-button, button.secondary-button) {
+  align-self: center !important;
+  box-sizing: border-box !important;
+  margin-block: 0 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.main-area :where(.source-stage-actions, .guided-stage-footer, .output-stage-footer, .generate-footer, .dashboard-command-actions) > :where(button.action-button, button.secondary-button):hover,
+.main-area :where(header, footer, div):has(> button.action-button):has(> button.secondary-button) > :where(button.action-button, button.secondary-button):hover {
+  transform: none !important;
 }
 /* Dashboard: primary and secondary decisions are a balanced pair, never a banner and square. */
 .dashboard-command-actions {
@@ -69,11 +89,17 @@
 .word-crop-actions button,
 .word-rotate-actions button,
 .word-position-actions button {
+  box-sizing: border-box !important;
   width: 100% !important;
   min-width: 0 !important;
   min-height: 48px !important;
   height: 48px !important;
+  margin: 0 !important;
   padding: 0 10px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  vertical-align: middle !important;
   border-radius: 13px !important;
   white-space: nowrap !important;
   font-size: 11px !important;
