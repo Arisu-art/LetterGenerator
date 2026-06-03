@@ -1,0 +1,225 @@
+/* Required FTC Identity Theft Report mapping and detected template field inputs. */
+.ftc-source-panel,
+.custom-template-source-panel {
+  margin: 0 22px 15px;
+  padding: 17px;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 18px;
+  background: var(--ui-white);
+  box-shadow: 0 1px 2px rgba(15, 23, 37, .025);
+}
+.ftc-source-panel.required,
+.custom-template-source-panel.required {
+  border-color: #ead4d4;
+  background: #fffdfd;
+}
+.ftc-source-panel.ready,
+.custom-template-source-panel.ready {
+  border-color: var(--ui-green-line);
+}
+.ftc-source-panel > header,
+.custom-template-source-panel > header {
+  margin-bottom: 15px;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.ftc-source-panel .eyebrow,
+.custom-template-source-panel .eyebrow {
+  margin: 0 0 6px;
+  color: var(--ui-gray-primary-hover);
+  font-size: 9px;
+}
+.ftc-source-panel h3,
+.custom-template-source-panel h3 {
+  margin: 0 0 6px;
+  color: var(--ui-black);
+  font-size: 19px;
+  line-height: 1.15;
+  letter-spacing: -.045em;
+}
+.ftc-source-panel header p:not(.eyebrow),
+.custom-template-source-panel header p:not(.eyebrow) {
+  margin: 0;
+  max-width: 680px;
+  color: var(--ui-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.ftc-source-panel > header > span,
+.custom-template-source-panel > header > span {
+  min-height: 32px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #ead4d4;
+  border-radius: 999px;
+  color: #903d3d;
+  background: #fff7f7;
+  font-size: 9px;
+  font-weight: 760;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.ftc-source-panel.ready > header > span,
+.custom-template-source-panel.ready > header > span {
+  color: var(--ui-green);
+  border-color: var(--ui-green-line);
+  background: var(--ui-green-soft);
+}
+.ftc-source-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 16px;
+}
+.ftc-source-fields label,
+.custom-template-field-grid label,
+.ftc-account-card label {
+  min-height: 74px;
+  padding: 10px;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 12px;
+  background: var(--ui-gray-50);
+}
+.ftc-source-fields label > span,
+.custom-template-field-grid label > span,
+.ftc-account-card label > span {
+  color: var(--ui-muted);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.ftc-source-fields input,
+.custom-template-field-grid input,
+.ftc-account-card input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-gray-primary-line);
+  border-radius: 9px;
+  color: var(--ui-black);
+  background: var(--ui-white);
+  font-size: 12px;
+  font-weight: 640;
+  outline: none;
+}
+.ftc-source-fields input:focus,
+.custom-template-field-grid input:focus,
+.ftc-account-card input:focus {
+  border-color: var(--ui-gray-primary);
+  box-shadow: 0 0 0 3px rgba(95, 104, 115, .12);
+}
+.ftc-source-panel.required label.missing input,
+.custom-template-source-panel.required label.missing input,
+.ftc-account-card label.missing input {
+  border-color: #dcb6b6;
+  background: #fffdfd;
+}
+.ftc-account-heading {
+  min-height: 56px;
+  padding: 13px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-top: 1px solid var(--ui-gray-200);
+}
+.ftc-account-heading div:first-child {
+  display: grid;
+  gap: 5px;
+}
+.ftc-account-heading strong {
+  color: var(--ui-black);
+  font-size: 14px;
+}
+.ftc-account-heading span {
+  color: var(--ui-muted);
+  font-size: 11px;
+}
+.ftc-account-heading div:last-child {
+  display: flex;
+  gap: 8px;
+}
+.ftc-account-heading button {
+  min-width: 132px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+}
+.ftc-account-list {
+  display: grid;
+  gap: 9px;
+}
+.ftc-account-card {
+  padding: 12px;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 14px;
+  background: var(--ui-white);
+}
+.ftc-account-card > header {
+  min-height: 33px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ftc-account-card > header strong {
+  color: var(--ui-black);
+  font-size: 12px;
+}
+.ftc-account-card > header button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 9px;
+  color: var(--ui-muted);
+  background: var(--ui-white);
+  font-size: 10px;
+  font-weight: 710;
+}
+.ftc-account-card > header button:hover {
+  border-color: #ead4d4;
+  color: #903d3d;
+  background: #fff7f7;
+}
+.ftc-account-card > div {
+  display: grid;
+  grid-template-columns: 1.35fr 1.1fr .85fr .85fr .85fr;
+  gap: 8px;
+}
+.ftc-account-empty {
+  min-height: 78px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--ui-gray-primary-line);
+  border-radius: 13px;
+  color: var(--ui-muted);
+  background: var(--ui-gray-50);
+  font-size: 12px;
+}
+.custom-template-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+@media (max-width: 1180px) {
+  .ftc-source-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ftc-account-card > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .custom-template-field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 680px) {
+  .ftc-source-panel,
+  .custom-template-source-panel { margin: 0 12px 12px; padding: 13px; }
+  .ftc-source-panel > header,
+  .custom-template-source-panel > header,
+  .ftc-account-heading { display: grid; }
+  .ftc-source-fields,
+  .ftc-account-card > div,
+  .custom-template-field-grid { grid-template-columns: 1fr; }
+  .ftc-account-heading div:last-child { display: grid; }
+}
