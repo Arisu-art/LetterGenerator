@@ -1,6 +1,8 @@
+import { inspectTemplateContract, type TemplateContract } from './template-contracts';
+
 export type ExhibitKind = 'FCRA' | 'AFFIDAVIT' | 'ATTACHMENT' | 'FTC';
 export type ExhibitMode = 'STATIC_PDF' | 'GENERATED_DOCX';
-export type ExhibitAsset = { id: string; kind: ExhibitKind; mode: ExhibitMode; name: string; type: string; size: number };
+export type ExhibitAsset = { id: string; kind: ExhibitKind; mode: ExhibitMode; name: string; type: string; size: number; contract?: TemplateContract };
 export type TemplateExhibits = Record<ExhibitKind, ExhibitAsset | null>;
 
 const DB_NAME = 'lettergenerator-private-templates';
@@ -68,6 +70,7 @@ function assertFileType(kind: ExhibitKind, file: File) {
 }
 export async function saveTemplateExhibit(round: string, kind: ExhibitKind, file: File) {
   assertFileType(kind, file);
+  const contract = await inspectTemplateContract(file, kind);
   const id = fileKey(round, kind);
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
@@ -78,7 +81,7 @@ export async function saveTemplateExhibit(round: string, kind: ExhibitKind, file
   });
   db.close();
   const next = loadTemplateExhibits(round);
-  next[kind] = { id, kind, mode: exhibitModes[kind], name: file.name, type: file.type || 'application/octet-stream', size: file.size };
+  next[kind] = { id, kind, mode: exhibitModes[kind], name: file.name, type: file.type || 'application/octet-stream', size: file.size, contract };
   saveMeta(round, next);
   return next;
 }
