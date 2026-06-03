@@ -15,7 +15,11 @@ function safe(value: string) {
 }
 
 function docByRole(docs: ReviewOutput[], bureau: string, type: PacketType, role: 'LETTER' | 'AFFIDAVIT' | 'FTC') {
-  return docs.find((doc) => doc.type === type && (role === 'AFFIDAVIT' ? doc.role === role && (doc.bureau === bureau || doc.bureau === 'CLIENT') : doc.bureau === bureau && (role === 'LETTER' ? (!doc.role || doc.role === 'LETTER') : doc.role === role)));
+  return docs.find((doc) => doc.type === type && (
+    role === 'LETTER'
+      ? doc.bureau === bureau && (!doc.role || doc.role === 'LETTER')
+      : doc.role === role && (doc.bureau === bureau || doc.bureau === 'CLIENT')
+  ));
 }
 
 async function pdfOrBlank(file: Blob | null, blank: Blob) {
@@ -24,7 +28,7 @@ async function pdfOrBlank(file: Blob | null, blank: Blob) {
 
 /**
  * Adds per-bureau filing-order folders to the working ZIP.
- * A single case-level affidavit may be reused at position 04 in each dispute packet.
+ * Shared case-level Affidavit and FTC documents are reused in each dispute packet.
  * Every detected route is retained; unavailable configured positions remain blank PDF pages.
  */
 export async function addOrderedPacketFolders(
@@ -63,8 +67,8 @@ export async function addOrderedPacketFolders(
       if (affidavit) zip.file(`${folder}04 Affidavit.docx`, affidavit.blob);
       else zip.file(`${folder}04 Affidavit - BLANK PAGE.pdf`, blank);
       zip.file(`${folder}05 Attachment.pdf`, await pdfOrBlank(attachment, blank));
-      if (ftc) zip.file(`${folder}06 FTC.docx`, ftc.blob);
-      else zip.file(`${folder}06 FTC - BLANK PAGE.pdf`, blank);
+      if (ftc) zip.file(`${folder}06 FTC Identity Theft Report.docx`, ftc.blob);
+      else zip.file(`${folder}06 FTC Identity Theft Report - BLANK PAGE.pdf`, blank);
     }
   }
 }
