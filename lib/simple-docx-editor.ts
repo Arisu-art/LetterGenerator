@@ -14,6 +14,7 @@ export type EditableParagraph = {
   italic: boolean;
   underline: boolean;
   color: string;
+  fontSize: number;
   alignment: ParagraphAlignment;
   lineSpacing: number;
   spacingAfter: number;
@@ -50,7 +51,17 @@ function readFormatting(paragraph: Element) {
   const spacing = firstByName(pPr, 'spacing');
   const line = Number(attribute(spacing, 'line'));
   const after = Number(attribute(spacing, 'after'));
-  return { bold: Boolean(firstByName(rPr, 'b')), italic: Boolean(firstByName(rPr, 'i')), underline: Boolean(firstByName(rPr, 'u')), color: normalizedColor(attribute(firstByName(rPr, 'color'), 'val')), alignment, lineSpacing: line ? Math.max(1, Number((line / 240).toFixed(2))) : 1.15, spacingAfter: after ? Math.round(after / 20) : 8 };
+  const halfPoints = Number(attribute(firstByName(rPr, 'sz'), 'val'));
+  return {
+    bold: Boolean(firstByName(rPr, 'b')),
+    italic: Boolean(firstByName(rPr, 'i')),
+    underline: Boolean(firstByName(rPr, 'u')),
+    color: normalizedColor(attribute(firstByName(rPr, 'color'), 'val')),
+    fontSize: halfPoints ? Math.max(6, Math.min(72, halfPoints / 2)) : 11,
+    alignment,
+    lineSpacing: line ? Math.max(1, Number((line / 240).toFixed(2))) : 1.15,
+    spacingAfter: after ? Math.round(after / 20) : 8
+  };
 }
 function parseDocument(blob: Blob) {
   return blob.arrayBuffer().then((buffer) => {
@@ -83,6 +94,8 @@ function writeFormattedParagraph(paragraph: Element, block: EditableParagraph) {
   const rPr = requireChild(run, 'rPr', true); setToggle(rPr, 'b', block.bold); setToggle(rPr, 'i', block.italic); removeChildren(rPr, 'u');
   if (block.underline) { const underline = doc.createElementNS(WORD_NS, 'w:u'); setVal(underline, 'single'); rPr.appendChild(underline); }
   removeChildren(rPr, 'color'); const color = doc.createElementNS(WORD_NS, 'w:color'); setVal(color, block.color.replace('#', '').toUpperCase()); rPr.appendChild(color);
+  removeChildren(rPr, 'sz'); const size = doc.createElementNS(WORD_NS, 'w:sz'); setVal(size, String(Math.round(block.fontSize * 2))); rPr.appendChild(size);
+  removeChildren(rPr, 'szCs'); const complexSize = doc.createElementNS(WORD_NS, 'w:szCs'); setVal(complexSize, String(Math.round(block.fontSize * 2))); rPr.appendChild(complexSize);
   Array.from(paragraph.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'pPr')) paragraph.removeChild(node); });
   block.text.replace(/\r/g, '').split('\n').forEach((line, index) => { const nextRun = run.cloneNode(true) as Element; if (index) nextRun.appendChild(doc.createElementNS(WORD_NS, 'w:br')); const text = doc.createElementNS(WORD_NS, 'w:t'); if (/^\s|\s$/.test(line)) text.setAttributeNS(XML_NS, 'xml:space', 'preserve'); text.textContent = line; nextRun.appendChild(text); paragraph.appendChild(nextRun); });
 }
