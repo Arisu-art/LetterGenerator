@@ -235,6 +235,43 @@
   color: var(--ui-muted);
   font-size: 11px;
 }
+.source-version-card {
+  padding: 12px;
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 14px;
+  background: var(--ui-white);
+}
+.source-version-card strong {
+  color: var(--ui-black);
+  font-size: 12px;
+  font-weight: 720;
+}
+.source-version-card span,
+.source-version-card small {
+  color: var(--ui-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.source-version-card.protected {
+  border-color: var(--ui-green-line);
+  background: var(--ui-green-soft);
+}
+.source-version-card.protected strong {
+  color: var(--ui-green);
+}
+.source-version-card.recovery {
+  border-color: #d7c49e;
+  background: #fffaf0;
+}
+.source-version-card.recovery strong {
+  color: #865a12;
+}
+.source-version-card.recovery button {
+  min-height: 38px;
+  margin-top: 6px;
+}
 .source-tool-upload {
   display: grid;
   gap: 6px;
@@ -257,6 +294,38 @@
   min-height: 45px;
   border-radius: 13px;
   font-size: 12px;
+}
+.source-safety-confirm {
+  padding: 17px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid #d7c49e;
+  border-radius: 18px;
+  background: #fffaf0;
+}
+.source-safety-confirm strong {
+  display: block;
+  color: var(--ui-black);
+  font-size: 14px;
+}
+.source-safety-confirm p {
+  max-width: 720px;
+  margin: 5px 0 0;
+  color: var(--ui-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.source-safety-confirm > div:last-child {
+  flex: none;
+  display: flex;
+  gap: 8px;
+}
+.source-safety-confirm button {
+  min-height: 43px;
+  padding: 0 16px;
+  border-radius: 12px;
 }
 .source-record-summary {
   margin-top: 7px;
@@ -338,6 +407,7 @@
   .source-method-grid { grid-template-columns: 1fr; max-width: 700px; margin-top: 0; }
   .source-editor-layout { grid-template-columns: 1fr; }
   .source-focused-text { min-height: 430px; }
+  .source-safety-confirm { align-items: start; flex-direction: column; }
 }
 @media (max-width: 720px) {
   .source-progressive-stage { min-height: 0; padding: 18px !important; gap: 18px; }
@@ -345,8 +415,10 @@
   .source-inline-progress .guided-source-step { min-width: 0; }
   .source-method-card { min-height: 205px; padding: 20px; }
   .source-progressive-evidence > .source-progressive-command { padding: 17px; }
-  .source-stage-actions { display: grid; width: 100%; }
+  .source-stage-actions,
+  .source-safety-confirm > div:last-child { display: grid; width: 100%; }
   .source-stage-actions button,
+  .source-safety-confirm button,
   .source-progressive-footer .action-button { width: 100%; min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
