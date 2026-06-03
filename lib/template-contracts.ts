@@ -1,6 +1,6 @@
 import PizZip from 'pizzip';
-import type { ExhibitKind } from './template-exhibits';
 
+export type TemplateDocumentKind = 'FCRA' | 'AFFIDAVIT' | 'ATTACHMENT' | 'FTC' | 'DISPUTE_LETTER' | 'LATE_PAYMENT_LETTER';
 export type TemplateFieldSection = 'CLIENT' | 'AFFIDAVIT' | 'FTC' | 'CUSTOM';
 export type TemplateFieldContract = {
   key: string;
@@ -11,8 +11,8 @@ export type TemplateFieldContract = {
 };
 export type TemplateContract = {
   version: 1;
-  kind: ExhibitKind;
-  mode: 'PLACEHOLDERS' | 'LEGACY_HIGHLIGHTED' | 'STATIC';
+  kind: TemplateDocumentKind;
+  mode: 'PLACEHOLDERS' | 'LEGACY_HIGHLIGHTED' | 'STATIC' | 'REFERENCE_LAYOUT';
   tags: string[];
   loops: string[];
   fields: TemplateFieldContract[];
@@ -48,24 +48,29 @@ const BASE_FIELDS: Record<string, Omit<TemplateFieldContract, 'key'>> = {
 const LOOP_FIELDS = new Set(['accounts', 'dispute_accounts', 'hard_inquiries', 'ftc_accounts']);
 const FTC_LEGACY_KEYS = ['ftc_report_number', 'consumer_first_name', 'consumer_middle_name', 'consumer_last_name', 'address', 'country', 'phone', 'email', 'ftc_report_date'];
 const AFFIDAVIT_LEGACY_KEYS = ['affidavit_state', 'affidavit_county', 'consumer_name', 'address_inline', 'ssn_masked', 'account_lines', 'document_date'];
+const REFERENCE_KEYS = ['consumer_name', 'address', 'dob', 'ssn_masked', 'document_date', 'bureau_name', 'bureau_address'];
 function humanLabel(key: string) { return key.replace(/[_.-]+/g, ' ').replace(/\b\w/g, (value) => value.toUpperCase()); }
 function fieldFor(key: string): TemplateFieldContract {
   const known = BASE_FIELDS[key];
   return known ? { key, ...known } : { key, label: humanLabel(key), section: 'CUSTOM', required: true };
 }
 function unique(values: string[]) { return Array.from(new Set(values)); }
-function legacyFields(kind: ExhibitKind) {
-  return (kind === 'AFFIDAVIT' ? AFFIDAVIT_LEGACY_KEYS : kind === 'FTC' ? FTC_LEGACY_KEYS : []).map(fieldFor);
+function implicitFields(kind: TemplateDocumentKind) {
+  if (kind === 'AFFIDAVIT') return AFFIDAVIT_LEGACY_KEYS.map(fieldFor);
+  if (kind === 'FTC') return FTC_LEGACY_KEYS.map(fieldFor);
+  if (kind === 'DISPUTE_LETTER' || kind === 'LATE_PAYMENT_LETTER') return REFERENCE_KEYS.map(fieldFor);
+  return [];
 }
-export async function inspectTemplateContract(file: File, kind: ExhibitKind): Promise<TemplateContract> {
+export async function inspectTemplateContract(file: File, kind: TemplateDocumentKind): Promise<TemplateContract> {
   if (kind === 'FCRA' || kind === 'ATTACHMENT') return { version: 1, kind, mode: 'STATIC', tags: [], loops: [], fields: [], customFields: [] };
   const zip = new PizZip(await file.arrayBuffer());
   const xml = zip.file('word/document.xml')?.asText() || '';
   const tokens = Array.from(xml.matchAll(/\{\{\s*([#/^]?)([\w.-]+)\s*\}\}/g)).map((match) => ({ marker: match[1], key: match[2] }));
   const loops = unique(tokens.filter((token) => token.marker === '#' || token.marker === '^').map((token) => token.key));
   const tags = unique(tokens.filter((token) => !token.marker && !LOOP_FIELDS.has(token.key)).map((token) => token.key));
-  const fields = tags.length ? tags.map(fieldFor) : legacyFields(kind);
-  return { version: 1, kind, mode: tags.length || loops.length ? 'PLACEHOLDERS' : 'LEGACY_HIGHLIGHTED', tags, loops, fields, customFields: fields.filter((field) => field.section === 'CUSTOM') };
+  const fields = tags.length ? tags.map(fieldFor) : implicitFields(kind);
+  const mode = tags.length || loops.length ? 'PLACEHOLDERS' : kind === 'DISPUTE_LETTER' || kind === 'LATE_PAYMENT_LETTER' ? 'REFERENCE_LAYOUT' : 'LEGACY_HIGHLIGHTED';
+  return { version: 1, kind, mode, tags, loops, fields, customFields: fields.filter((field) => field.section === 'CUSTOM') };
 }
 export function unresolvedCustomTemplateFields(contracts: Array<TemplateContract | undefined | null>) {
   const seen = new Set<string>();
