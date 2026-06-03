@@ -19,7 +19,13 @@ type Props = {
   onPdfDownload?: (packet: FinalPdfPacket) => void; onReplace: (output: ReviewOutput, file: File) => void | Promise<void>;
 };
 function isLetter(output: ReviewOutput) { return !output.role || output.role === 'LETTER'; }
+function roleOf(output: ReviewOutput): DocumentRole { return output.role || 'LETTER'; }
 function packetTitle(output: ReviewOutput) { return `${output.bureau} ${output.type === 'DISPUTE' ? 'Dispute' : 'Late Payment'} Packet`; }
+function documentTitle(output: ReviewOutput) {
+  if (roleOf(output) === 'AFFIDAVIT') return 'Affidavit';
+  if (roleOf(output) === 'FTC') return 'FTC Identity Theft Report';
+  return output.type === 'DISPUTE' ? `${output.bureau} Dispute Letter` : `${output.bureau} Late Payment Letter`;
+}
 function packetDocuments(anchor: ReviewOutput, all: ReviewOutput[]) {
   return all.filter((item) => item.type === anchor.type && (item.bureau === anchor.bureau || (anchor.type === 'DISPUTE' && (item.role === 'AFFIDAVIT' || item.role === 'FTC') && item.bureau === 'CLIENT'))).sort((a, b) => (a.sequence || 1) - (b.sequence || 1));
 }
@@ -36,21 +42,36 @@ export default function OutputReviewWorkspace({ round, outputs, zipName, warning
   const [stage, setStage] = useState<Stage>(finalPackets.length ? 'DELIVERY' : 'REVIEW');
   const [reviewed, setReviewed] = useState<string[]>([]);
   const packets = useMemo(() => outputs.filter(isLetter).sort((a, b) => a.bureau.localeCompare(b.bureau) || a.type.localeCompare(b.type)), [outputs]);
-  const selected = packets.find((item) => item.path === selectedPath) || null;
-  const documents = selected ? packetDocuments(selected, outputs) : [];
+  const docxDocuments = useMemo(() => [...outputs].sort((a, b) => (a.sequence || 1) - (b.sequence || 1) || a.bureau.localeCompare(b.bureau)), [outputs]);
+  const selectedDocument = outputs.find((item) => item.path === selectedPath) || null;
+  const selectedPacket = selectedDocument ? (isLetter(selectedDocument) ? selectedDocument : packets.find((packet) => packet.type === selectedDocument.type) || null) : null;
+  const documents = selectedPacket ? packetDocuments(selectedPacket, outputs) : selectedDocument ? [selectedDocument] : [];
   const notices = useMemo(() => Array.from(new Set(warnings)), [warnings]);
   const showStage = (next: Stage) => runSharedTransition(() => setStage(next), 'stage');
   useEffect(() => { if (finalPackets.length) runSharedTransition(() => setStage('DELIVERY'), 'stage'); }, [finalPackets.length]);
   useEffect(() => { setReviewed((items) => items.filter((path) => packets.some((packet) => packet.path === path))); }, [packets]);
-  function openPacket(packet: ReviewOutput) { setSelectedPath(packet.path); setReviewed((items) => items.includes(packet.path) ? items : [...items, packet.path]); }
+  function markPacketReviewed(packet: ReviewOutput) { setReviewed((items) => items.includes(packet.path) ? items : [...items, packet.path]); }
+  function openPacket(packet: ReviewOutput) { setSelectedPath(packet.path); markPacketReviewed(packet); }
+  function openDocument(document: ReviewOutput) {
+    setSelectedPath(document.path);
+    const packet = isLetter(document) ? document : packets.find((item) => item.type === document.type);
+    if (packet) markPacketReviewed(packet);
+  }
   const reviewedCount = reviewed.length;
 
   return <section className="outputs-workspace guided-output-workspace progressive-output-workspace">
     {stage === 'REVIEW' && <section className="panel output-stage output-review-stage shared-stage-surface" style={{ viewTransitionName: 'output-work-stage' }}>
-      <OutputStageHeader stage="REVIEW" eyebrow="Step 01 · Review" title="Review packets by bureau" description="Open each bureau packet to edit the Letter, shared Affidavit and shared FTC Report in filing order."><span className="output-count-pill">{reviewedCount}/{packets.length} reviewed</span></OutputStageHeader>
-      <div className="review-cards output-packet-grid">{packets.map((packet) => { const components = packetDocuments(packet, outputs); const isReviewed = reviewed.includes(packet.path); return <article className={`review-card packet-card ${isReviewed ? 'reviewed' : ''}`} key={packet.path}><header className="output-card-head"><span className="output-bureau">{packet.bureau}</span><span className={`packet-status ${isReviewed ? 'ready' : 'neutral'}`}>{isReviewed ? 'Reviewed' : 'Ready to review'}</span></header><h3>{packetTitle(packet)}</h3><p className="output-card-order">{packet.type === 'DISPUTE' ? 'Letter → Supporting → FCRA → Affidavit → Attachment → FTC' : 'Letter → Supporting Documents'}</p><div className="output-card-meta"><span>{components.length} editable DOCX</span><span>{packet.type === 'DISPUTE' ? '6 positions' : '2 positions'}</span></div><button type="button" className="edit-document" onClick={() => openPacket(packet)}>{isReviewed ? 'Reopen Editor' : 'Open Editor'}</button></article>; })}</div>
+      <OutputStageHeader stage="REVIEW" eyebrow="Step 01 · Review" title="Review packets by bureau" description="Open each DOCX document directly or review the complete packet in filing order before finalization."><span className="output-count-pill">{reviewedCount}/{packets.length} reviewed</span></OutputStageHeader>
+      <section className="output-docx-documents" aria-label="Editable DOCX documents">
+        <header className="output-section-heading"><p className="eyebrow">Editable documents</p><h3>DOCX Documents</h3><p>Open any generated letter, affidavit, or FTC report in the simple editor.</p></header>
+        <div className="review-cards output-packet-grid">{docxDocuments.map((document) => <article className="review-card packet-card document-card" key={document.path}><header className="output-card-head"><span className="output-bureau">{document.bureau}</span><span className="packet-status ready">DOCX</span></header><h3>{documentTitle(document)}</h3><p className="output-card-order">{roleOf(document) === 'LETTER' ? 'Generated letter document' : 'Generated packet document'}</p><div className="output-card-meta"><span>Editable DOCX</span><span>Position {String(document.sequence || 1).padStart(2, '0')}</span></div><button type="button" className="edit-document" onClick={() => openDocument(document)}>Edit DOCX</button></article>)}</div>
+      </section>
+      <section className="output-packet-review" aria-label="Packet review">
+        <header className="output-section-heading"><p className="eyebrow">Ordered packets</p><h3>Packet Review</h3><p>Review each complete bureau packet and its shared documents in filing order.</p></header>
+        <div className="review-cards output-packet-grid">{packets.map((packet) => { const components = packetDocuments(packet, outputs); const isReviewed = reviewed.includes(packet.path); return <article className={`review-card packet-card ${isReviewed ? 'reviewed' : ''}`} key={packet.path}><header className="output-card-head"><span className="output-bureau">{packet.bureau}</span><span className={`packet-status ${isReviewed ? 'ready' : 'neutral'}`}>{isReviewed ? 'Reviewed' : 'Ready to review'}</span></header><h3>{packetTitle(packet)}</h3><p className="output-card-order">{packet.type === 'DISPUTE' ? 'Letter → Supporting → FCRA → Affidavit → Attachment → FTC' : 'Letter → Supporting Documents'}</p><div className="output-card-meta"><span>{components.length} editable DOCX</span><span>{packet.type === 'DISPUTE' ? '6 positions' : '2 positions'}</span></div><button type="button" className="edit-document" onClick={() => openPacket(packet)}>{isReviewed ? 'Reopen Packet Editor' : 'Open Packet Editor'}</button></article>; })}</div>
+      </section>
       {notices.length > 0 && <div className="output-notices"><strong>Blank positions retained</strong><p>{notices.length} item{notices.length === 1 ? '' : 's'} require attention before final delivery.</p></div>}
-      <footer className="output-stage-footer"><span>{reviewedCount < packets.length ? 'You may continue and return to edit packets before finalizing.' : 'All bureau packets have been opened for review.'}</span><button type="button" className="action-button" disabled={!packets.length} onClick={() => showStage('FINALIZE')}>Continue to Finalize</button></footer>
+      <footer className="output-stage-footer"><span>{reviewedCount < packets.length ? 'You may continue and return to edit documents before finalizing.' : 'All bureau packets have been opened for review.'}</span><button type="button" className="action-button" disabled={!packets.length} onClick={() => showStage('FINALIZE')}>Continue to Finalize</button></footer>
     </section>}
     {stage === 'FINALIZE' && <section className="panel output-stage output-finalize-stage shared-stage-surface" style={{ viewTransitionName: 'output-work-stage' }}>
       <OutputStageHeader stage="FINALIZE" eyebrow="Step 02 · Finalize" title="Finalize delivery" description="Create final filing-order PDFs after completing document edits."><span className="output-count-pill">{packets.length} packets</span></OutputStageHeader>
@@ -62,6 +83,6 @@ export default function OutputReviewWorkspace({ round, outputs, zipName, warning
       <div className="final-packet-cards output-final-cards">{finalPackets.map((packet) => <article className="final-packet-card" key={packet.path}><header><span className="packet-status ready">Ready</span><strong>{packet.bureau}</strong></header><h3>{packet.type === 'DISPUTE' ? 'Dispute Packet' : 'Late Payment Packet'}</h3><p>{packet.sequence.length} ordered positions</p>{onPdfDownload && <button type="button" className="secondary-button" onClick={() => onPdfDownload(packet)}>Download PDF</button>}</article>)}</div>
       <footer className="output-stage-footer"><button type="button" className="secondary-button" onClick={() => showStage('REVIEW')}>Return to Review</button></footer>
     </section>}
-    {selected && <SimpleDocxEditor round={round} output={selected} documents={documents} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={onEvidenceChanged} onMessage={onMessage} onClose={() => setSelectedPath(null)} onSave={onReplace} />}
+    {selectedPacket && selectedDocument && <SimpleDocxEditor round={round} output={selectedPacket} documents={documents} initialDocumentPath={selectedDocument.path} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={onEvidenceChanged} onMessage={onMessage} onClose={() => setSelectedPath(null)} onSave={onReplace} />}
   </section>;
 }
