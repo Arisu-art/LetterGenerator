@@ -142,7 +142,7 @@ export function parseSource(text: string): ParsedSource {
   parsed.middleName = headerField(headerLines, /^MIDDLE\s+NAME\s*:\s*/i) || split.middleName;
   parsed.lastName = headerField(headerLines, /^LAST\s+NAME\s*:\s*/i) || split.lastName;
   parsed.dob = headerField(headerLines, /^DOB\s*:\s*/i); parsed.ssn = headerField(headerLines, /^SSN\s*:\s*/i);
-  parsed.phone = headerField(headerLines, /^(?:PHONE|TELEPHONE|MOBILE)\s*:\s*/i); parsed.email = headerField(headerLines, /^(?:EMAIL|E-?MAIL)\s*:\s*/i); parsed.country = headerField(headerLines, /^COUNTRY\s*:\s*/i);
+  parsed.phone = headerField(headerLines, /^(?:PHONE|TELEPHONE|MOBILE)\s*:\s*/i) || (parsed.ftcAccounts.length ? 'N/A' : ''); parsed.email = headerField(headerLines, /^(?:EMAIL|E-?MAIL)\s*:\s*/i); parsed.country = headerField(headerLines, /^COUNTRY\s*:\s*/i);
   parsed.affidavitState = headerField(headerLines, /^AFFIDAVIT\s+STATE\s*:\s*/i); parsed.affidavitCounty = headerField(headerLines, /^AFFIDAVIT\s+COUNTY\s*:\s*/i);
   parsed.ftcReportNumber = headerField(headerLines, /^FTC\s+REPORT\s+NUMBER\s*:\s*/i); parsed.ftcReportDate = automatedFtcReportDate();
   headerLines.forEach((line) => { const match = line.match(TEMPLATE_FIELD); if (match) parsed.templateFields[match[1]] = safeLine(match[2]); });
