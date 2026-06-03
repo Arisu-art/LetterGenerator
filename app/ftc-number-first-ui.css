@@ -1,0 +1,33 @@
+/* FTC number-first disclosure: keep source-derived values out of the primary input surface. */
+.ftc-source-panel .ftc-source-fields {
+  grid-template-columns: minmax(245px, 360px);
+  max-width: 390px;
+  margin-bottom: 0;
+}
+.ftc-source-panel .ftc-source-fields > label:not(:first-child) {
+  display: none;
+}
+.ftc-source-panel > header h3 {
+  letter-spacing: -.035em;
+}
+.ftc-source-panel.ready .ftc-account-heading,
+.ftc-source-panel.ready .ftc-account-list {
+  display: none !important;
+}
+.ftc-source-panel.ready > header p:not(.eyebrow)::after {
+  content: ' Account details are mapped from source data.';
+}
+.ftc-source-panel.required .ftc-account-heading {
+  margin-top: 15px;
+}
+.ftc-source-panel.required .ftc-account-list {
+  margin-top: 3px;
+}
+.ftc-source-panel.required .ftc-validation-message + .ftc-source-fields {
+  margin-bottom: 4px;
+}
+@media (max-width: 680px) {
+  .ftc-source-panel .ftc-source-fields {
+    max-width: 100%;
+  }
+}
