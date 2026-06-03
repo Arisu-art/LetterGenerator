@@ -144,3 +144,8 @@
     grid-column: auto;
   }
 }
+
+/* UI override: affidavit jurisdiction is automatically populated in output documents. */
+.affidavit-source-panel {
+  display: none !important;
+}

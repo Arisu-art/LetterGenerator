@@ -227,3 +227,9 @@
   .custom-template-field-grid { grid-template-columns: 1fr; }
   .ftc-account-heading div:last-child { display: grid; }
 }
+
+/* UI override: FTC affected accounts are automatically derived for output documents. */
+.ftc-account-heading,
+.ftc-account-list {
+  display: none !important;
+}
