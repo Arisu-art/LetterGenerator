@@ -41,6 +41,7 @@ import './redundancy-cleanup.css';
 import './button-system-normalization.css';
 import './affidavit-source-mapping.css';
 import './ftc-source-mapping.css';
+import './source-review-compact.css';
 
 export const metadata = {
   title: 'LetterGenerator',
