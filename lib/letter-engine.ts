@@ -1,7 +1,8 @@
 export type Bureau = 'TRANSUNION' | 'EQUIFAX' | 'EXPERIAN';
 export type LetterType = 'DISPUTE' | 'LATE_PAYMENT';
 export type ItemType = 'DISPUTE_ACCOUNT' | 'HARD_INQUIRY' | 'LATE_PAYMENT';
-export type SourceItem = { type: ItemType; displayText: string };
+export type FtcDerivedFields = { dateDiscovered: string; fraudulentAmount: string };
+export type SourceItem = { type: ItemType; displayText: string; ftcDerived?: FtcDerivedFields };
 export type FtcAffectedAccount = { accountName: string; accountNumber: string; fraudBegan: string; dateDiscovered: string; fraudulentAmount: string };
 export type ParseDiagnostic = { level: 'warning' | 'info'; message: string; line?: number };
 export type PreservedSourceLine = { line: number; text: string; reason: string };
@@ -18,6 +19,7 @@ export type LetterRoute = { bureau: Bureau; type: LetterType; items: SourceItem[
 export type NormalizedSourceCopy = { text: string; usedFields: string[]; reservedFields: string[]; preservedLines: PreservedSourceLine[] };
 
 export const bureaus: Bureau[] = ['TRANSUNION', 'EQUIFAX', 'EXPERIAN'];
+export const MAX_FTC_ACCOUNTS = 5;
 export const bureauInfo: Record<Bureau, { name: string; address: string }> = {
   TRANSUNION: { name: 'TransUnion LLC Consumer Dispute Center', address: 'PO Box 2000\nChester, PA 19016' },
   EQUIFAX: { name: 'Equifax Information Services LLC', address: 'PO Box 105139\nAtlanta, GA 30348' },
@@ -27,11 +29,13 @@ export const bureauInfo: Record<Bureau, { name: string; address: string }> = {
 type Section = 'header' | 'ftc' | 'dispute' | 'inquiry' | 'late' | 'ignore';
 type ItemStore = Record<Bureau, SourceItem[]>;
 const DATE_PATTERN = /\b(?:0?[1-9]|1[0-2])[\/-](?:0?[1-9]|[12]\d|3[01])[\/-](?:\d{2}|\d{4})\b/;
+const MONTH_YEAR_PATTERN = /(?:0?[1-9]|1[0-2])\/(?:19|20)\d{2}/;
 const ACCOUNT_NAME = /^(?:ACCOUNT|CREDITOR|FURNISHER|COMPANY)(?:\s*(?:OR\s+ORGANIZATION))?\s*(?:NAME)?\s*[:#-]\s*(.+)$/i;
 const ACCOUNT_NUMBER = /^(?:ACCOUNT|ACCT)\s*(?:NUMBER|NO\.?|#)\s*[:#-]\s*(.+)$/i;
 const FRAUD_BEGAN = /^(?:FRAUD\s+BEGAN|DATE\s+FRAUD\s+BEGAN)\s*[:#-]\s*(.+)$/i;
 const DATE_DISCOVERED = /^(?:DATE\s+DISCOVERED|DISCOVERED)\s*[:#-]\s*(.+)$/i;
 const FRAUD_AMOUNT = /^(?:FRAUDULENT\s+AMOUNT|TOTAL\s+FRAUDULENT\s+AMOUNT|AMOUNT)\s*[:#-]\s*\$?\s*(.+)$/i;
+const COMPACT_FTC_DETAIL = /^\s*\$?([\d,]+(?:\.\d{1,2})?)\s+((?:0?[1-9]|1[0-2])\/(?:19|20)\d{2})\s*$/;
 const TEMPLATE_FIELD = /^TEMPLATE\s+FIELD\s+([\w.-]+)\s*:\s*(.*)$/i;
 const KNOWN_HEADER = /^(NAME|CLIENT|CONSUMER(?:\s+NAME)?|FIRST\s+NAME|MIDDLE\s+NAME|LAST\s+NAME|ADDRESS|COUNTRY|DOB|SSN|PHONE|TELEPHONE|MOBILE|EMAIL|E-?MAIL|AFFIDAVIT\s+STATE|AFFIDAVIT\s+COUNTY|FTC\s+REPORT\s+NUMBER|FTC\s+REPORT\s+DATE|TEMPLATE\s+FIELD\s+[\w.-]+)\s*:/i;
 const RESERVED_HEADER = /^(PHONE|TELEPHONE|MOBILE|EMAIL|E-?MAIL|COUNTRY)\s*:/i;
@@ -39,7 +43,9 @@ function itemMap(): ItemStore { return { TRANSUNION: [], EQUIFAX: [], EXPERIAN: 
 function normalized(value: string) { return value.replace(/[\[\]{}()=*#_]+/g, ' ').replace(/[:\-|/]+$/g, '').replace(/[\-_]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase(); }
 function safeLine(value: string) { return value.replace(/\s+/g, ' ').trim(); }
 function maskedAccountNumber(value: string) { return value.replace(/x/gi, 'X'); }
-export function automatedFtcReportDate() { const parts = new Intl.DateTimeFormat('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'America/New_York' }).formatToParts(new Date()); const values = Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)])); const shifted = new Date(Date.UTC(values.year, values.month - 1, values.day - 5)); return `${String(shifted.getUTCMonth() + 1).padStart(2, '0')}/${String(shifted.getUTCDate()).padStart(2, '0')}/${shifted.getUTCFullYear()}`; }
+function easternParts() { const parts = new Intl.DateTimeFormat('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', timeZone: 'America/New_York' }).formatToParts(new Date()); return Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)])); }
+export function automatedFtcReportDate() { const values = easternParts(); const shifted = new Date(Date.UTC(values.year, values.month - 1, values.day - 5)); return `${String(shifted.getUTCMonth() + 1).padStart(2, '0')}/${String(shifted.getUTCDate()).padStart(2, '0')}/${shifted.getUTCFullYear()}`; }
+export function currentFtcFraudMonthYear() { const values = easternParts(); return `${String(values.month).padStart(2, '0')}/${values.year}`; }
 function bureauIn(value: string): Bureau | '' {
   const key = normalized(value);
   if (/\b(TRANS\s*UNION|TRANSUNION|TU)\b/.test(key)) return 'TRANSUNION';
@@ -69,16 +75,25 @@ function isSectionHeading(value: string, section: Section) {
 function isNoData(value: string) { return /^(N+ONE|NONE|NO\s+(ACCOUNT|ACCOUNTS|ITEM|ITEMS|LATE\s+PAYMENTS?|HARD\s+INQUIR(?:Y|IES))|N\/?A|NOTHING|NOT\s+APPLICABLE)$/i.test(normalized(value)); }
 function cleanLines(lines: string[]) { return lines.map(safeLine).filter(Boolean).filter((line) => !isNoData(line)); }
 function fieldValue(lines: string[], pattern: RegExp) { for (const line of lines) { const match = line.match(pattern); if (match?.[1]) return safeLine(match[1]); } return ''; }
+function ftcDerivedFields(lines: string[]): FtcDerivedFields {
+  const clean = cleanLines(lines);
+  const compact = clean.map((line) => line.match(COMPACT_FTC_DETAIL)).find(Boolean);
+  return {
+    fraudulentAmount: fieldValue(clean, FRAUD_AMOUNT) || compact?.[1]?.replaceAll(',', '') || '',
+    dateDiscovered: fieldValue(clean, DATE_DISCOVERED) || compact?.[2] || ''
+  };
+}
 function disputeDisplayText(lines: string[]) { const clean = cleanLines(lines); const name = fieldValue(clean, ACCOUNT_NAME); const number = maskedAccountNumber(fieldValue(clean, ACCOUNT_NUMBER)); return name || number ? [name ? `Account Name: ${name}` : '', number ? `Account Number: ${number}` : ''].filter(Boolean).join('\n') : ''; }
 function lateDisplayText(lines: string[]) { const clean = cleanLines(lines); const name = fieldValue(clean, ACCOUNT_NAME); const number = maskedAccountNumber(fieldValue(clean, ACCOUNT_NUMBER)); const relevant = clean.filter((line) => /late|payment|30\s*day|60\s*day|90\s*day|120\s*day/i.test(line)); return name || number ? [name ? `Account Name: ${name}` : '', number ? `Account Number: ${number}` : '', ...relevant.filter((line) => !ACCOUNT_NAME.test(line) && !ACCOUNT_NUMBER.test(line))].filter(Boolean).join('\n') : ''; }
 function inquiryDisplayText(lines: string[]) { const joined = cleanLines(lines).join(' - '); return DATE_PATTERN.test(joined) ? joined.replace(/\s*[-–—]\s*/g, ' - ').replace(/\s+/g, ' ').trim() : ''; }
-function createItem(type: ItemType, lines: string[]) { const displayText = type === 'DISPUTE_ACCOUNT' ? disputeDisplayText(lines) : type === 'HARD_INQUIRY' ? inquiryDisplayText(lines) : lateDisplayText(lines); return displayText ? { type, displayText } : null; }
+function createItem(type: ItemType, lines: string[]) { const displayText = type === 'DISPUTE_ACCOUNT' ? disputeDisplayText(lines) : type === 'HARD_INQUIRY' ? inquiryDisplayText(lines) : lateDisplayText(lines); if (!displayText) return null; return type === 'DISPUTE_ACCOUNT' ? { type, displayText, ftcDerived: ftcDerivedFields(lines) } : { type, displayText }; }
 function createFtcAccount(lines: string[]): FtcAffectedAccount | null {
   const clean = cleanLines(lines);
   const accountName = fieldValue(clean, ACCOUNT_NAME);
   const accountNumber = maskedAccountNumber(fieldValue(clean, ACCOUNT_NUMBER));
   if (!accountName && !accountNumber) return null;
-  return { accountName, accountNumber, fraudBegan: fieldValue(clean, FRAUD_BEGAN), dateDiscovered: fieldValue(clean, DATE_DISCOVERED), fraudulentAmount: fieldValue(clean, FRAUD_AMOUNT) };
+  const derived = ftcDerivedFields(clean);
+  return { accountName, accountNumber, fraudBegan: currentFtcFraudMonthYear(), dateDiscovered: derived.dateDiscovered, fraudulentAmount: derived.fraudulentAmount };
 }
 function appendUnique(target: SourceItem[], item: SourceItem | null, diagnostics: ParseDiagnostic[], bureau: Bureau) {
   if (!item) return;
@@ -90,10 +105,11 @@ function appendUniqueFtc(target: FtcAffectedAccount[], item: FtcAffectedAccount 
   if (!item) return;
   const key = `${normalized(item.accountName)}|${normalized(item.accountNumber)}`;
   if (target.some((current) => `${normalized(current.accountName)}|${normalized(current.accountNumber)}` === key)) { diagnostics.push({ level: 'info', message: 'Duplicate FTC affected account removed.' }); return; }
+  if (target.length >= MAX_FTC_ACCOUNTS) { diagnostics.push({ level: 'warning', message: `FTC affected accounts are limited to ${MAX_FTC_ACCOUNTS}; additional records were not included.` }); return; }
   target.push(item);
 }
 function headerField(lines: string[], label: RegExp) { const line = lines.find((entry) => label.test(entry)); return line ? line.replace(label, '').trim() : ''; }
-function looksLikeRecord(line: string) { return ACCOUNT_NAME.test(line) || ACCOUNT_NUMBER.test(line) || FRAUD_BEGAN.test(line) || DATE_DISCOVERED.test(line) || FRAUD_AMOUNT.test(line) || DATE_PATTERN.test(line); }
+function looksLikeRecord(line: string) { return ACCOUNT_NAME.test(line) || ACCOUNT_NUMBER.test(line) || FRAUD_BEGAN.test(line) || DATE_DISCOVERED.test(line) || FRAUD_AMOUNT.test(line) || DATE_PATTERN.test(line) || MONTH_YEAR_PATTERN.test(line); }
 function pushPreserved(parsed: ParsedSource, line: number, text: string, reason: string) { if (!parsed.preserved.some((item) => item.line === line && item.text === text)) parsed.preserved.push({ line, text, reason }); }
 function splitName(name: string) { const parts = safeLine(name).split(' ').filter(Boolean); return { firstName: parts[0] || '', middleName: parts.length > 2 ? parts.slice(1, -1).join(' ') : '', lastName: parts.length > 1 ? parts[parts.length - 1] : '' }; }
 
@@ -163,18 +179,21 @@ export function detectRoutes(parsed: ParsedSource): LetterRoute[] {
   });
 }
 function ftcLines(accounts: FtcAffectedAccount[]) {
-  return accounts.flatMap((account, index) => [index ? '' : '', `Account Name: ${account.accountName}`, `Account Number: ${account.accountNumber}`, `Fraud Began: ${account.fraudBegan}`, `Date Discovered: ${account.dateDiscovered}`, `Fraudulent Amount: ${account.fraudulentAmount}`]);
+  return accounts.slice(0, MAX_FTC_ACCOUNTS).flatMap((account, index) => [index ? '' : '', `Account Name: ${account.accountName}`, `Account Number: ${account.accountNumber}`, `Fraud Began: ${account.fraudBegan || currentFtcFraudMonthYear()}`, `Date Discovered: ${account.dateDiscovered}`, `Fraudulent Amount: ${account.fraudulentAmount}`]);
+}
+function disputeLines(items: SourceItem[]) {
+  return items.flatMap((item, index) => [index ? '' : '', ...item.displayText.split('\n'), ...(item.ftcDerived?.fraudulentAmount && item.ftcDerived?.dateDiscovered ? [`${item.ftcDerived.fraudulentAmount} ${item.ftcDerived.dateDiscovered}`] : [])]);
 }
 export function createNormalizedSourceCopy(source: string): NormalizedSourceCopy {
   const parsed = parseSource(source); const sections: string[] = [`NAME: ${parsed.name}`, `FIRST NAME: ${parsed.firstName}`, `MIDDLE NAME: ${parsed.middleName}`, `LAST NAME: ${parsed.lastName}`, ...parsed.address.map((line, index) => `${index === 0 ? 'ADDRESS: ' : ''}${line}`), `COUNTRY: ${parsed.country}`, `DOB: ${parsed.dob}`, `SSN: ${parsed.ssn}`, `PHONE: ${parsed.phone}`, `EMAIL: ${parsed.email}`];
   if (parsed.affidavitState || parsed.affidavitCounty) sections.push(`AFFIDAVIT STATE: ${parsed.affidavitState}`, `AFFIDAVIT COUNTY: ${parsed.affidavitCounty}`);
   if (parsed.ftcReportNumber || parsed.ftcAccounts.length) sections.push(`FTC REPORT NUMBER: ${parsed.ftcReportNumber}`, `FTC REPORT DATE: ${parsed.ftcReportDate}`, '', 'FTC AFFECTED ACCOUNTS', ...ftcLines(parsed.ftcAccounts));
   Object.entries(parsed.templateFields).forEach(([key, value]) => sections.push(`TEMPLATE FIELD ${key}: ${value}`));
-  const disputes = bureaus.flatMap((bureau) => parsed.dispute[bureau].length ? ['', bureau, ...parsed.dispute[bureau].map((item) => item.displayText).join('\n\n').split('\n')] : []);
+  const disputes = bureaus.flatMap((bureau) => parsed.dispute[bureau].length ? ['', bureau, ...disputeLines(parsed.dispute[bureau])] : []);
   const inquiries = bureaus.flatMap((bureau) => parsed.inquiry[bureau].length ? ['', bureau, ...parsed.inquiry[bureau].map((item) => item.displayText)] : []);
   const late = bureaus.flatMap((bureau) => parsed.late[bureau].length ? ['', bureau, ...parsed.late[bureau].map((item) => item.displayText).join('\n\n').split('\n')] : []);
   if (disputes.length) sections.push('', 'DISPUTE ACCOUNTS', ...disputes); if (inquiries.length) sections.push('', 'HARD INQUIRIES', ...inquiries); if (late.length) sections.push('', 'LATE PAYMENTS', ...late);
   if (parsed.preserved.length) { sections.push('', 'PRESERVED SOURCE DATA - NOT INSERTED UNLESS A TEMPLATE MAPS IT'); parsed.preserved.filter((item) => !RESERVED_HEADER.test(item.text)).forEach((item) => sections.push(`[LINE ${item.line}] ${item.text}`)); }
   return { text: sections.filter((line, index, all) => line || all[index - 1] !== '').join('\n').trim(), usedFields: ['Name', 'Address', 'DOB', 'SSN', parsed.affidavitState ? 'Affidavit state' : '', parsed.affidavitCounty ? 'Affidavit county' : '', parsed.ftcReportNumber ? 'FTC report number' : '', parsed.ftcAccounts.length ? 'FTC affected accounts' : '', 'Dispute accounts', 'Hard inquiries', 'Late payments'].filter(Boolean), reservedFields: [parsed.phone ? 'Phone' : '', parsed.email ? 'Email' : '', parsed.country ? 'Country' : ''].filter(Boolean), preservedLines: parsed.preserved };
 }
-export const recommendedSourceFormat = `NAME: CLIENT FULL NAME\nFIRST NAME:\nMIDDLE NAME:\nLAST NAME:\nADDRESS: STREET ADDRESS\nCITY, STATE ZIP\nCOUNTRY: USA\nDOB: MM/DD/YYYY\nSSN: XXX-XX-1234\nPHONE:\nEMAIL:\nAFFIDAVIT STATE:\nAFFIDAVIT COUNTY:\nFTC REPORT NUMBER:\nFTC REPORT DATE: AUTO - US EASTERN DATE MINUS 5 DAYS\n\nFTC AFFECTED ACCOUNTS\nAccount Name:\nAccount Number:\nFraud Began: MM/YYYY\nDate Discovered: MM/YYYY\nFraudulent Amount:\n\nDISPUTE ACCOUNTS\nTRANSUNION\nAccount Name: EXAMPLE BANK\nAccount Number: XXXX1234\n\nEQUIFAX\nNONE\n\nEXPERIAN\nAccount Name: EXAMPLE CARD\nAccount Number: XXXX9876\n\nHARD INQUIRIES\nTRANSUNION\nEXAMPLE LENDER - 08/08/2024\n\nLATE PAYMENTS\nEQUIFAX\nAccount Name: EXAMPLE AUTO\nAccount Number: XXXX5678\nLate Payment: 30 Days Late - 01/2025`;
+export const recommendedSourceFormat = `NAME: CLIENT FULL NAME\nFIRST NAME:\nMIDDLE NAME:\nLAST NAME:\nADDRESS: STREET ADDRESS\nCITY, STATE ZIP\nCOUNTRY: USA\nDOB: MM/DD/YYYY\nSSN: XXX-XX-1234\nPHONE:\nEMAIL:\nAFFIDAVIT STATE:\nAFFIDAVIT COUNTY:\nFTC REPORT NUMBER:\nFTC REPORT DATE: AUTO - US EASTERN DATE MINUS 5 DAYS\n\nFTC AFFECTED ACCOUNTS - MAXIMUM 5\nAccount Name:\nAccount Number:\nFraud Began: AUTO - LETTER MONTH/YEAR\nDate Discovered:\nFraudulent Amount:\n\nDISPUTE ACCOUNTS\nTRANSUNION\nAccount Name: EXAMPLE BANK\nAccount Number: XXXX1234\n1032 10/2019\n\nEQUIFAX\nNONE\n\nEXPERIAN\nAccount Name: EXAMPLE CARD\nAccount Number: XXXX9876\n\nHARD INQUIRIES\nTRANSUNION\nEXAMPLE LENDER - 08/08/2024\n\nLATE PAYMENTS\nEQUIFAX\nAccount Name: EXAMPLE AUTO\nAccount Number: XXXX5678\nLate Payment: 30 Days Late - 01/2025`;
