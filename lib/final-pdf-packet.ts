@@ -19,6 +19,10 @@ export type AssembledPdfPacket = {
   ranges: PacketPageRange[];
 };
 
+export type PdfAssemblyOptions = {
+  requireAllParts?: boolean;
+};
+
 function toPdfBlob(bytes: Uint8Array) {
   const copy = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
@@ -75,7 +79,7 @@ async function addRenderedDocx(target: PDFDocument, blob: Blob, label: string) {
   return count;
 }
 
-async function addStaticPdf(target: PDFDocument, blob: Blob, label: string) {
+async function addStaticPdf(target: PDFDocument, blob: Blob, label: string, requireAllParts: boolean) {
   try {
     const source = await PDFDocument.load(await blob.arrayBuffer());
     const copied = await target.copyPages(source, source.getPageIndices());
@@ -83,29 +87,39 @@ async function addStaticPdf(target: PDFDocument, blob: Blob, label: string) {
     copied.forEach((page) => target.addPage(page));
     return copied.length;
   } catch (error) {
-    throw new Error(`${label} could not be included as PDF: ${error instanceof Error ? error.message : 'unreadable file'}`);
+    if (requireAllParts) throw new Error(`${label} could not be included as PDF: ${error instanceof Error ? error.message : 'unreadable file'}`);
+    return addNonePage(target, label);
   }
 }
 
-async function addRequiredPart(target: PDFDocument, part: PdfPacketPart) {
-  if (part.kind === 'BLANK' || !part.blob) throw new Error(`Missing required final packet component: ${part.label}. Configure or generate it before creating final PDFs.`);
-  if (part.kind === 'DOCX') return addRenderedDocx(target, part.blob, part.label);
-  return addStaticPdf(target, part.blob, part.label);
+async function addPart(target: PDFDocument, part: PdfPacketPart, requireAllParts: boolean) {
+  if (part.kind === 'BLANK' || !part.blob) {
+    if (requireAllParts) throw new Error(`Missing required final packet component: ${part.label}. Configure or generate it before creating final PDFs.`);
+    return addNonePage(target, part.label);
+  }
+  if (part.kind === 'DOCX') {
+    try { return await addRenderedDocx(target, part.blob, part.label); }
+    catch (error) {
+      if (requireAllParts) throw error;
+      return addNonePage(target, part.label);
+    }
+  }
+  return addStaticPdf(target, part.blob, part.label, requireAllParts);
 }
 
-export async function assembleFinalPdfWithRanges(parts: PdfPacketPart[]): Promise<AssembledPdfPacket> {
+export async function assembleFinalPdfWithRanges(parts: PdfPacketPart[], options: PdfAssemblyOptions = {}): Promise<AssembledPdfPacket> {
   const output = await PDFDocument.create();
   const ranges: PacketPageRange[] = [];
   let page = 1;
   for (const part of parts) {
-    const count = await addRequiredPart(output, part);
+    const count = await addPart(output, part, Boolean(options.requireAllParts));
     ranges.push({ label: part.label, startPage: page, endPage: page + count - 1 });
     page += count;
   }
-  if (!ranges.length) throw new Error('No files were supplied for the final PDF packet.');
+  if (!ranges.length) throw new Error('No files were supplied for the PDF packet.');
   return { blob: toPdfBlob(await output.save()), ranges };
 }
 
-export async function assembleFinalPdf(parts: PdfPacketPart[]) {
-  return (await assembleFinalPdfWithRanges(parts)).blob;
+export async function assembleFinalPdf(parts: PdfPacketPart[], options: PdfAssemblyOptions = {}) {
+  return (await assembleFinalPdfWithRanges(parts, options)).blob;
 }
