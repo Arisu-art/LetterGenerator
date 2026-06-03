@@ -3,191 +3,47 @@ import { DOCX_MIME, renderDocxTemplate, type PlaceholderValues } from './docx-re
 import { bureaus, type Bureau, type FtcAffectedAccount, type ParsedSource, type SourceItem } from './letter-engine';
 
 export type MappedAppendixKind = 'AFFIDAVIT' | 'FTC';
-export type MappedAppendixContext = {
-  kind: MappedAppendixKind;
-  bureau: Bureau;
-  documentDate: string;
-  recipientName: string;
-  recipientAddressLines: string[];
-  source: ParsedSource;
-};
+export type MappedAppendixContext = { kind: MappedAppendixKind; bureau: Bureau; documentDate: string; recipientName: string; recipientAddressLines: string[]; source: ParsedSource };
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const XML_NS = 'http://www.w3.org/XML/1998/namespace';
-
-function rows(items: SourceItem[]) {
-  return items.map((item) => {
-    const lines = item.displayText.split('\n').map((line) => line.trim()).filter(Boolean);
-    const itemName = (lines.find((line) => /^Account Name:/i.test(line)) || '').replace(/^Account Name:\s*/i, '');
-    const itemNumber = (lines.find((line) => /^Account Number:/i.test(line)) || '').replace(/^Account Number:\s*/i, '');
-    return { account_name: itemName, account_number: itemNumber, account_line: [itemName, itemNumber].filter(Boolean).join(' - '), display_text: item.displayText };
-  });
-}
-function deduplicatedDisputeAccounts(source: ParsedSource) {
-  const result: ReturnType<typeof rows> = [];
-  const keys = new Set<string>();
-  bureaus.forEach((bureau) => rows(source.dispute[bureau]).forEach((item) => {
-    const key = `${item.account_name}|${item.account_number}`.toUpperCase();
-    if (!keys.has(key)) { keys.add(key); result.push(item); }
-  }));
-  return result;
-}
-function ftcRows(items: FtcAffectedAccount[]) {
-  return items.map((item) => ({ account_name: item.accountName, account_number: item.accountNumber, fraud_began: item.fraudBegan, date_discovered: item.dateDiscovered, fraudulent_amount: item.fraudulentAmount, fraud_amount: item.fraudulentAmount }));
-}
+function rows(items: SourceItem[]) { return items.map((item) => { const lines = item.displayText.split('\n').map((line) => line.trim()).filter(Boolean); const itemName = (lines.find((line) => /^Account Name:/i.test(line)) || '').replace(/^Account Name:\s*/i, ''); const itemNumber = (lines.find((line) => /^Account Number:/i.test(line)) || '').replace(/^Account Number:\s*/i, ''); return { account_name: itemName, account_number: itemNumber, account_line: [itemName, itemNumber].filter(Boolean).join(' - '), display_text: item.displayText }; }); }
+function deduplicatedDisputeAccounts(source: ParsedSource) { const result: ReturnType<typeof rows> = [], keys = new Set<string>(); bureaus.forEach((bureau) => rows(source.dispute[bureau]).forEach((item) => { const key = `${item.account_name}|${item.account_number}`.toUpperCase(); if (!keys.has(key)) { keys.add(key); result.push(item); } })); return result; }
+function ftcRows(items: FtcAffectedAccount[]) { return items.map((item) => ({ account_name: item.accountName, account_number: item.accountNumber, fraud_began: item.fraudBegan, date_discovered: item.dateDiscovered, fraudulent_amount: item.fraudulentAmount, fraud_amount: item.fraudulentAmount })); }
 function mappedValues(context: MappedAppendixContext): PlaceholderValues {
-  const bureauAccounts = rows(context.source.dispute[context.bureau]);
-  const affidavitAccounts = deduplicatedDisputeAccounts(context.source);
-  const accounts = context.kind === 'AFFIDAVIT' ? affidavitAccounts : bureauAccounts;
-  const inquiries = context.source.inquiry[context.bureau].map((item) => ({ inquiry_line: item.displayText, display_text: item.displayText }));
-  return {
-    consumer_name: context.source.name,
-    client_name: context.source.name,
-    name: context.source.name,
-    consumer_first_name: context.source.firstName,
-    consumer_middle_name: context.source.middleName,
-    consumer_last_name: context.source.lastName,
-    address: context.source.address.join('\n'),
-    address_inline: context.source.address.join(' '),
-    address_line_1: context.source.address[0] || '',
-    address_line_2: context.source.address.slice(1).join(' '),
-    country: context.source.country || 'USA',
-    dob: context.source.dob,
-    ssn: context.source.ssn,
-    ssn_masked: context.source.ssn,
-    phone: context.source.phone,
-    email: context.source.email,
-    date: context.documentDate,
-    letter_date: context.documentDate,
-    document_date: context.documentDate,
-    affidavit_state: context.source.affidavitState,
-    affidavit_county: context.source.affidavitCounty,
-    ftc_report_number: context.source.ftcReportNumber,
-    ftc_report_date: context.source.ftcReportDate || context.documentDate,
-    bureau_name: context.recipientName,
-    bureau_address: context.recipientAddressLines.join('\n'),
-    bureau_address_line_1: context.recipientAddressLines[0] || '',
-    bureau_address_line_2: context.recipientAddressLines.slice(1).join(' '),
-    accounts,
-    dispute_accounts: accounts,
-    ftc_accounts: ftcRows(context.source.ftcAccounts),
-    hard_inquiries: inquiries,
-    account_lines: accounts.map((item) => item.account_line).join('\n'),
-    hard_inquiry_lines: inquiries.map((item) => item.inquiry_line).join('\n'),
-    ...context.source.templateFields
-  };
+  const bureauAccounts = rows(context.source.dispute[context.bureau]); const affidavitAccounts = deduplicatedDisputeAccounts(context.source); const accounts = context.kind === 'AFFIDAVIT' ? affidavitAccounts : bureauAccounts; const inquiries = context.source.inquiry[context.bureau].map((item) => ({ inquiry_line: item.displayText, display_text: item.displayText }));
+  return { consumer_name: context.source.name, client_name: context.source.name, name: context.source.name, consumer_first_name: context.source.firstName, consumer_middle_name: context.source.middleName, consumer_last_name: context.source.lastName, address: context.source.address.join('\n'), address_inline: context.source.address.join(' '), address_line_1: context.source.address[0] || '', address_line_2: context.source.address.slice(1).join(' '), country: context.source.country || 'USA', dob: context.source.dob, ssn: context.source.ssn, ssn_masked: context.source.ssn, phone: context.source.phone, email: context.source.email, date: context.documentDate, letter_date: context.documentDate, document_date: context.documentDate, affidavit_state: context.source.affidavitState, affidavit_county: context.source.affidavitCounty, ftc_report_number: context.source.ftcReportNumber, ftc_report_date: context.source.ftcReportDate || context.documentDate, bureau_name: context.recipientName, bureau_address: context.recipientAddressLines.join('\n'), bureau_address_line_1: context.recipientAddressLines[0] || '', bureau_address_line_2: context.recipientAddressLines.slice(1).join(' '), accounts, dispute_accounts: accounts, ftc_accounts: ftcRows(context.source.ftcAccounts), hard_inquiries: inquiries, account_lines: accounts.map((item) => item.account_line).join('\n'), hard_inquiry_lines: inquiries.map((item) => item.inquiry_line).join('\n'), ...context.source.templateFields };
 }
-function paragraphs(body: Element) { return Array.from(body.getElementsByTagNameNS(WORD_NS, 'p')); }
+function paragraphs(root: Element) { return Array.from(root.getElementsByTagNameNS(WORD_NS, 'p')); }
 function content(paragraph: Element) { return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't')).map((node) => node.textContent || '').join('').trim(); }
-function hasYellow(paragraph: Element) {
-  return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 'highlight')).some((highlight) => {
-    const value = (highlight.getAttributeNS(WORD_NS, 'val') || highlight.getAttribute('w:val') || '').toLowerCase();
-    return !value || value === 'yellow';
-  });
-}
-function paragraphStyle(paragraph: Element) {
-  const runs = Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 'r'));
-  return (runs.find((run) => content(run).length > 0) || runs[0] || paragraph.ownerDocument.createElementNS(WORD_NS, 'w:r')).cloneNode(true) as Element;
-}
-function emptyStyledRun(source: Element) {
-  const run = source.cloneNode(true) as Element;
-  Array.from(run.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'rPr')) run.removeChild(node); });
-  const style = Array.from(run.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'rPr') as Element | undefined;
-  const highlight = style?.getElementsByTagNameNS(WORD_NS, 'highlight').item(0);
-  if (highlight?.parentNode) highlight.parentNode.removeChild(highlight);
-  return run;
-}
-function writeLines(paragraph: Element, lines: string[]) {
-  const doc = paragraph.ownerDocument;
-  const style = paragraphStyle(paragraph);
-  Array.from(paragraph.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'pPr')) paragraph.removeChild(node); });
-  lines.forEach((line, index) => {
-    if (index) { const breaker = emptyStyledRun(style); breaker.appendChild(doc.createElementNS(WORD_NS, 'w:br')); paragraph.appendChild(breaker); }
-    const run = emptyStyledRun(style);
-    const value = doc.createElementNS(WORD_NS, 'w:t');
-    if (/^\s|\s$/.test(line)) value.setAttributeNS(XML_NS, 'xml:space', 'preserve');
-    value.textContent = line;
-    run.appendChild(value);
-    paragraph.appendChild(run);
-  });
-}
+function hasYellow(paragraph: Element) { return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 'highlight')).some((highlight) => { const value = (highlight.getAttributeNS(WORD_NS, 'val') || highlight.getAttribute('w:val') || '').toLowerCase(); return !value || value === 'yellow'; }); }
+function paragraphStyle(paragraph: Element) { const runs = Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 'r')); return (runs.find((run) => content(run).length > 0) || runs[0] || paragraph.ownerDocument.createElementNS(WORD_NS, 'w:r')).cloneNode(true) as Element; }
+function emptyStyledRun(source: Element) { const run = source.cloneNode(true) as Element; Array.from(run.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'rPr')) run.removeChild(node); }); const style = Array.from(run.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'rPr') as Element | undefined; const highlight = style?.getElementsByTagNameNS(WORD_NS, 'highlight').item(0); if (highlight?.parentNode) highlight.parentNode.removeChild(highlight); return run; }
+function writeLines(paragraph: Element, lines: string[]) { const doc = paragraph.ownerDocument, style = paragraphStyle(paragraph); Array.from(paragraph.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'pPr')) paragraph.removeChild(node); }); lines.forEach((line, index) => { if (index) { const breaker = emptyStyledRun(style); breaker.appendChild(doc.createElementNS(WORD_NS, 'w:br')); paragraph.appendChild(breaker); } const run = emptyStyledRun(style), value = doc.createElementNS(WORD_NS, 'w:t'); if (/^\s|\s$/.test(line)) value.setAttributeNS(XML_NS, 'xml:space', 'preserve'); value.textContent = line; run.appendChild(value); paragraph.appendChild(run); }); }
 function writeParagraph(paragraph: Element, text: string) { writeLines(paragraph, [text]); }
-function removeYellowHighlights(body: Element) {
-  Array.from(body.getElementsByTagNameNS(WORD_NS, 'highlight')).forEach((highlight) => {
-    const value = (highlight.getAttributeNS(WORD_NS, 'val') || highlight.getAttribute('w:val') || '').toLowerCase();
-    if ((!value || value === 'yellow') && highlight.parentNode) highlight.parentNode.removeChild(highlight);
-  });
-}
-async function openTemplate(template: File, label: string) {
-  const zip = new PizZip(await template.arrayBuffer());
-  const file = zip.file('word/document.xml');
-  if (!file) throw new Error(`${label} DOCX document XML is unavailable.`);
-  const xml = new DOMParser().parseFromString(file.asText(), 'application/xml');
-  const body = xml.getElementsByTagNameNS(WORD_NS, 'body')[0];
-  if (!body) throw new Error(`${label} DOCX body is unavailable.`);
-  return { zip, xml, body };
-}
+function removeYellowHighlights(root: Element) { Array.from(root.getElementsByTagNameNS(WORD_NS, 'highlight')).forEach((highlight) => { const value = (highlight.getAttributeNS(WORD_NS, 'val') || highlight.getAttribute('w:val') || '').toLowerCase(); if ((!value || value === 'yellow') && highlight.parentNode) highlight.parentNode.removeChild(highlight); }); }
+function parentTable(node: Element, body: Element) { let current: Node | null = node; while (current && current !== body) { if ((current as Element).namespaceURI === WORD_NS && (current as Element).localName === 'tbl') return current as Element; current = current.parentNode; } return null; }
+async function openTemplate(template: File, label: string) { const zip = new PizZip(await template.arrayBuffer()), file = zip.file('word/document.xml'); if (!file) throw new Error(`${label} DOCX document XML is unavailable.`); const xml = new DOMParser().parseFromString(file.asText(), 'application/xml'), body = xml.getElementsByTagNameNS(WORD_NS, 'body')[0]; if (!body) throw new Error(`${label} DOCX body is unavailable.`); return { zip, xml, body }; }
 async function renderHighlightedAffidavit(template: File, context: MappedAppendixContext) {
-  const { zip, xml, body } = await openTemplate(template, 'Affidavit');
-  let all = paragraphs(body);
-  const accounts = deduplicatedDisputeAccounts(context.source);
-  const find = (pattern: RegExp) => all.find((paragraph) => pattern.test(content(paragraph)));
-  const state = find(/^State of\s*:/i); const county = find(/^County of\s*:/i); const opening = find(/^I,\s/i); const personal = find(/^(?:1\.\s*)?Personal Information\s*:/i); const date = find(/^Date\s*:/i);
-  if (state) writeParagraph(state, `State of: ${context.source.affidavitState}`);
-  if (county) writeParagraph(county, `County of: ${context.source.affidavitCounty}`);
-  if (opening) writeParagraph(opening, `I, ${context.source.name} residing at ${context.source.address.join(' ')} being duly sworn, depose and state as follows:`);
-  if (personal) writeParagraph(personal, `Personal Information: I am over the age of 18, and my current address is ${context.source.address.join(' ')}. My Social Security number is ${context.source.ssn}.`);
-  if (date) writeParagraph(date, `Date: ${context.documentDate}`);
-  all = paragraphs(body);
-  const close = all.find((paragraph) => /^Sincerely,?$/i.test(content(paragraph)));
-  const signature = close ? all.slice(all.indexOf(close) + 1).find((paragraph) => content(paragraph) && !/^Date\s*:/i.test(content(paragraph))) : undefined;
-  if (signature) writeParagraph(signature, context.source.name);
-  const accountHeading = all.find((paragraph) => /^Account Information\s*:/i.test(content(paragraph)));
-  const statement = all.find((paragraph) => /^I declare that this account/i.test(content(paragraph)));
-  if (accountHeading && statement) {
-    const region = all.slice(all.indexOf(accountHeading) + 1, all.indexOf(statement));
-    const rowTemplate = region.find((paragraph) => /Account\s+Name/i.test(content(paragraph)) && /Account\s+(?:number|Number)/i.test(content(paragraph))) || region.find((paragraph) => content(paragraph));
-    region.forEach((paragraph) => paragraph.parentNode?.removeChild(paragraph));
-    if (rowTemplate) accounts.forEach((account) => { const row = rowTemplate.cloneNode(true) as Element; writeParagraph(row, account.account_line); statement.parentNode?.insertBefore(row, statement); });
-  }
-  removeYellowHighlights(body);
-  zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
-  return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
+  const { zip, xml, body } = await openTemplate(template, 'Affidavit'); let all = paragraphs(body); const accounts = deduplicatedDisputeAccounts(context.source); const find = (pattern: RegExp) => all.find((paragraph) => pattern.test(content(paragraph))); const state = find(/^State of\s*:/i), county = find(/^County of\s*:/i), opening = find(/^I,\s/i), personal = find(/^(?:1\.\s*)?Personal Information\s*:/i), date = find(/^Date\s*:/i);
+  if (state) writeParagraph(state, `State of: ${context.source.affidavitState}`); if (county) writeParagraph(county, `County of: ${context.source.affidavitCounty}`); if (opening) writeParagraph(opening, `I, ${context.source.name} residing at ${context.source.address.join(' ')} being duly sworn, depose and state as follows:`); if (personal) writeParagraph(personal, `Personal Information: I am over the age of 18, and my current address is ${context.source.address.join(' ')}. My Social Security number is ${context.source.ssn}.`); if (date) writeParagraph(date, `Date: ${context.documentDate}`);
+  all = paragraphs(body); const close = all.find((paragraph) => /^Sincerely,?$/i.test(content(paragraph))), signature = close ? all.slice(all.indexOf(close) + 1).find((paragraph) => content(paragraph) && !/^Date\s*:/i.test(content(paragraph))) : undefined; if (signature) writeParagraph(signature, context.source.name); const heading = all.find((paragraph) => /^Account Information\s*:/i.test(content(paragraph))), statement = all.find((paragraph) => /^I declare that this account/i.test(content(paragraph)));
+  if (heading && statement) { const region = all.slice(all.indexOf(heading) + 1, all.indexOf(statement)), rowTemplate = region.find((paragraph) => /Account\s+Name/i.test(content(paragraph)) && /Account\s+(?:number|Number)/i.test(content(paragraph))) || region.find((paragraph) => content(paragraph)); region.forEach((paragraph) => paragraph.parentNode?.removeChild(paragraph)); if (rowTemplate) accounts.forEach((account) => { const row = rowTemplate.cloneNode(true) as Element; writeParagraph(row, account.account_line); statement.parentNode?.insertBefore(row, statement); }); }
+  removeYellowHighlights(body); zip.file('word/document.xml', new XMLSerializer().serializeToString(xml)); return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
 async function renderHighlightedFtc(template: File, context: MappedAppendixContext) {
-  const { zip, xml, body } = await openTemplate(template, 'FTC Report');
-  const all = paragraphs(body);
-  const indexed = all.map((paragraph, index) => ({ paragraph, index, text: content(paragraph), highlighted: hasYellow(paragraph) }));
-  if (!context.source.ftcReportNumber.trim() || !context.source.ftcReportDate.trim()) throw new Error('FTC report number and report date are required.');
-  if (!context.source.ftcAccounts.length) throw new Error('At least one FTC affected account is required.');
-  indexed.filter((entry) => /^FTC Report Number\s*:/i.test(entry.text)).forEach((entry) => writeParagraph(entry.paragraph, `FTC Report Number: ${context.source.ftcReportNumber}`));
-  const narrative = indexed.find((entry) => /IMMEDIATE ENFORCEMENT|FCRA SECTION/i.test(entry.text));
-  const falseStatement = indexed.find((entry) => /knowingly making any false statements/i.test(entry.text));
-  if (!narrative || !falseStatement) throw new Error('FTC highlighted template structure is incomplete.');
-  const reportEnd = Math.max(...indexed.filter((entry) => /^FTC Report Number\s*:/i.test(entry.text)).map((entry) => entry.index));
-  const identity = indexed.filter((entry) => entry.highlighted && entry.index > reportEnd && entry.index < narrative.index && entry.text);
-  if (identity[0]) writeParagraph(identity[0].paragraph, context.source.firstName);
-  if (identity[1]) writeParagraph(identity[1].paragraph, context.source.lastName);
-  if (identity[2]) writeLines(identity[2].paragraph, [...context.source.address, context.source.country || 'USA']);
-  if (identity[3]) writeParagraph(identity[3].paragraph, context.source.phone);
-  const accountEntries = indexed.filter((entry) => entry.highlighted && entry.index > narrative.index && entry.index < falseStatement.index && entry.text);
-  const capacity = Math.floor(accountEntries.length / 5);
-  if (!capacity) throw new Error('FTC highlighted template does not contain detected account slots.');
-  if (context.source.ftcAccounts.length > capacity) throw new Error(`This highlighted FTC template supports ${capacity} affected accounts. Upload a placeholder-loop FTC template to render ${context.source.ftcAccounts.length} accounts.`);
-  for (let index = 0; index < capacity; index += 1) {
-    const account = context.source.ftcAccounts[index];
-    const fields = account ? [account.accountName, account.accountNumber, account.fraudBegan, account.dateDiscovered, `$ ${account.fraudulentAmount}`] : ['', '', '', '', ''];
-    fields.forEach((value, position) => writeParagraph(accountEntries[index * 5 + position].paragraph, value));
-  }
-  const tail = indexed.filter((entry) => entry.highlighted && entry.index > falseStatement.index && entry.text);
-  if (tail[0]) writeParagraph(tail[0].paragraph, context.source.name);
-  if (tail[1]) writeParagraph(tail[1].paragraph, context.source.name);
-  if (tail[2]) writeParagraph(tail[2].paragraph, context.source.ftcReportDate);
-  removeYellowHighlights(body);
-  zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
-  return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
+  const { zip, xml, body } = await openTemplate(template, 'FTC Report'), all = paragraphs(body), indexed = all.map((paragraph, index) => ({ paragraph, index, text: content(paragraph), highlighted: hasYellow(paragraph) }));
+  if (!context.source.ftcReportNumber.trim() || !context.source.ftcReportDate.trim()) throw new Error('FTC report number and report date are required.'); if (!context.source.ftcAccounts.length) throw new Error('At least one FTC affected account is required.');
+  indexed.filter((entry) => /^FTC Report Number\s*:/i.test(entry.text)).forEach((entry) => writeParagraph(entry.paragraph, `FTC Report Number: ${context.source.ftcReportNumber}`)); const narrative = indexed.find((entry) => /IMMEDIATE ENFORCEMENT|FCRA SECTION/i.test(entry.text)), falseStatement = indexed.find((entry) => /knowingly making any false statements/i.test(entry.text)); if (!narrative || !falseStatement) throw new Error('FTC highlighted template structure is incomplete.');
+  const reportIndices = indexed.filter((entry) => /^FTC Report Number\s*:/i.test(entry.text)).map((entry) => entry.index), reportEnd = reportIndices.length ? Math.max(...reportIndices) : -1, identity = indexed.filter((entry) => entry.highlighted && entry.index > reportEnd && entry.index < narrative.index && entry.text);
+  if (identity[0]) writeParagraph(identity[0].paragraph, context.source.firstName); if (identity[1]) writeParagraph(identity[1].paragraph, context.source.lastName); if (identity[2]) writeLines(identity[2].paragraph, [...context.source.address, context.source.country || 'USA']); if (identity[3]) writeParagraph(identity[3].paragraph, context.source.phone);
+  const accountEntries = indexed.filter((entry) => entry.highlighted && entry.index > narrative.index && entry.index < falseStatement.index && entry.text), detectedTables: Element[] = [];
+  accountEntries.forEach((entry) => { const table = parentTable(entry.paragraph, body); if (table && !detectedTables.includes(table)) detectedTables.push(table); });
+  const accountTemplate = detectedTables[0];
+  if (!accountTemplate || !accountTemplate.parentNode) throw new Error('FTC highlighted template does not contain a reusable account section.');
+  const parent = accountTemplate.parentNode, marker = accountTemplate;
+  context.source.ftcAccounts.forEach((account) => { const table = accountTemplate.cloneNode(true) as Element, fields = paragraphs(table).filter((p) => hasYellow(p) && content(p)).slice(0, 5), values = [account.accountName, account.accountNumber, account.fraudBegan, account.dateDiscovered, `$ ${account.fraudulentAmount}`]; if (fields.length < 5) throw new Error('FTC highlighted account section is missing required highlighted fields.'); fields.forEach((field, position) => writeParagraph(field, values[position])); removeYellowHighlights(table); parent.insertBefore(table, marker); });
+  detectedTables.forEach((table) => table.parentNode?.removeChild(table));
+  const tail = indexed.filter((entry) => entry.highlighted && entry.index > falseStatement.index && entry.text); if (tail[0]) writeParagraph(tail[0].paragraph, context.source.name); if (tail[1]) writeParagraph(tail[1].paragraph, context.source.name); if (tail[2]) writeParagraph(tail[2].paragraph, context.source.ftcReportDate);
+  removeYellowHighlights(body); zip.file('word/document.xml', new XMLSerializer().serializeToString(xml)); return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
-export async function renderMappedAppendix(template: File, context: MappedAppendixContext) {
-  const text = await template.arrayBuffer().then((buffer) => new PizZip(buffer).file('word/document.xml')?.asText() || '');
-  if (text.includes('{{')) return renderDocxTemplate(template, mappedValues(context));
-  return context.kind === 'AFFIDAVIT' ? renderHighlightedAffidavit(template, context) : renderHighlightedFtc(template, context);
-}
+export async function renderMappedAppendix(template: File, context: MappedAppendixContext) { const text = await template.arrayBuffer().then((buffer) => new PizZip(buffer).file('word/document.xml')?.asText() || ''); if (text.includes('{{')) return renderDocxTemplate(template, mappedValues(context)); return context.kind === 'AFFIDAVIT' ? renderHighlightedAffidavit(template, context) : renderHighlightedFtc(template, context); }
