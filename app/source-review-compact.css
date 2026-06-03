@@ -1,4 +1,28 @@
 /* Compact source-review hierarchy: primary action in header; FTC report number is dominant input. */
+.workspace-operation-status {
+  width: min(1320px, 100%);
+  min-height: 44px;
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 13px;
+  color: var(--ui-muted);
+  background: var(--ui-gray-50);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.workspace-operation-status.success {
+  border-color: var(--ui-green-line);
+  color: var(--ui-green);
+  background: var(--ui-green-soft);
+}
+.workspace-operation-status.error {
+  border-color: #ead4d4;
+  color: #903d3d;
+  background: #fff7f7;
+}
 .source-command-actions {
   flex: none;
   display: flex;
@@ -69,6 +93,10 @@
   }
 }
 @media (max-width: 720px) {
+  .workspace-operation-status {
+    margin-bottom: 10px;
+    padding: 11px 13px;
+  }
   .source-header-controls button {
     flex: 1 1 100%;
   }
