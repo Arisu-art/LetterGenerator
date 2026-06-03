@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect, useMemo, useState } from 'react';
 import JSZip from 'jszip';
 import DashboardOperationsWorkspace from './DashboardOperationsWorkspace';
@@ -14,192 +13,60 @@ import { assembleFinalPdf, type PdfPacketPart } from '../lib/final-pdf-packet';
 import { addOrderedPacketFolders } from '../lib/ordered-packet-archive';
 import { isDocx, renderReferenceDisputeDocx } from '../lib/docx-renderer';
 import { renderLatePaymentReference } from '../lib/late-reference-renderer';
-import { bureauInfo, bureaus, createNormalizedSourceCopy, detectRoutes, parseSource, type Bureau, type LetterRoute, type LetterType } from '../lib/letter-engine';
+import { bureauInfo, bureaus, createNormalizedSourceCopy, detectRoutes, parseSource, type Bureau, type FtcAffectedAccount, type LetterRoute, type LetterType } from '../lib/letter-engine';
 import { loadPacketAssets, type PacketAssets } from '../lib/packet-assets';
 import { createSupportingDocumentsPdf } from '../lib/packet-renderer';
 import { defaultReferences, loadReferenceMeta, readReferenceFile, removeReferenceFile, saveReferenceFile, saveReferenceMeta, type LetterReference, type Round } from '../lib/reference-store';
 import { renderMappedAppendix } from '../lib/supplemental-template-renderer';
+import { unresolvedCustomTemplateFields } from '../lib/template-contracts';
 import { exhibitTitles, loadTemplateExhibits, readTemplateExhibit, type ExhibitKind, type TemplateExhibits } from '../lib/template-exhibits';
 import { defaultWorkspacePreferences, loadWorkspacePreferences, saveWorkspacePreferences, type WorkspacePreferences } from '../lib/workspace-preferences';
-
 type Panel = 'Dashboard' | 'Templates' | 'Source Data' | 'Outputs' | 'Filing Tracker' | 'Settings';
 const panels: Panel[] = ['Dashboard', 'Templates', 'Source Data', 'Outputs', 'Filing Tracker', 'Settings'];
-const typeLabel: Record<LetterType, string> = { DISPUTE: 'Dispute Letter', LATE_PAYMENT: 'Late Payment Letter' };
-const disputeRequirements: ExhibitKind[] = ['FCRA', 'AFFIDAVIT', 'ATTACHMENT', 'FTC'];
+const labels: Record<LetterType, string> = { DISPUTE: 'Dispute Letter', LATE_PAYMENT: 'Late Payment Letter' };
+const requirements: ExhibitKind[] = ['FCRA', 'AFFIDAVIT', 'ATTACHMENT', 'FTC'];
 const emptyEvidence = (): PacketAssets => ({ supporting: [], legalPdf: null });
 const emptyTemplates = (): TemplateExhibits => ({ FCRA: null, AFFIDAVIT: null, ATTACHMENT: null, FTC: null });
-function dateInEasternTime() { return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }).format(new Date()); }
-function clean(value: string) { return (value || 'CLIENT').replace(/[\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().toUpperCase(); }
-function fileBase(value: string) { return clean(value).replace(/[^A-Z0-9]+/g, '_'); }
-function deliver(name: string, blob: Blob) { const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url); }
-function sequence(type: LetterType) { return type === 'LATE_PAYMENT' ? ['01 Late Payment Letter', '02 Supporting Documents'] : ['01 Dispute Letter', '02 Supporting Documents', '03 FCRA', '04 Affidavit', '05 Attachment', '06 FTC']; }
-
+const dateNow = () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }).format(new Date());
+const clean = (v: string) => (v || 'CLIENT').replace(/[\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+const base = (v: string) => clean(v).replace(/[^A-Z0-9]+/g, '_');
+const order = (t: LetterType) => t === 'LATE_PAYMENT' ? ['01 Late Payment Letter', '02 Supporting Documents'] : ['01 Dispute Letter', '02 Supporting Documents', '03 FCRA', '04 Affidavit', '05 Attachment', '06 FTC'];
+function download(name: string, blob: Blob) { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url); }
+function ftcSection(items: FtcAffectedAccount[]) { return ['FTC AFFECTED ACCOUNTS', ...items.flatMap((x, i) => [i ? '' : '', `Account Name: ${x.accountName}`, `Account Number: ${x.accountNumber}`, `Fraud Began: ${x.fraudBegan}`, `Date Discovered: ${x.dateDiscovered}`, `Fraudulent Amount: ${x.fraudulentAmount}`])].join('\n'); }
 export default function LetterGeneratorWorkspaceV2() {
-  const [panel, setPanel] = useState<Panel>('Dashboard');
-  const [round, setRound] = useState<Round>('1st Round');
-  const [preferences, setPreferences] = useState<WorkspacePreferences>(defaultWorkspacePreferences);
-  const [references, setReferences] = useState<LetterReference[]>(defaultReferences);
-  const [source, setSource] = useState('');
-  const [originalSource, setOriginalSource] = useState('');
-  const [normalized, setNormalized] = useState(false);
-  const [caseId, setCaseId] = useState('');
-  const [caseRecords, setCaseRecords] = useState<ClientCaseRecord[]>([]);
-  const [filings, setFilings] = useState<FilingRecord[]>([]);
-  const [evidence, setEvidence] = useState<PacketAssets>(emptyEvidence);
-  const [templates, setTemplates] = useState<TemplateExhibits>(emptyTemplates);
-  const [reviewDocs, setReviewDocs] = useState<ReviewOutput[]>([]);
-  const [warnings, setWarnings] = useState<string[]>([]);
-  const [workingZip, setWorkingZip] = useState<{ name: string; blob: Blob } | null>(null);
-  const [finalPackets, setFinalPackets] = useState<FinalPdfPacket[]>([]);
-  const [finalZip, setFinalZip] = useState<{ name: string; blob: Blob } | null>(null);
-  const [documentDate, setDocumentDate] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [finalizing, setFinalizing] = useState(false);
-  const [status, setStatus] = useState('Configure packet templates, then load a client source file.');
-
-  useEffect(() => {
-    const savedPreferences = loadWorkspacePreferences();
-    setPreferences(savedPreferences);
-    setRound(savedPreferences.defaultRound);
-    setReferences(loadReferenceMeta());
-    setCaseRecords(loadClientCases());
-    setFilings(loadFilings());
-  }, []);
-  useEffect(() => saveReferenceMeta(references), [references]);
-  useEffect(() => setTemplates(loadTemplateExhibits(round)), [round]);
-
-  const currentReferences = references.filter((item) => item.round === round);
-  const parsed = useMemo(() => parseSource(source), [source]);
-  const routes = useMemo(() => detectRoutes(parsed), [parsed]);
-  const verified = normalized && Boolean(parsed.name);
-  const evidenceKey = caseId ? `${round}::${caseId}` : '';
-  const sourceWarnings = parsed.diagnostics?.filter((item) => item.level === 'warning') || [];
-  const missingLetters = Array.from(new Set(routes.map((route) => route.type))).filter((type) => !currentReferences.find((item) => item.type === type)?.file);
-  const hasDisputeRoute = routes.some((route) => route.type === 'DISPUTE');
-  const hasDisputedAccounts = bureaus.some((bureau) => parsed.dispute[bureau].length > 0);
-  const affidavitRequired = Boolean(templates.AFFIDAVIT && hasDisputedAccounts);
-  const affidavitReady = !affidavitRequired || Boolean(parsed.affidavitState.trim() && parsed.affidavitCounty.trim());
-  const missingDisputeNodes = hasDisputeRoute ? disputeRequirements.filter((kind) => !templates[kind]) : [];
-  const canGenerate = verified && routes.length > 0;
-  useEffect(() => setEvidence(verified && evidenceKey ? loadPacketAssets(evidenceKey) : emptyEvidence()), [verified, evidenceKey]);
-
-  function clearOutputs() { setReviewDocs([]); setWarnings([]); setWorkingZip(null); setFinalPackets([]); setFinalZip(null); setDocumentDate(''); }
-  function caseRecord(statusValue: ClientCaseStatus, values?: { id?: string; name?: string; caseRoutes?: LetterRoute[]; evidenceCount?: number; editableCount?: number; pdfCount?: number }) {
-    const id = values?.id || caseId;
-    const name = values?.name || parsed.name;
-    const trackedRoutes = values?.caseRoutes || routes;
-    if (!id || !name) return null;
-    const previous = caseRecords.find((record) => record.id === id);
-    const record: ClientCaseRecord = {
-      id, clientName: name, round, routeCount: trackedRoutes.length,
-      bureaus: Array.from(new Set(trackedRoutes.map((route) => route.bureau))),
-      evidenceCount: values?.evidenceCount ?? previous?.evidenceCount ?? evidence.supporting.length,
-      editableCount: values?.editableCount ?? previous?.editableCount ?? reviewDocs.length,
-      pdfCount: values?.pdfCount ?? previous?.pdfCount ?? finalPackets.length,
-      status: statusValue, updatedAt: new Date().toISOString()
-    };
-    setCaseRecords(upsertClientCase(record));
-    return record;
-  }
-  function updatePreferences(next: WorkspacePreferences) {
-    setPreferences(saveWorkspacePreferences(next));
-    if (!caseId) setRound(next.defaultRound);
-    setStatus('Workspace settings saved.');
-  }
-  function beginNewCase() {
-    setRound(preferences.defaultRound); setSource(''); setOriginalSource(''); setNormalized(false); setCaseId(''); setEvidence(emptyEvidence()); clearOutputs(); setPanel('Source Data'); setStatus('Add client source data to begin a new case.');
-  }
-  function normalizeInput(value: string, action: string) {
-    if (!value.trim()) return;
-    const normalizedText = createNormalizedSourceCopy(value).text;
-    const nextParsed = parseSource(normalizedText);
-    const nextRoutes = detectRoutes(nextParsed);
-    const nextId = crypto.randomUUID();
-    setOriginalSource(value); setSource(normalizedText); setNormalized(true); setCaseId(nextId); setEvidence(emptyEvidence()); clearOutputs();
-    if (nextParsed.name) caseRecord('SOURCE_LOCKED', { id: nextId, name: nextParsed.name, caseRoutes: nextRoutes, evidenceCount: 0, editableCount: 0, pdfCount: 0 });
-    setStatus(`${action} source standardized. Lock the source data to continue.`);
-  }
-  function updateAffidavitJurisdiction(field: 'state' | 'county', value: string) {
-    const label = field === 'state' ? 'AFFIDAVIT STATE' : 'AFFIDAVIT COUNTY';
-    const matcher = new RegExp(`^${label}:.*$`, 'im');
-    const line = `${label}: ${value}`;
-    let next = matcher.test(source) ? source.replace(matcher, line) : source;
-    if (!matcher.test(source)) {
-      const section = /\n\s*\n(?=(DISPUTE ACCOUNTS|HARD INQUIRIES|LATE PAYMENTS)\b)/i;
-      next = section.test(source) ? source.replace(section, `\n${line}\n\n`) : `${source.trim()}\n${line}`;
-    }
-    setSource(next); setNormalized(true); clearOutputs();
-  }
-  async function uploadReference(slot: LetterReference, file: File) { if (!isDocx(file.name)) { setStatus('Letter references accept DOCX files only.'); return; } await saveReferenceFile(slot, file); setReferences((items) => items.map((item) => item.id === slot.id ? { ...item, file: file.name, size: file.size } : item)); clearOutputs(); setStatus(`${slot.name} saved.`); }
-  async function removeReference(slot: LetterReference) { await removeReferenceFile(slot.id); setReferences((items) => items.map((item) => item.id === slot.id ? { ...item, file: '', size: undefined } : item)); clearOutputs(); }
-  async function createLetter(route: LetterRoute, template: File, date: string) { const recipient = bureauInfo[route.bureau]; const identity = { consumerName: parsed.name, addressLines: parsed.address, dob: parsed.dob, ssn: parsed.ssn, letterDate: date, bureauName: recipient.name, bureauAddressLines: recipient.address.split('\n') }; return route.type === 'DISPUTE' ? renderReferenceDisputeDocx(template, { ...identity, disputeItems: route.items.filter((item) => item.type === 'DISPUTE_ACCOUNT').map((item) => item.displayText), hardInquiryItems: route.items.filter((item) => item.type === 'HARD_INQUIRY').map((item) => item.displayText) }) : renderLatePaymentReference(template, { ...identity, latePaymentItems: route.items.map((item) => item.displayText) }); }
-  async function createMappedDoc(kind: 'AFFIDAVIT' | 'FTC', bureau: Bureau, date: string) { const template = await readTemplateExhibit(round, kind); if (!template) return null; const recipient = bureauInfo[bureau]; return renderMappedAppendix(template, { kind, bureau, documentDate: date, recipientName: recipient.name, recipientAddressLines: recipient.address.split('\n'), source: parsed }); }
-  async function createWorkingZip(docs: ReviewOutput[], notices: string[], date: string) {
-    const zip = new JSZip(); docs.forEach((doc) => zip.file(doc.path, doc.blob)); await addOrderedPacketFolders(zip, docs, round, evidenceKey, parsed.name, routes.map((route) => ({ type: route.type, bureau: route.bureau })));
-    zip.file('Generation Manifest.txt', ['WORKING DOCUMENTS - REVIEW BEFORE FINALIZATION', `Client: ${parsed.name}`, `Round: ${round}`, `Date: ${date}`, '', 'Ordered packet folders:', 'DISPUTE PACKETS/ contains each dispute letter, required supporting documents and positions 03 through 06 in filing order.', 'The Affidavit is one shared client declaration reused at position 04 where a dispute packet requires it.', 'LATE PAYMENT PACKETS/ is created only when late-payment data exists and remains separate from dispute packets.', 'Required supporting evidence is retained at packet position 02.', '', 'Dispute packet order:', ...sequence('DISPUTE'), '', 'Late Payment packet order:', ...sequence('LATE_PAYMENT'), '', 'Editable documents:', ...docs.map((doc) => `- ${doc.path}`), ...(notices.length ? ['', 'Needs attention:', ...notices.map((notice) => `- ${notice}`)] : [])].join('\n'));
-    return zip.generateAsync({ type: 'blob' });
-  }
-  async function generateReviewDocuments() {
-    if (!canGenerate || !evidence.supporting.length || !affidavitReady || (preferences.strictValidation && missingLetters.length)) {
-      setStatus(!evidence.supporting.length ? 'Supporting Documents are required. Upload and arrange at least one evidence image before continuing.' : !affidavitReady ? 'Affidavit execution state and county are required before generating editable documents.' : 'Complete required generation checks first.');
-      return;
-    }
-    setBusy(true); const date = dateInEasternTime(); const docs: ReviewOutput[] = []; const notices: string[] = [];
-    missingDisputeNodes.forEach((kind) => notices.push(`${exhibitTitles[kind]} is not configured; its packet position will be retained as a blank page.`));
-    for (const route of routes) {
-      const slot = currentReferences.find((item) => item.type === route.type); const template = slot?.file ? await readReferenceFile(slot.id) : null;
-      if (!template) { notices.push(`${typeLabel[route.type]} / ${route.bureau}: DOCX reference is missing.`); continue; }
-      try {
-        const letter = await createLetter(route, template, date); const prefix = `${clean(parsed.name)} ${route.bureau}`;
-        docs.push({ id: `${route.type}-${route.bureau}-LETTER`, path: `Editable Documents/${prefix} ${typeLabel[route.type]}.docx`, type: route.type, role: 'LETTER', sequence: 1, bureau: route.bureau, count: route.items.length, detail: `${route.reason} · Ordered packet folder and final PDF preserve filing sequence`, blob: letter, packetSteps: sequence(route.type) });
-        if (route.type === 'DISPUTE' && templates.FTC) { const mapped = await createMappedDoc('FTC', route.bureau, date); if (mapped) docs.push({ id: `${route.bureau}-FTC`, path: `Editable Documents/${prefix} 06 ${exhibitTitles.FTC}.docx`, type: 'DISPUTE', role: 'FTC', sequence: 6, bureau: route.bureau, count: parsed.dispute[route.bureau].length, detail: 'Source-populated DOCX · edit in final filing order', blob: mapped, packetSteps: sequence('DISPUTE') }); }
-      } catch (error) { notices.push(`${typeLabel[route.type]} / ${route.bureau}: ${error instanceof Error ? error.message : 'Generation failed.'}`); }
-    }
-    if (affidavitRequired) {
-      const contextRoute = routes.find((route) => route.type === 'DISPUTE' && parsed.dispute[route.bureau].length > 0);
-      if (contextRoute) {
-        try {
-          const affidavit = await createMappedDoc('AFFIDAVIT', contextRoute.bureau, date);
-          const accountCount = new Set(bureaus.flatMap((bureau) => parsed.dispute[bureau].map((item) => item.displayText.toUpperCase()))).size;
-          if (affidavit) docs.push({ id: 'CLIENT-AFFIDAVIT', path: `Editable Documents/${clean(parsed.name)} 04 ${exhibitTitles.AFFIDAVIT}.docx`, type: 'DISPUTE', role: 'AFFIDAVIT', sequence: 4, bureau: 'CLIENT', count: accountCount, detail: 'Shared client affidavit · deduplicated disputed accounts · review execution jurisdiction', blob: affidavit, packetSteps: sequence('DISPUTE') });
-        } catch (error) { notices.push(`Affidavit: ${error instanceof Error ? error.message : 'Generation failed.'}`); }
-      }
-    }
-    const zip = await createWorkingZip(docs, notices, date);
-    setReviewDocs(docs); setWarnings(notices); setWorkingZip({ name: `${fileBase(parsed.name)}_${fileBase(round)}_WORKING_DOCUMENTS.zip`, blob: zip }); setDocumentDate(date); setFinalPackets([]); setFinalZip(null); setBusy(false); caseRecord('REVIEW_READY', { evidenceCount: evidence.supporting.length, editableCount: docs.length, pdfCount: 0 }); setPanel('Outputs'); setStatus(`${docs.length} editable document(s) prepared.`);
-  }
-  async function saveEdited(output: ReviewOutput, file: File) { const docs = reviewDocs.map((item) => item.path === output.path ? { ...item, blob: file, detail: 'Edited and saved for finalization' } : item); const zip = await createWorkingZip(docs, warnings, documentDate || dateInEasternTime()); setReviewDocs(docs); setWorkingZip({ name: workingZip?.name || 'WORKING_DOCUMENTS.zip', blob: zip }); setFinalPackets([]); setFinalZip(null); caseRecord('REVIEW_READY', { editableCount: docs.length, pdfCount: 0 }); setStatus('Edit saved.'); }
-  async function updateEvidenceDuringReview(next: PacketAssets) { setEvidence(next); setFinalPackets([]); setFinalZip(null); if (reviewDocs.length) { const zip = await createWorkingZip(reviewDocs, warnings, documentDate || dateInEasternTime()); setWorkingZip({ name: workingZip?.name || `${fileBase(parsed.name)}_${fileBase(round)}_WORKING_DOCUMENTS.zip`, blob: zip }); } caseRecord(reviewDocs.length ? 'REVIEW_READY' : next.supporting.length ? 'EVIDENCE_READY' : 'SOURCE_LOCKED', { evidenceCount: next.supporting.length, pdfCount: 0 }); setStatus(next.supporting.length ? 'Supporting Documents layout saved. Recreate final PDFs after review.' : 'Supporting Documents are required. Add evidence again before final PDF creation.'); }
-  async function assemblePacketForRoute(type: LetterType, bureau: string, docs: ReviewOutput[]) {
-    const supportingPdf = evidenceKey ? await createSupportingDocumentsPdf(evidenceKey).catch(() => null) : null; const letter = docs.find((doc) => doc.type === type && doc.bureau === bureau && doc.role === 'LETTER');
-    if (!supportingPdf) throw new Error('Required Supporting Documents page could not be prepared.');
-    const parts: PdfPacketPart[] = [letter ? { label: typeLabel[type], kind: 'DOCX', blob: letter.blob } : { label: typeLabel[type], kind: 'BLANK' }, { label: 'Supporting Documents', kind: 'PDF', blob: supportingPdf }];
-    if (type === 'DISPUTE') { const fcra = await readTemplateExhibit(round, 'FCRA'); const attachment = await readTemplateExhibit(round, 'ATTACHMENT'); const affidavit = docs.find((doc) => doc.role === 'AFFIDAVIT' && (doc.bureau === bureau || doc.bureau === 'CLIENT')); const ftc = docs.find((doc) => doc.bureau === bureau && doc.role === 'FTC'); parts.push(fcra ? { label: 'FCRA', kind: 'PDF', blob: fcra } : { label: 'FCRA', kind: 'BLANK' }, affidavit ? { label: 'Affidavit', kind: 'DOCX', blob: affidavit.blob } : { label: 'Affidavit', kind: 'BLANK' }, attachment ? { label: 'Attachment', kind: 'PDF', blob: attachment } : { label: 'Attachment', kind: 'BLANK' }, ftc ? { label: 'FTC', kind: 'DOCX', blob: ftc.blob } : { label: 'FTC', kind: 'BLANK' }); }
-    return assembleFinalPdf(parts);
-  }
-  async function previewPacket(output: ReviewOutput, pendingBlob: Blob): Promise<FinalPdfPacket> { const docs = reviewDocs.map((doc) => doc.path === output.path ? { ...doc, blob: pendingBlob } : doc); return { path: `Preview/${clean(parsed.name)} ${output.bureau} ${output.type === 'DISPUTE' ? 'DISPUTE' : 'LATE PAYMENT'} PACKET.pdf`, type: output.type, bureau: output.bureau, sequence: sequence(output.type), blob: await assemblePacketForRoute(output.type, output.bureau, docs) }; }
-  async function finalizePdfPackets() {
-    if (!evidence.supporting.length) { setStatus('Supporting Documents evidence is required before final PDF creation.'); return; }
-    if (!affidavitReady) { setStatus('Affidavit execution state and county are required before final PDF creation.'); return; }
-    setFinalizing(true); const packets: FinalPdfPacket[] = [];
-    try {
-      for (const route of routes) { const folder = route.type === 'DISPUTE' ? 'DISPUTE PACKETS' : 'LATE PAYMENT PACKETS'; packets.push({ path: `Final PDF Packets/${folder}/${clean(parsed.name)} ${route.bureau} ${route.type === 'DISPUTE' ? 'DISPUTE' : 'LATE PAYMENT'} PACKET.pdf`, type: route.type, bureau: route.bureau, sequence: sequence(route.type), blob: await assemblePacketForRoute(route.type, route.bureau, reviewDocs) }); }
-      const zip = new JSZip(); packets.forEach((packet) => zip.file(packet.path, packet.blob)); zip.file('Final Packet Manifest.txt', packets.flatMap((packet) => [packet.path, ...packet.sequence.map((entry) => `  ${entry}`), '']).join('\n'));
-      setFinalPackets(packets); setFinalZip(packets.length ? { name: `${fileBase(parsed.name)}_${fileBase(round)}_FINAL_PDF_PACKETS.zip`, blob: await zip.generateAsync({ type: 'blob' }) } : null);
-      const record = caseRecord('PDF_READY', { pdfCount: packets.length, editableCount: reviewDocs.length, evidenceCount: evidence.supporting.length });
-      if (record && packets.length) setFilings(addFinalFilings(record, packets.map((packet) => ({ bureau: packet.bureau, type: packet.type, path: packet.path }))));
-      if (preferences.openTrackerAfterFinalization && packets.length) setPanel('Filing Tracker');
-      setStatus(packets.length ? `${packets.length} ordered final PDF packet(s) ready.` : 'No final packets are available.');
-    } catch (error) { setStatus(error instanceof Error ? error.message : 'Final PDF creation failed.'); }
-    finally { setFinalizing(false); }
-  }
-  function exportRecords() { const payload = JSON.stringify(exportOperationsRecords(), null, 2); deliver(`LETTERGENERATOR_OPERATIONAL_RECORDS_${new Date().toISOString().slice(0, 10)}.json`, new Blob([payload], { type: 'application/json' })); setStatus('Operational records exported.'); }
-  function clearRecords() { const cleared = clearOperationsRecords(); setCaseRecords(cleared.cases); setFilings(cleared.filings); setStatus('Local case and filing history cleared. Active document work remains available in this session.'); }
-  function allowed(item: Panel) { return item === 'Outputs' ? Boolean(workingZip) : true; }
-  function continueCase(record: ClientCaseRecord) { if (record.id === caseId) { setPanel(record.status === 'SOURCE_LOCKED' || record.status === 'EVIDENCE_READY' ? 'Source Data' : 'Outputs'); return; } if (record.status === 'PDF_READY') { setPanel('Filing Tracker'); return; } setStatus('Only the active browser case can resume document edits. Start from Source Data to reopen a working case.'); }
-  function dashboard() { return <DashboardOperationsWorkspace cases={caseRecords} filings={filings} activeCaseId={caseId} onNewCase={beginNewCase} onOpenTemplates={() => setPanel('Templates')} onOpenOutputs={() => setPanel(workingZip ? 'Outputs' : 'Dashboard')} onOpenTracker={() => setPanel('Filing Tracker')} onContinueCase={continueCase} />; }
-  function templatesView() { return <TemplateProgressiveWorkspace round={round} slots={currentReferences} supportingReady={evidence.supporting.length > 0} onSelectRound={(next) => { setRound(next); clearOutputs(); }} onUploadLetter={uploadReference} onRemoveLetter={removeReference} onExhibitsChange={(next) => { setTemplates(next); clearOutputs(); }} onMessage={setStatus} />; }
-  function sourceView() { return <GuidedSourceDataFlow source={source} originalSource={originalSource} normalized={normalized} verified={verified} parsed={parsed} routes={routes} sourceWarnings={sourceWarnings} evidenceKey={evidenceKey} evidence={evidence} canGenerate={canGenerate} missingLetters={missingLetters.map((type) => typeLabel[type])} missingInsertCount={missingDisputeNodes.length} affidavitRequired={affidavitRequired} strict={preferences.strictValidation} busy={busy} onNormalize={normalizeInput} onEditSource={(value) => { setSource(value); setNormalized(false); clearOutputs(); }} onAffidavitJurisdictionChange={updateAffidavitJurisdiction} onRestore={() => { setSource(originalSource); setNormalized(false); setCaseId(''); setEvidence(emptyEvidence()); clearOutputs(); }} onEvidenceChanged={(next) => { setEvidence(next); clearOutputs(); caseRecord(next.supporting.length ? 'EVIDENCE_READY' : 'SOURCE_LOCKED', { evidenceCount: next.supporting.length, editableCount: 0, pdfCount: 0 }); }} onMessage={setStatus} onGenerate={generateReviewDocuments} />; }
-  function outputsView() { return <OutputReviewWorkspace round={round} outputs={reviewDocs} zipName={workingZip?.name} warnings={warnings} finalPackets={finalPackets} finalizing={finalizing} finalZipName={finalZip?.name} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={(next) => { void updateEvidenceDuringReview(next); }} onMessage={setStatus} onZip={() => workingZip && deliver(workingZip.name, workingZip.blob)} onFinalZip={() => finalZip && deliver(finalZip.name, finalZip.blob)} onFinalize={finalizePdfPackets} onPreviewPacket={previewPacket} onPdfDownload={(packet) => deliver(packet.path.split('/').pop() || 'packet.pdf', packet.blob)} onReplace={saveEdited} />; }
-  return <main className="app-shell"><aside className="sidebar"><div className="brand"><span /><div><strong>LetterGenerator</strong><small>Packet workflow</small></div></div><nav aria-label="Primary navigation">{panels.map((item) => <button key={item} className={panel === item ? 'active' : ''} disabled={!allowed(item)} onClick={() => setPanel(item)}><strong>{item}</strong></button>)}</nav></aside><section className="main-area"><header className="header"><div><p className="eyebrow">{panel === 'Dashboard' ? 'Client operations' : panel === 'Filing Tracker' ? 'Delivery operations' : panel === 'Settings' ? 'Workspace control' : `${round} workflow`}</p><h1>{panel}</h1></div></header>{panel === 'Dashboard' && dashboard()}{panel === 'Templates' && templatesView()}{panel === 'Source Data' && sourceView()}{panel === 'Outputs' && outputsView()}{panel === 'Filing Tracker' && <FilingTrackerWorkspace records={filings} outputsAvailable={Boolean(workingZip)} onReturnToOutputs={() => setPanel('Outputs')} onStartCase={beginNewCase} onMarkSent={(id) => { setFilings(markFilingSent(id)); setStatus('Packet marked as sent.'); }} />}{panel === 'Settings' && <WorkspaceSettingsPanel preferences={preferences} caseCount={caseRecords.length} filingCount={filings.length} onChange={updatePreferences} onExportRecords={exportRecords} onClearRecords={clearRecords} />}</section></main>;
+ const [panel, setPanel] = useState<Panel>('Dashboard'), [round, setRound] = useState<Round>('1st Round'), [preferences, setPreferences] = useState<WorkspacePreferences>(defaultWorkspacePreferences);
+ const [references, setReferences] = useState<LetterReference[]>(defaultReferences), [source, setSource] = useState(''), [originalSource, setOriginalSource] = useState(''), [normalized, setNormalized] = useState(false), [caseId, setCaseId] = useState('');
+ const [cases, setCases] = useState<ClientCaseRecord[]>([]), [filings, setFilings] = useState<FilingRecord[]>([]), [evidence, setEvidence] = useState<PacketAssets>(emptyEvidence), [templates, setTemplates] = useState<TemplateExhibits>(emptyTemplates);
+ const [docs, setDocs] = useState<ReviewOutput[]>([]), [warnings, setWarnings] = useState<string[]>([]), [workingZip, setWorkingZip] = useState<{ name: string; blob: Blob } | null>(null), [packets, setPackets] = useState<FinalPdfPacket[]>([]), [finalZip, setFinalZip] = useState<{ name: string; blob: Blob } | null>(null), [docDate, setDocDate] = useState(''), [busy, setBusy] = useState(false), [finalizing, setFinalizing] = useState(false);
+ const [, setStatus] = useState('Configure packet templates, then load a client source file.');
+ useEffect(() => { const p = loadWorkspacePreferences(); setPreferences(p); setRound(p.defaultRound); setReferences(loadReferenceMeta()); setCases(loadClientCases()); setFilings(loadFilings()); }, []);
+ useEffect(() => saveReferenceMeta(references), [references]); useEffect(() => setTemplates(loadTemplateExhibits(round)), [round]);
+ const refs = references.filter((x) => x.round === round), parsed = useMemo(() => parseSource(source), [source]), routes = useMemo(() => detectRoutes(parsed), [parsed]);
+ const verified = normalized && Boolean(parsed.name), evidenceKey = caseId ? `${round}::${caseId}` : '', sourceWarnings = parsed.diagnostics.filter((x) => x.level === 'warning');
+ const missingLetters = Array.from(new Set(routes.map((r) => r.type))).filter((type) => !refs.find((x) => x.type === type)?.file), dispute = routes.some((r) => r.type === 'DISPUTE'), disputed = bureaus.some((b) => parsed.dispute[b].length > 0);
+ const affidavitRequired = Boolean(templates.AFFIDAVIT && disputed), affidavitReady = !affidavitRequired || Boolean(parsed.affidavitState.trim() && parsed.affidavitCounty.trim());
+ const ftcRequired = Boolean(templates.FTC && dispute), ftcReady = !ftcRequired || Boolean(parsed.ftcReportNumber.trim() && parsed.ftcReportDate.trim() && parsed.firstName.trim() && parsed.lastName.trim() && parsed.ftcAccounts.length && parsed.ftcAccounts.every((x) => x.accountName.trim() && x.accountNumber.trim() && x.fraudBegan.trim() && x.dateDiscovered.trim() && x.fraudulentAmount.trim()));
+ const customFields = unresolvedCustomTemplateFields([...refs.map((x) => x.contract), ...Object.values(templates).map((x) => x?.contract)]), customReady = customFields.every((x) => !x.required || Boolean(parsed.templateFields[x.key]?.trim()));
+ const missingNodes = dispute ? requirements.filter((k) => !templates[k]) : [], canGenerate = verified && routes.length > 0;
+ useEffect(() => setEvidence(verified && evidenceKey ? loadPacketAssets(evidenceKey) : emptyEvidence()), [verified, evidenceKey]);
+ function clearOutputs() { setDocs([]); setWarnings([]); setWorkingZip(null); setPackets([]); setFinalZip(null); setDocDate(''); }
+ function saveCase(status: ClientCaseStatus, data: Partial<ClientCaseRecord> = {}) { const id = data.id || caseId, name = data.clientName || parsed.name; if (!id || !name) return null; const old = cases.find((x) => x.id === id); const r: ClientCaseRecord = { id, clientName: name, round, routeCount: routes.length, bureaus: Array.from(new Set(routes.map((x) => x.bureau))), evidenceCount: data.evidenceCount ?? old?.evidenceCount ?? evidence.supporting.length, editableCount: data.editableCount ?? old?.editableCount ?? docs.length, pdfCount: data.pdfCount ?? old?.pdfCount ?? packets.length, status, updatedAt: new Date().toISOString() }; setCases(upsertClientCase(r)); return r; }
+ function begin() { setRound(preferences.defaultRound); setSource(''); setOriginalSource(''); setNormalized(false); setCaseId(''); setEvidence(emptyEvidence()); clearOutputs(); setPanel('Source Data'); }
+ function normalize(value: string, action: string) { if (!value.trim()) return; const text = createNormalizedSourceCopy(value).text, p = parseSource(text), id = crypto.randomUUID(); setOriginalSource(value); setSource(text); setNormalized(true); setCaseId(id); setEvidence(emptyEvidence()); clearOutputs(); if (p.name) { const r = detectRoutes(p); const rec: ClientCaseRecord = { id, clientName: p.name, round, routeCount: r.length, bureaus: Array.from(new Set(r.map((x) => x.bureau))), evidenceCount: 0, editableCount: 0, pdfCount: 0, status: 'SOURCE_LOCKED', updatedAt: new Date().toISOString() }; setCases(upsertClientCase(rec)); } setStatus(`${action} source standardized.`); }
+ function setLine(key: string, value: string) { const pattern = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:.*$`, 'im'), line = `${key}: ${value}`, anchor = /\n\s*\n(?=(FTC AFFECTED ACCOUNTS|DISPUTE ACCOUNTS|HARD INQUIRIES|LATE PAYMENTS)\b)/i; setSource(pattern.test(source) ? source.replace(pattern, line) : anchor.test(source) ? source.replace(anchor, `\n${line}\n\n`) : `${source.trim()}\n${line}`); setNormalized(true); clearOutputs(); }
+ function setAccounts(items: FtcAffectedAccount[]) { const match = /FTC AFFECTED ACCOUNTS[\s\S]*?(?=\n\s*\n(?:DISPUTE ACCOUNTS|HARD INQUIRIES|LATE PAYMENTS|PRESERVED SOURCE DATA)\b|$)/i, block = ftcSection(items); setSource(match.test(source) ? source.replace(match, block) : `${source.trim()}\n\n${block}`); setNormalized(true); clearOutputs(); }
+ function seedAccounts() { const found: FtcAffectedAccount[] = [], seen = new Set<string>(); bureaus.flatMap((b) => parsed.dispute[b]).forEach((x) => { const parts = x.displayText.split('\n'), accountName = (parts.find((p) => /^Account Name:/i.test(p)) || '').replace(/^Account Name:\s*/i, ''), accountNumber = (parts.find((p) => /^Account Number:/i.test(p)) || '').replace(/^Account Number:\s*/i, ''), k = `${accountName}|${accountNumber}`.toUpperCase(); if (!seen.has(k)) { seen.add(k); found.push({ accountName, accountNumber, fraudBegan: '', dateDiscovered: '', fraudulentAmount: '' }); } }); setAccounts(found.length ? found : [{ accountName: '', accountNumber: '', fraudBegan: '', dateDiscovered: '', fraudulentAmount: '' }]); }
+ async function uploadRef(slot: LetterReference, file: File) { if (!isDocx(file.name)) return setStatus('Letter references accept DOCX files only.'); const contract = await saveReferenceFile(slot, file); setReferences((xs) => xs.map((x) => x.id === slot.id ? { ...x, file: file.name, size: file.size, contract } : x)); clearOutputs(); }
+ async function removeRef(slot: LetterReference) { await removeReferenceFile(slot.id); setReferences((xs) => xs.map((x) => x.id === slot.id ? { ...x, file: '', size: undefined, contract: undefined } : x)); clearOutputs(); }
+ async function letter(route: LetterRoute, file: File, date: string) { const recipient = bureauInfo[route.bureau], identity = { consumerName: parsed.name, addressLines: parsed.address, dob: parsed.dob, ssn: parsed.ssn, letterDate: date, bureauName: recipient.name, bureauAddressLines: recipient.address.split('\n') }; return route.type === 'DISPUTE' ? renderReferenceDisputeDocx(file, { ...identity, disputeItems: route.items.filter((x) => x.type === 'DISPUTE_ACCOUNT').map((x) => x.displayText), hardInquiryItems: route.items.filter((x) => x.type === 'HARD_INQUIRY').map((x) => x.displayText) }) : renderLatePaymentReference(file, { ...identity, latePaymentItems: route.items.map((x) => x.displayText) }); }
+ async function supplement(kind: 'AFFIDAVIT' | 'FTC', bureau: Bureau, date: string) { const file = await readTemplateExhibit(round, kind); if (!file) return null; const r = bureauInfo[bureau]; return renderMappedAppendix(file, { kind, bureau, documentDate: date, recipientName: r.name, recipientAddressLines: r.address.split('\n'), source: parsed }); }
+ async function makeZip(items: ReviewOutput[], notes: string[], date: string) { const zip = new JSZip(); items.forEach((x) => zip.file(x.path, x.blob)); await addOrderedPacketFolders(zip, items, round, evidenceKey, parsed.name, routes.map((r) => ({ type: r.type, bureau: r.bureau }))); zip.file('Generation Manifest.txt', ['WORKING DOCUMENTS', `Client: ${parsed.name}`, `Round: ${round}`, `Date: ${date}`, 'Affidavit and FTC are shared client documents reused inside applicable dispute packets.', ...items.map((x) => `- ${x.path}`), ...notes.map((x) => `- ${x}`)].join('\n')); return zip.generateAsync({ type: 'blob' }); }
+ async function generate() { if (!canGenerate || !evidence.supporting.length || !affidavitReady || !ftcReady || !customReady || (preferences.strictValidation && missingLetters.length)) { setStatus(!ftcReady ? 'Complete FTC report information and affected accounts.' : 'Complete required generation checks first.'); return; } setBusy(true); const date = dateNow(), out: ReviewOutput[] = [], notes = missingNodes.map((k) => `${exhibitTitles[k]} is not configured; its position remains blank.`); for (const route of routes) { const ref = refs.find((x) => x.type === route.type), file = ref?.file ? await readReferenceFile(ref.id) : null; if (!file) { notes.push(`${labels[route.type]} / ${route.bureau}: DOCX reference is missing.`); continue; } try { out.push({ id: `${route.type}-${route.bureau}-LETTER`, path: `Editable Documents/${clean(parsed.name)} ${route.bureau} ${labels[route.type]}.docx`, type: route.type, role: 'LETTER', sequence: 1, bureau: route.bureau, count: route.items.length, detail: route.reason, blob: await letter(route, file, date), packetSteps: order(route.type) }); } catch (e) { notes.push(`${labels[route.type]} / ${route.bureau}: ${e instanceof Error ? e.message : 'Generation failed.'}`); } } const context = routes.find((r) => r.type === 'DISPUTE'); if (context && affidavitRequired) { try { const file = await supplement('AFFIDAVIT', context.bureau, date); if (file) out.push({ id: 'CLIENT-AFFIDAVIT', path: `Editable Documents/${clean(parsed.name)} 04 ${exhibitTitles.AFFIDAVIT}.docx`, type: 'DISPUTE', role: 'AFFIDAVIT', sequence: 4, bureau: 'CLIENT', count: 1, detail: 'Shared client affidavit', blob: file, packetSteps: order('DISPUTE') }); } catch (e) { notes.push(`Affidavit: ${e instanceof Error ? e.message : 'Generation failed.'}`); } } if (context && ftcRequired) { try { const file = await supplement('FTC', context.bureau, date); if (file) out.push({ id: 'CLIENT-FTC', path: `Editable Documents/${clean(parsed.name)} 06 ${exhibitTitles.FTC}.docx`, type: 'DISPUTE', role: 'FTC', sequence: 6, bureau: 'CLIENT', count: parsed.ftcAccounts.length, detail: 'Shared client FTC report', blob: file, packetSteps: order('DISPUTE') }); } catch (e) { notes.push(`FTC Report: ${e instanceof Error ? e.message : 'Generation failed.'}`); } } const z = await makeZip(out, notes, date); setDocs(out); setWarnings(notes); setWorkingZip({ name: `${base(parsed.name)}_${base(round)}_WORKING_DOCUMENTS.zip`, blob: z }); setDocDate(date); setPackets([]); setFinalZip(null); setBusy(false); saveCase('REVIEW_READY', { editableCount: out.length, evidenceCount: evidence.supporting.length, pdfCount: 0 }); setPanel('Outputs'); }
+ async function saveEdited(output: ReviewOutput, file: File) { const out = docs.map((x) => x.path === output.path ? { ...x, blob: file } : x), z = await makeZip(out, warnings, docDate || dateNow()); setDocs(out); setWorkingZip({ name: workingZip?.name || 'WORKING_DOCUMENTS.zip', blob: z }); setPackets([]); setFinalZip(null); }
+ async function assemble(type: LetterType, bureau: string, items: ReviewOutput[]) { const supporting = evidenceKey ? await createSupportingDocumentsPdf(evidenceKey).catch(() => null) : null, letterDoc = items.find((x) => x.type === type && x.bureau === bureau && x.role === 'LETTER'); if (!supporting) throw new Error('Required Supporting Documents page could not be prepared.'); const parts: PdfPacketPart[] = [letterDoc ? { label: labels[type], kind: 'DOCX', blob: letterDoc.blob } : { label: labels[type], kind: 'BLANK' }, { label: 'Supporting Documents', kind: 'PDF', blob: supporting }]; if (type === 'DISPUTE') { const fcra = await readTemplateExhibit(round, 'FCRA'), attachment = await readTemplateExhibit(round, 'ATTACHMENT'), affidavit = items.find((x) => x.role === 'AFFIDAVIT' && (x.bureau === bureau || x.bureau === 'CLIENT')), ftc = items.find((x) => x.role === 'FTC' && (x.bureau === bureau || x.bureau === 'CLIENT')); parts.push(fcra ? { label: 'FCRA', kind: 'PDF', blob: fcra } : { label: 'FCRA', kind: 'BLANK' }, affidavit ? { label: 'Affidavit', kind: 'DOCX', blob: affidavit.blob } : { label: 'Affidavit', kind: 'BLANK' }, attachment ? { label: 'Attachment', kind: 'PDF', blob: attachment } : { label: 'Attachment', kind: 'BLANK' }, ftc ? { label: 'FTC', kind: 'DOCX', blob: ftc.blob } : { label: 'FTC', kind: 'BLANK' }); } return assembleFinalPdf(parts); }
+ async function preview(output: ReviewOutput, pending: Blob): Promise<FinalPdfPacket> { const items = docs.map((x) => x.path === output.path ? { ...x, blob: pending } : x); return { path: `Preview/${clean(parsed.name)} ${output.bureau} PACKET.pdf`, type: output.type, bureau: output.bureau, sequence: order(output.type), blob: await assemble(output.type, output.bureau, items) }; }
+ async function finalize() { if (!evidence.supporting.length || !affidavitReady || !ftcReady || !customReady) { setStatus('Complete required evidence and document information before final PDF creation.'); return; } setFinalizing(true); try { const final: FinalPdfPacket[] = []; for (const route of routes) final.push({ path: `Final PDF Packets/${route.type === 'DISPUTE' ? 'DISPUTE PACKETS' : 'LATE PAYMENT PACKETS'}/${clean(parsed.name)} ${route.bureau} PACKET.pdf`, type: route.type, bureau: route.bureau, sequence: order(route.type), blob: await assemble(route.type, route.bureau, docs) }); const zip = new JSZip(); final.forEach((x) => zip.file(x.path, x.blob)); setPackets(final); setFinalZip({ name: `${base(parsed.name)}_${base(round)}_FINAL_PDF_PACKETS.zip`, blob: await zip.generateAsync({ type: 'blob' }) }); const record = saveCase('PDF_READY', { pdfCount: final.length }); if (record) setFilings(addFinalFilings(record, final.map((x) => ({ bureau: x.bureau, type: x.type, path: x.path })))); if (preferences.openTrackerAfterFinalization) setPanel('Filing Tracker'); } catch (e) { setStatus(e instanceof Error ? e.message : 'Final PDF creation failed.'); } finally { setFinalizing(false); } }
+ function dashboard() { return <DashboardOperationsWorkspace cases={cases} filings={filings} activeCaseId={caseId} onNewCase={begin} onOpenTemplates={() => setPanel('Templates')} onOpenOutputs={() => setPanel(workingZip ? 'Outputs' : 'Dashboard')} onOpenTracker={() => setPanel('Filing Tracker')} onContinueCase={(x) => setPanel(x.id === caseId && x.status !== 'PDF_READY' ? (x.status === 'REVIEW_READY' ? 'Outputs' : 'Source Data') : 'Filing Tracker')} />; }
+ function sourceView() { return <GuidedSourceDataFlow source={source} originalSource={originalSource} normalized={normalized} verified={verified} parsed={parsed} routes={routes} sourceWarnings={sourceWarnings} evidenceKey={evidenceKey} evidence={evidence} canGenerate={canGenerate} missingLetters={missingLetters.map((x) => labels[x])} missingInsertCount={missingNodes.length} affidavitRequired={affidavitRequired} ftcRequired={ftcRequired} customFields={customFields} strict={preferences.strictValidation} busy={busy} onNormalize={normalize} onEditSource={(v) => { setSource(v); setNormalized(false); clearOutputs(); }} onSourceFieldChange={setLine} onFtcAccountChange={(i, k, v) => setAccounts(parsed.ftcAccounts.map((x, n) => n === i ? { ...x, [k]: v } : x))} onFtcAccountAdd={() => setAccounts([...parsed.ftcAccounts, { accountName: '', accountNumber: '', fraudBegan: '', dateDiscovered: '', fraudulentAmount: '' }])} onFtcAccountRemove={(i) => setAccounts(parsed.ftcAccounts.filter((_, n) => n !== i))} onFtcAccountSeed={seedAccounts} onRestore={() => { setSource(originalSource); setNormalized(false); setCaseId(''); setEvidence(emptyEvidence()); clearOutputs(); }} onEvidenceChanged={(v) => { setEvidence(v); clearOutputs(); saveCase(v.supporting.length ? 'EVIDENCE_READY' : 'SOURCE_LOCKED', { evidenceCount: v.supporting.length, editableCount: 0, pdfCount: 0 }); }} onMessage={setStatus} onGenerate={generate} />; }
+ return <main className="app-shell"><aside className="sidebar"><div className="brand"><span /><div><strong>LetterGenerator</strong><small>Packet workflow</small></div></div><nav>{panels.map((x) => <button key={x} className={panel === x ? 'active' : ''} disabled={x === 'Outputs' && !workingZip} onClick={() => setPanel(x)}><strong>{x}</strong></button>)}</nav></aside><section className="main-area"><header className="header"><div><p className="eyebrow">{panel === 'Dashboard' ? 'Client operations' : `${round} workflow`}</p><h1>{panel}</h1></div></header>{panel === 'Dashboard' && dashboard()}{panel === 'Templates' && <TemplateProgressiveWorkspace round={round} slots={refs} supportingReady={evidence.supporting.length > 0} onSelectRound={(x) => { setRound(x); clearOutputs(); }} onUploadLetter={uploadRef} onRemoveLetter={removeRef} onExhibitsChange={(x) => { setTemplates(x); clearOutputs(); }} onMessage={setStatus} />}{panel === 'Source Data' && sourceView()}{panel === 'Outputs' && <OutputReviewWorkspace round={round} outputs={docs} zipName={workingZip?.name} warnings={warnings} finalPackets={packets} finalizing={finalizing} finalZipName={finalZip?.name} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={(x) => setEvidence(x)} onMessage={setStatus} onZip={() => workingZip && download(workingZip.name, workingZip.blob)} onFinalZip={() => finalZip && download(finalZip.name, finalZip.blob)} onFinalize={finalize} onPreviewPacket={preview} onPdfDownload={(x) => download(x.path.split('/').pop() || 'packet.pdf', x.blob)} onReplace={saveEdited} />}{panel === 'Filing Tracker' && <FilingTrackerWorkspace records={filings} outputsAvailable={Boolean(workingZip)} onReturnToOutputs={() => setPanel('Outputs')} onStartCase={begin} onMarkSent={(id) => setFilings(markFilingSent(id))} />}{panel === 'Settings' && <WorkspaceSettingsPanel preferences={preferences} caseCount={cases.length} filingCount={filings.length} onChange={(x) => setPreferences(saveWorkspacePreferences(x))} onExportRecords={() => download('LETTERGENERATOR_OPERATIONAL_RECORDS.json', new Blob([JSON.stringify(exportOperationsRecords(), null, 2)], { type: 'application/json' }))} onClearRecords={() => { const v = clearOperationsRecords(); setCases(v.cases); setFilings(v.filings); }} />}</section></main>;
 }
