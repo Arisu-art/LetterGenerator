@@ -78,32 +78,25 @@ function fieldValue(lines: string[], pattern: RegExp) { for (const line of lines
 function ftcDerivedFields(lines: string[]): FtcDerivedFields {
   const clean = cleanLines(lines);
   const compact = clean.map((line) => line.match(COMPACT_FTC_DETAIL)).find(Boolean);
-  return {
-    fraudulentAmount: fieldValue(clean, FRAUD_AMOUNT) || compact?.[1]?.replaceAll(',', '') || '',
-    dateDiscovered: fieldValue(clean, DATE_DISCOVERED) || compact?.[2] || ''
-  };
+  return { fraudulentAmount: fieldValue(clean, FRAUD_AMOUNT) || compact?.[1]?.replaceAll(',', '') || '', dateDiscovered: fieldValue(clean, DATE_DISCOVERED) || compact?.[2] || '' };
 }
 function disputeDisplayText(lines: string[]) { const clean = cleanLines(lines); const name = fieldValue(clean, ACCOUNT_NAME); const number = maskedAccountNumber(fieldValue(clean, ACCOUNT_NUMBER)); return name || number ? [name ? `Account Name: ${name}` : '', number ? `Account Number: ${number}` : ''].filter(Boolean).join('\n') : ''; }
 function lateDisplayText(lines: string[]) { const clean = cleanLines(lines); const name = fieldValue(clean, ACCOUNT_NAME); const number = maskedAccountNumber(fieldValue(clean, ACCOUNT_NUMBER)); const relevant = clean.filter((line) => /late|payment|30\s*day|60\s*day|90\s*day|120\s*day/i.test(line)); return name || number ? [name ? `Account Name: ${name}` : '', number ? `Account Number: ${number}` : '', ...relevant.filter((line) => !ACCOUNT_NAME.test(line) && !ACCOUNT_NUMBER.test(line))].filter(Boolean).join('\n') : ''; }
 function inquiryDisplayText(lines: string[]) { const joined = cleanLines(lines).join(' - '); return DATE_PATTERN.test(joined) ? joined.replace(/\s*[-–—]\s*/g, ' - ').replace(/\s+/g, ' ').trim() : ''; }
 function createItem(type: ItemType, lines: string[]) { const displayText = type === 'DISPUTE_ACCOUNT' ? disputeDisplayText(lines) : type === 'HARD_INQUIRY' ? inquiryDisplayText(lines) : lateDisplayText(lines); if (!displayText) return null; return type === 'DISPUTE_ACCOUNT' ? { type, displayText, ftcDerived: ftcDerivedFields(lines) } : { type, displayText }; }
 function createFtcAccount(lines: string[]): FtcAffectedAccount | null {
-  const clean = cleanLines(lines);
-  const accountName = fieldValue(clean, ACCOUNT_NAME);
-  const accountNumber = maskedAccountNumber(fieldValue(clean, ACCOUNT_NUMBER));
+  const clean = cleanLines(lines); const accountName = fieldValue(clean, ACCOUNT_NAME); const accountNumber = maskedAccountNumber(fieldValue(clean, ACCOUNT_NUMBER));
   if (!accountName && !accountNumber) return null;
   const derived = ftcDerivedFields(clean);
   return { accountName, accountNumber, fraudBegan: currentFtcFraudMonthYear(), dateDiscovered: derived.dateDiscovered, fraudulentAmount: derived.fraudulentAmount };
 }
 function appendUnique(target: SourceItem[], item: SourceItem | null, diagnostics: ParseDiagnostic[], bureau: Bureau) {
-  if (!item) return;
-  const key = `${item.type}|${normalized(item.displayText)}`;
+  if (!item) return; const key = `${item.type}|${normalized(item.displayText)}`;
   if (target.some((current) => `${current.type}|${normalized(current.displayText)}` === key)) { diagnostics.push({ level: 'info', message: `Duplicate ${item.type.toLowerCase().replaceAll('_', ' ')} removed for ${bureau}.` }); return; }
   target.push(item);
 }
 function appendUniqueFtc(target: FtcAffectedAccount[], item: FtcAffectedAccount | null, diagnostics: ParseDiagnostic[]) {
-  if (!item) return;
-  const key = `${normalized(item.accountName)}|${normalized(item.accountNumber)}`;
+  if (!item) return; const key = `${normalized(item.accountName)}|${normalized(item.accountNumber)}`;
   if (target.some((current) => `${normalized(current.accountName)}|${normalized(current.accountNumber)}` === key)) { diagnostics.push({ level: 'info', message: 'Duplicate FTC affected account removed.' }); return; }
   if (target.length >= MAX_FTC_ACCOUNTS) { diagnostics.push({ level: 'warning', message: `FTC affected accounts are limited to ${MAX_FTC_ACCOUNTS}; additional records were not included.` }); return; }
   target.push(item);
@@ -112,6 +105,14 @@ function headerField(lines: string[], label: RegExp) { const line = lines.find((
 function looksLikeRecord(line: string) { return ACCOUNT_NAME.test(line) || ACCOUNT_NUMBER.test(line) || FRAUD_BEGAN.test(line) || DATE_DISCOVERED.test(line) || FRAUD_AMOUNT.test(line) || DATE_PATTERN.test(line) || MONTH_YEAR_PATTERN.test(line); }
 function pushPreserved(parsed: ParsedSource, line: number, text: string, reason: string) { if (!parsed.preserved.some((item) => item.line === line && item.text === text)) parsed.preserved.push({ line, text, reason }); }
 function splitName(name: string) { const parts = safeLine(name).split(' ').filter(Boolean); return { firstName: parts[0] || '', middleName: parts.length > 2 ? parts.slice(1, -1).join(' ') : '', lastName: parts.length > 1 ? parts[parts.length - 1] : '' }; }
+function seedFtcFromDisputes(parsed: ParsedSource) {
+  if (parsed.ftcAccounts.length) return;
+  bureaus.forEach((bureau) => parsed.dispute[bureau].forEach((item) => {
+    if (!item.ftcDerived?.dateDiscovered || !item.ftcDerived?.fraudulentAmount) return;
+    const lines = item.displayText.split('\n'); const accountName = (lines.find((line) => /^Account Name:/i.test(line)) || '').replace(/^Account Name:\s*/i, ''); const accountNumber = (lines.find((line) => /^Account Number:/i.test(line)) || '').replace(/^Account Number:\s*/i, '');
+    appendUniqueFtc(parsed.ftcAccounts, { accountName, accountNumber, fraudBegan: currentFtcFraudMonthYear(), dateDiscovered: item.ftcDerived.dateDiscovered, fraudulentAmount: item.ftcDerived.fraudulentAmount }, parsed.diagnostics);
+  }));
+}
 
 export function parseSource(text: string): ParsedSource {
   const parsed: ParsedSource = { name: '', firstName: '', middleName: '', lastName: '', address: [], country: '', dob: '', ssn: '', phone: '', email: '', affidavitState: '', affidavitCounty: '', ftcReportNumber: '', ftcReportDate: '', ftcAccounts: [], templateFields: {}, dispute: itemMap(), inquiry: itemMap(), late: itemMap(), preserved: [], diagnostics: [] };
@@ -119,81 +120,41 @@ export function parseSource(text: string): ParsedSource {
   let section: Section = 'header'; let bureau: Bureau | '' = ''; let buffer: string[] = []; let bufferLine = 0;
   const flush = () => {
     if (!buffer.length) return;
-    if (section === 'ftc') {
-      const created = createFtcAccount(buffer);
-      if (created) appendUniqueFtc(parsed.ftcAccounts, created, parsed.diagnostics);
-      else if (buffer.some(looksLikeRecord)) parsed.diagnostics.push({ level: 'warning', message: 'FTC affected-account text is missing a usable account name or number.', line: bufferLine });
-      buffer = []; return;
-    }
+    if (section === 'ftc') { const created = createFtcAccount(buffer); if (created) appendUniqueFtc(parsed.ftcAccounts, created, parsed.diagnostics); else if (buffer.some(looksLikeRecord)) parsed.diagnostics.push({ level: 'warning', message: 'FTC affected-account text is missing a usable account name or number.', line: bufferLine }); buffer = []; return; }
     if (!bureau || (section !== 'dispute' && section !== 'late')) { if (buffer.some(looksLikeRecord)) parsed.diagnostics.push({ level: 'warning', message: 'Account-like text was ignored because its bureau or category was not identified.', line: bufferLine }); buffer = []; return; }
     const created = createItem(section === 'dispute' ? 'DISPUTE_ACCOUNT' : 'LATE_PAYMENT', buffer);
-    if (created) appendUnique(section === 'dispute' ? parsed.dispute[bureau] : parsed.late[bureau], created, parsed.diagnostics, bureau);
-    else if (buffer.some(looksLikeRecord)) parsed.diagnostics.push({ level: 'warning', message: `${section === 'dispute' ? 'Dispute' : 'Late-payment'} record in ${bureau} is missing a usable account name or account number.`, line: bufferLine });
-    buffer = [];
+    if (created) appendUnique(section === 'dispute' ? parsed.dispute[bureau] : parsed.late[bureau], created, parsed.diagnostics, bureau); else if (buffer.some(looksLikeRecord)) parsed.diagnostics.push({ level: 'warning', message: `${section === 'dispute' ? 'Dispute' : 'Late-payment'} record in ${bureau} is missing a usable account name or account number.`, line: bufferLine }); buffer = [];
   };
   text.split(/\r?\n/).forEach((raw, index) => {
     const line = raw.trim(); const lineNumber = index + 1;
     if (!line) { flush(); return; }
-    const detectedSection = sectionOf(line); const detectedBureau = bureauIn(line);
-    const heading = detectedSection && isSectionHeading(line, detectedSection); const bureauHeading = detectedBureau && (isBureauHeading(line) || Boolean(heading));
+    const detectedSection = sectionOf(line); const detectedBureau = bureauIn(line); const heading = detectedSection && isSectionHeading(line, detectedSection); const bureauHeading = detectedBureau && (isBureauHeading(line) || Boolean(heading));
     if (heading || bureauHeading) { flush(); if (heading) section = detectedSection; if (bureauHeading) bureau = detectedBureau; return; }
     if (section === 'header' && !bureau) { header.push({ text: line, line: lineNumber }); return; }
     if (section === 'ignore') { pushPreserved(parsed, lineNumber, line, 'Supplemental or unmapped source data: not inserted unless a document maps it.'); return; }
-    if (section === 'inquiry') {
-      if (!bureau) { if (DATE_PATTERN.test(line)) parsed.diagnostics.push({ level: 'warning', message: 'Hard inquiry ignored because no bureau heading was identified.', line: lineNumber }); else pushPreserved(parsed, lineNumber, line, 'Unrecognized hard-inquiry text.'); return; }
-      if (DATE_PATTERN.test(line)) appendUnique(parsed.inquiry[bureau], createItem('HARD_INQUIRY', [line]), parsed.diagnostics, bureau);
-      else if (!isNoData(line)) { parsed.diagnostics.push({ level: 'warning', message: `Hard inquiry in ${bureau} must include a date on the same line: COMPANY - MM/DD/YYYY.`, line: lineNumber }); pushPreserved(parsed, lineNumber, line, 'Inquiry retained for manual review.'); }
-      return;
-    }
+    if (section === 'inquiry') { if (!bureau) { if (DATE_PATTERN.test(line)) parsed.diagnostics.push({ level: 'warning', message: 'Hard inquiry ignored because no bureau heading was identified.', line: lineNumber }); else pushPreserved(parsed, lineNumber, line, 'Unrecognized hard-inquiry text.'); return; } if (DATE_PATTERN.test(line)) appendUnique(parsed.inquiry[bureau], createItem('HARD_INQUIRY', [line]), parsed.diagnostics, bureau); else if (!isNoData(line)) { parsed.diagnostics.push({ level: 'warning', message: `Hard inquiry in ${bureau} must include a date on the same line: COMPANY - MM/DD/YYYY.`, line: lineNumber }); pushPreserved(parsed, lineNumber, line, 'Inquiry retained for manual review.'); } return; }
     if (section === 'ftc') { if (ACCOUNT_NAME.test(line) && buffer.length) flush(); if (!buffer.length) bufferLine = lineNumber; buffer.push(line); return; }
     if ((section === 'dispute' || section === 'late') && bureau) { if (ACCOUNT_NAME.test(line) && buffer.length) flush(); if (!buffer.length) bufferLine = lineNumber; buffer.push(line); return; }
     if (looksLikeRecord(line)) parsed.diagnostics.push({ level: 'warning', message: 'Record-like text was not assigned to an output. Use a category and bureau heading.', line: lineNumber }); else pushPreserved(parsed, lineNumber, line, 'Text not mapped to a standard output field.');
   });
-  flush();
-  const headerLines = header.map((item) => item.text);
-  const firstUnlabelled = header.find((item) => !KNOWN_HEADER.test(item.text));
+  flush(); seedFtcFromDisputes(parsed);
+  const headerLines = header.map((item) => item.text); const firstUnlabelled = header.find((item) => !KNOWN_HEADER.test(item.text));
   parsed.name = headerField(headerLines, /^(?:NAME|CLIENT|CONSUMER(?:\s+NAME)?)\s*:\s*/i) || firstUnlabelled?.text || '';
-  const split = splitName(parsed.name);
-  parsed.firstName = headerField(headerLines, /^FIRST\s+NAME\s*:\s*/i) || split.firstName;
-  parsed.middleName = headerField(headerLines, /^MIDDLE\s+NAME\s*:\s*/i) || split.middleName;
-  parsed.lastName = headerField(headerLines, /^LAST\s+NAME\s*:\s*/i) || split.lastName;
-  parsed.dob = headerField(headerLines, /^DOB\s*:\s*/i); parsed.ssn = headerField(headerLines, /^SSN\s*:\s*/i);
-  parsed.phone = headerField(headerLines, /^(?:PHONE|TELEPHONE|MOBILE)\s*:\s*/i) || (parsed.ftcAccounts.length ? 'N/A' : ''); parsed.email = headerField(headerLines, /^(?:EMAIL|E-?MAIL)\s*:\s*/i); parsed.country = headerField(headerLines, /^COUNTRY\s*:\s*/i);
-  parsed.affidavitState = headerField(headerLines, /^AFFIDAVIT\s+STATE\s*:\s*/i); parsed.affidavitCounty = headerField(headerLines, /^AFFIDAVIT\s+COUNTY\s*:\s*/i);
-  parsed.ftcReportNumber = headerField(headerLines, /^FTC\s+REPORT\s+NUMBER\s*:\s*/i); parsed.ftcReportDate = automatedFtcReportDate();
+  const split = splitName(parsed.name); parsed.firstName = headerField(headerLines, /^FIRST\s+NAME\s*:\s*/i) || split.firstName; parsed.middleName = headerField(headerLines, /^MIDDLE\s+NAME\s*:\s*/i) || split.middleName; parsed.lastName = headerField(headerLines, /^LAST\s+NAME\s*:\s*/i) || split.lastName;
+  parsed.dob = headerField(headerLines, /^DOB\s*:\s*/i); parsed.ssn = headerField(headerLines, /^SSN\s*:\s*/i); parsed.phone = headerField(headerLines, /^(?:PHONE|TELEPHONE|MOBILE)\s*:\s*/i) || (parsed.ftcAccounts.length ? 'N/A' : ''); parsed.email = headerField(headerLines, /^(?:EMAIL|E-?MAIL)\s*:\s*/i); parsed.country = headerField(headerLines, /^COUNTRY\s*:\s*/i);
+  parsed.affidavitState = headerField(headerLines, /^AFFIDAVIT\s+STATE\s*:\s*/i); parsed.affidavitCounty = headerField(headerLines, /^AFFIDAVIT\s+COUNTY\s*:\s*/i); parsed.ftcReportNumber = headerField(headerLines, /^FTC\s+REPORT\s+NUMBER\s*:\s*/i); parsed.ftcReportDate = automatedFtcReportDate();
   headerLines.forEach((line) => { const match = line.match(TEMPLATE_FIELD); if (match) parsed.templateFields[match[1]] = safeLine(match[2]); });
-  const labelledAddress = header.filter((item) => /^ADDRESS\s*:/i.test(item.text)).map((item) => item.text.replace(/^ADDRESS\s*:\s*/i, '')).filter(Boolean);
-  const continuationAddress = header.filter((item) => item.text !== parsed.name && !KNOWN_HEADER.test(item.text)).map((item) => item.text).filter(Boolean);
-  parsed.address = [...labelledAddress, ...continuationAddress];
-  header.filter((item) => RESERVED_HEADER.test(item.text)).forEach((item) => pushPreserved(parsed, item.line, item.text, 'Supplemental client field mapped only when a configured template requires it.'));
-  if (!parsed.name) parsed.diagnostics.push({ level: 'warning', message: 'Client name could not be identified in the source header.' });
-  return parsed;
+  const labelledAddress = header.filter((item) => /^ADDRESS\s*:/i.test(item.text)).map((item) => item.text.replace(/^ADDRESS\s*:\s*/i, '')).filter(Boolean); const continuationAddress = header.filter((item) => item.text !== parsed.name && !KNOWN_HEADER.test(item.text)).map((item) => item.text).filter(Boolean); parsed.address = [...labelledAddress, ...continuationAddress];
+  header.filter((item) => RESERVED_HEADER.test(item.text)).forEach((item) => pushPreserved(parsed, item.line, item.text, 'Supplemental client field mapped only when a configured template requires it.')); if (!parsed.name) parsed.diagnostics.push({ level: 'warning', message: 'Client name could not be identified in the source header.' }); return parsed;
 }
-
-export function detectRoutes(parsed: ParsedSource): LetterRoute[] {
-  return bureaus.flatMap((bureau) => {
-    const accounts = parsed.dispute[bureau]; const inquiries = parsed.inquiry[bureau]; const late = parsed.late[bureau]; const routes: LetterRoute[] = [];
-    if (accounts.length || inquiries.length) { const reason = accounts.length && inquiries.length ? `${accounts.length} dispute account(s) and ${inquiries.length} hard inquiry item(s).` : accounts.length ? `${accounts.length} dispute account(s).` : `${inquiries.length} hard inquiry item(s) only.`; routes.push({ bureau, type: 'DISPUTE', items: [...accounts, ...inquiries], reason }); }
-    if (late.length) routes.push({ bureau, type: 'LATE_PAYMENT', items: late, reason: `${late.length} late-payment item(s).` });
-    return routes;
-  });
-}
-function ftcLines(accounts: FtcAffectedAccount[]) {
-  return accounts.slice(0, MAX_FTC_ACCOUNTS).flatMap((account, index) => [index ? '' : '', `Account Name: ${account.accountName}`, `Account Number: ${account.accountNumber}`, `Fraud Began: ${account.fraudBegan || currentFtcFraudMonthYear()}`, `Date Discovered: ${account.dateDiscovered}`, `Fraudulent Amount: ${account.fraudulentAmount}`]);
-}
-function disputeLines(items: SourceItem[]) {
-  return items.flatMap((item, index) => [index ? '' : '', ...item.displayText.split('\n'), ...(item.ftcDerived?.fraudulentAmount && item.ftcDerived?.dateDiscovered ? [`${item.ftcDerived.fraudulentAmount} ${item.ftcDerived.dateDiscovered}`] : [])]);
-}
+export function detectRoutes(parsed: ParsedSource): LetterRoute[] { return bureaus.flatMap((bureau) => { const accounts = parsed.dispute[bureau]; const inquiries = parsed.inquiry[bureau]; const late = parsed.late[bureau]; const routes: LetterRoute[] = []; if (accounts.length || inquiries.length) { const reason = accounts.length && inquiries.length ? `${accounts.length} dispute account(s) and ${inquiries.length} hard inquiry item(s).` : accounts.length ? `${accounts.length} dispute account(s).` : `${inquiries.length} hard inquiry item(s) only.`; routes.push({ bureau, type: 'DISPUTE', items: [...accounts, ...inquiries], reason }); } if (late.length) routes.push({ bureau, type: 'LATE_PAYMENT', items: late, reason: `${late.length} late-payment item(s).` }); return routes; }); }
+function ftcLines(accounts: FtcAffectedAccount[]) { return accounts.slice(0, MAX_FTC_ACCOUNTS).flatMap((account, index) => [index ? '' : '', `Account Name: ${account.accountName}`, `Account Number: ${account.accountNumber}`, `Fraud Began: ${account.fraudBegan || currentFtcFraudMonthYear()}`, `Date Discovered: ${account.dateDiscovered}`, `Fraudulent Amount: ${account.fraudulentAmount}`]); }
+function disputeLines(items: SourceItem[]) { return items.flatMap((item, index) => [index ? '' : '', ...item.displayText.split('\n'), ...(item.ftcDerived?.fraudulentAmount && item.ftcDerived?.dateDiscovered ? [`${item.ftcDerived.fraudulentAmount} ${item.ftcDerived.dateDiscovered}`] : [])]); }
 export function createNormalizedSourceCopy(source: string): NormalizedSourceCopy {
   const parsed = parseSource(source); const sections: string[] = [`NAME: ${parsed.name}`, `FIRST NAME: ${parsed.firstName}`, `MIDDLE NAME: ${parsed.middleName}`, `LAST NAME: ${parsed.lastName}`, ...parsed.address.map((line, index) => `${index === 0 ? 'ADDRESS: ' : ''}${line}`), `COUNTRY: ${parsed.country}`, `DOB: ${parsed.dob}`, `SSN: ${parsed.ssn}`, `PHONE: ${parsed.phone}`, `EMAIL: ${parsed.email}`];
-  if (parsed.affidavitState || parsed.affidavitCounty) sections.push(`AFFIDAVIT STATE: ${parsed.affidavitState}`, `AFFIDAVIT COUNTY: ${parsed.affidavitCounty}`);
-  if (parsed.ftcReportNumber || parsed.ftcAccounts.length) sections.push(`FTC REPORT NUMBER: ${parsed.ftcReportNumber}`, `FTC REPORT DATE: ${parsed.ftcReportDate}`, '', 'FTC AFFECTED ACCOUNTS', ...ftcLines(parsed.ftcAccounts));
-  Object.entries(parsed.templateFields).forEach(([key, value]) => sections.push(`TEMPLATE FIELD ${key}: ${value}`));
-  const disputes = bureaus.flatMap((bureau) => parsed.dispute[bureau].length ? ['', bureau, ...disputeLines(parsed.dispute[bureau])] : []);
-  const inquiries = bureaus.flatMap((bureau) => parsed.inquiry[bureau].length ? ['', bureau, ...parsed.inquiry[bureau].map((item) => item.displayText)] : []);
-  const late = bureaus.flatMap((bureau) => parsed.late[bureau].length ? ['', bureau, ...parsed.late[bureau].map((item) => item.displayText).join('\n\n').split('\n')] : []);
-  if (disputes.length) sections.push('', 'DISPUTE ACCOUNTS', ...disputes); if (inquiries.length) sections.push('', 'HARD INQUIRIES', ...inquiries); if (late.length) sections.push('', 'LATE PAYMENTS', ...late);
-  if (parsed.preserved.length) { sections.push('', 'PRESERVED SOURCE DATA - NOT INSERTED UNLESS A TEMPLATE MAPS IT'); parsed.preserved.filter((item) => !RESERVED_HEADER.test(item.text)).forEach((item) => sections.push(`[LINE ${item.line}] ${item.text}`)); }
+  if (parsed.affidavitState || parsed.affidavitCounty) sections.push(`AFFIDAVIT STATE: ${parsed.affidavitState}`, `AFFIDAVIT COUNTY: ${parsed.affidavitCounty}`); if (parsed.ftcReportNumber || parsed.ftcAccounts.length) sections.push(`FTC REPORT NUMBER: ${parsed.ftcReportNumber}`, `FTC REPORT DATE: ${parsed.ftcReportDate}`, '', 'FTC AFFECTED ACCOUNTS', ...ftcLines(parsed.ftcAccounts)); Object.entries(parsed.templateFields).forEach(([key, value]) => sections.push(`TEMPLATE FIELD ${key}: ${value}`));
+  const disputes = bureaus.flatMap((bureau) => parsed.dispute[bureau].length ? ['', bureau, ...disputeLines(parsed.dispute[bureau])] : []); const inquiries = bureaus.flatMap((bureau) => parsed.inquiry[bureau].length ? ['', bureau, ...parsed.inquiry[bureau].map((item) => item.displayText)] : []); const late = bureaus.flatMap((bureau) => parsed.late[bureau].length ? ['', bureau, ...parsed.late[bureau].map((item) => item.displayText).join('\n\n').split('\n')] : []);
+  if (disputes.length) sections.push('', 'DISPUTE ACCOUNTS', ...disputes); if (inquiries.length) sections.push('', 'HARD INQUIRIES', ...inquiries); if (late.length) sections.push('', 'LATE PAYMENTS', ...late); if (parsed.preserved.length) { sections.push('', 'PRESERVED SOURCE DATA - NOT INSERTED UNLESS A TEMPLATE MAPS IT'); parsed.preserved.filter((item) => !RESERVED_HEADER.test(item.text)).forEach((item) => sections.push(`[LINE ${item.line}] ${item.text}`)); }
   return { text: sections.filter((line, index, all) => line || all[index - 1] !== '').join('\n').trim(), usedFields: ['Name', 'Address', 'DOB', 'SSN', parsed.affidavitState ? 'Affidavit state' : '', parsed.affidavitCounty ? 'Affidavit county' : '', parsed.ftcReportNumber ? 'FTC report number' : '', parsed.ftcAccounts.length ? 'FTC affected accounts' : '', 'Dispute accounts', 'Hard inquiries', 'Late payments'].filter(Boolean), reservedFields: [parsed.phone ? 'Phone' : '', parsed.email ? 'Email' : '', parsed.country ? 'Country' : ''].filter(Boolean), preservedLines: parsed.preserved };
 }
 export const recommendedSourceFormat = `NAME: CLIENT FULL NAME\nFIRST NAME:\nMIDDLE NAME:\nLAST NAME:\nADDRESS: STREET ADDRESS\nCITY, STATE ZIP\nCOUNTRY: USA\nDOB: MM/DD/YYYY\nSSN: XXX-XX-1234\nPHONE:\nEMAIL:\nAFFIDAVIT STATE:\nAFFIDAVIT COUNTY:\nFTC REPORT NUMBER:\nFTC REPORT DATE: AUTO - US EASTERN DATE MINUS 5 DAYS\n\nFTC AFFECTED ACCOUNTS - MAXIMUM 5\nAccount Name:\nAccount Number:\nFraud Began: AUTO - LETTER MONTH/YEAR\nDate Discovered:\nFraudulent Amount:\n\nDISPUTE ACCOUNTS\nTRANSUNION\nAccount Name: EXAMPLE BANK\nAccount Number: XXXX1234\n1032 10/2019\n\nEQUIFAX\nNONE\n\nEXPERIAN\nAccount Name: EXAMPLE CARD\nAccount Number: XXXX9876\n\nHARD INQUIRIES\nTRANSUNION\nEXAMPLE LENDER - 08/08/2024\n\nLATE PAYMENTS\nEQUIFAX\nAccount Name: EXAMPLE AUTO\nAccount Number: XXXX5678\nLate Payment: 30 Days Late - 01/2025`;
