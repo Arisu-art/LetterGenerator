@@ -24,6 +24,8 @@ import { renderMappedAppendix } from '../lib/supplemental-template-renderer';
 import { unresolvedCustomTemplateFields } from '../lib/template-contracts';
 import { exhibitTitles, loadTemplateExhibits, readTemplateExhibit, type ExhibitKind, type TemplateExhibits } from '../lib/template-exhibits';
 import { defaultWorkspacePreferences, loadWorkspacePreferences, saveWorkspacePreferences, type WorkspacePreferences } from '../lib/workspace-preferences';
+import { packetOrderLabels } from '../lib/workflow-framework';
+import { activeWorkflowDiagnostics, assessRouteCoverage, requiredGenerationFailureMessage } from '../lib/workflow-execution';
 
 type Panel = 'Dashboard' | 'Templates' | 'Source Data' | 'Outputs' | 'Filing Tracker' | 'Settings';
 type SourceDraftSnapshot = { text: string; normalized: boolean; label: string; capturedAt: string };
@@ -37,7 +39,7 @@ const emptyTemplates = (): TemplateExhibits => ({ FCRA: null, AFFIDAVIT: null, A
 const dateNow = () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }).format(new Date());
 const clean = (value: string) => (value || 'CLIENT').replace(/[\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
 const base = (value: string) => clean(value).replace(/[^A-Z0-9]+/g, '_');
-const order = (type: LetterType) => type === 'LATE_PAYMENT' ? ['01 Late Payment Letter', '02 Supporting Documents'] : ['01 Dispute Letter', '02 Supporting Documents', '03 FCRA', '04 Affidavit', '05 Attachment'];
+const order = (type: LetterType) => packetOrderLabels(type);
 const GENERATION_TIMEOUT_MS = 90_000;
 const ARCHIVE_TIMEOUT_MS = 120_000;
 
@@ -111,7 +113,7 @@ export default function LetterGeneratorWorkspaceV2() {
   const affidavitRequired = Boolean(templates.AFFIDAVIT && disputed);
   const affidavitJurisdiction = useMemo(() => resolveAffidavitJurisdiction(parsed), [parsed]);
   const affidavitSource = useMemo(() => ({ ...parsed, address: parsed.address.length ? parsed.address : ['N/A'], affidavitState: affidavitJurisdiction.state, affidavitCounty: affidavitJurisdiction.county }), [parsed, affidavitJurisdiction]);
-  const sourceWarnings = [...parsed.diagnostics.filter((item) => item.level === 'warning'), ...(affidavitRequired && affidavitJurisdiction.reviewRequired ? [{ message: affidavitJurisdiction.explanation }] : [])];
+  const sourceWarnings = [...activeWorkflowDiagnostics(parsed.diagnostics.filter((item) => item.level === 'warning')), ...(affidavitRequired && affidavitJurisdiction.reviewRequired ? [{ message: affidavitJurisdiction.explanation }] : [])];
   const affidavitReady = !affidavitRequired || Boolean(affidavitSource.affidavitState.trim() && affidavitSource.affidavitCounty.trim());
   const activeTemplateContracts = [templates.FCRA, templates.AFFIDAVIT, templates.ATTACHMENT].map((item) => item?.contract);
   const customFields = unresolvedCustomTemplateFields([...refs.map((item) => item.contract), ...activeTemplateContracts]);
@@ -189,7 +191,7 @@ export default function LetterGeneratorWorkspaceV2() {
     const zip = new JSZip();
     items.forEach((item) => zip.file(item.path, item.blob));
     await addOrderedPacketFolders(zip, items, round, evidenceKey, parsed.name, routes.map((route) => ({ type: route.type, bureau: route.bureau })));
-    zip.file('Generation Manifest.txt', ['WORKING DOCUMENTS', `Client: ${parsed.name}`, `Round: ${round}`, `Date: ${date}`, 'Affidavit is a shared client document reused inside applicable dispute packets.', 'FTC Identity Theft Report generation is temporarily disabled.', ...items.map((item) => `- ${item.path}`), ...notes.map((item) => `- ${item}`)].join('\n'));
+    zip.file('Generation Manifest.txt', ['WORKING DOCUMENTS', `Client: ${parsed.name}`, `Round: ${round}`, `Date: ${date}`, 'Generation status: all required route letters were created before this review package was released.', 'Affidavit is a shared client document reused inside applicable dispute packets.', 'FTC Identity Theft Report generation is disabled and excluded.', ...items.map((item) => `- ${item.path}`), ...notes.map((item) => `- ${item}`)].join('\n'));
     return zip.generateAsync({ type: 'blob' });
   }
   async function generate() {
@@ -209,6 +211,13 @@ export default function LetterGeneratorWorkspaceV2() {
           output.push({ id: `${route.type}-${route.bureau}-LETTER`, path: `Editable Documents/${clean(parsed.name)} ${route.bureau} ${labels[route.type]}.docx`, type: route.type, role: 'LETTER', sequence: 1, bureau: route.bureau, count: route.items.length, detail: route.reason, blob, packetSteps: order(route.type) });
         } catch (error) { notes.push(`${labels[route.type]} / ${route.bureau}: ${errorMessage(error)}`); }
       }
+      const letterCoverage = assessRouteCoverage(routes, output);
+      if (!letterCoverage.complete) {
+        const technicalReason = notes.find((note) => /(?:Dispute|Late Payment) Letter\s*\//i.test(note));
+        setWarnings(notes);
+        report(requiredGenerationFailureMessage(letterCoverage, technicalReason ? `Resolve this template issue and retry: ${technicalReason}` : 'Resolve required templates and retry.'), 'error');
+        return;
+      }
       const context = routes.find((route) => route.type === 'DISPUTE');
       if (context && affidavitRequired) {
         report('Generating client Affidavit…');
@@ -217,11 +226,11 @@ export default function LetterGeneratorWorkspaceV2() {
           if (file) output.push({ id: 'CLIENT-AFFIDAVIT', path: `Editable Documents/${clean(parsed.name)} 04 ${exhibitTitles.AFFIDAVIT}.docx`, type: 'DISPUTE', role: 'AFFIDAVIT', sequence: 4, bureau: 'CLIENT', count: 1, detail: 'Shared client affidavit', blob: file, packetSteps: order('DISPUTE') });
         } catch (error) { notes.push(`Affidavit: ${errorMessage(error)}`); }
       }
-      report('Preparing supporting-document insert and ordered ZIP package…');
+      report('Preparing ordered review package…');
       const zip = await withTimeout('Preparing ordered package ZIP', () => makeZip(output, notes, date), ARCHIVE_TIMEOUT_MS);
       setDocs(output); setWarnings(notes); setWorkingZip({ name: `${base(parsed.name)}_${base(round)}_WORKING_DOCUMENTS.zip`, blob: zip }); setDocDate(date); setPackets([]); setFinalZip(null);
       saveCase('REVIEW_READY', { editableCount: output.length, evidenceCount: evidence.supporting.length, pdfCount: 0 });
-      report(notes.length ? 'Review package created with items requiring attention. Open Outputs to review the generation notices.' : 'Review package generated successfully.', notes.length ? 'info' : 'success');
+      report(notes.length ? 'Required bureau letters generated. Review optional component notices before finalization.' : 'Ordered review package generated successfully.', notes.length ? 'info' : 'success');
       setPanel('Outputs');
     } catch (error) { const message = `Package generation failed: ${errorMessage(error)}`; setWarnings([...notes, message]); setWorkingZip(null); report(message, 'error'); }
     finally { setBusy(false); }
@@ -246,6 +255,8 @@ export default function LetterGeneratorWorkspaceV2() {
   }
   async function preview(output: ReviewOutput, pending: Blob): Promise<FinalPdfPacket> { const items = docs.map((item) => item.path === output.path ? { ...item, blob: pending } : item); return { path: `Preview/${clean(parsed.name)} ${output.bureau} PACKET.pdf`, type: output.type, bureau: output.bureau, sequence: order(output.type), blob: await withTimeout(`Preparing ${output.bureau} packet preview`, () => assemble(output.type, output.bureau, items)) }; }
   async function finalize() {
+    const coverage = assessRouteCoverage(routes, docs);
+    if (!coverage.complete) { report(requiredGenerationFailureMessage(coverage, 'Regenerate the review package before final PDF creation.'), 'error'); return; }
     if (!evidence.supporting.length || !affidavitReady || !customReady) { report('Complete required evidence and document information before final PDF creation.', 'error'); return; }
     setFinalizing(true);
     try {
