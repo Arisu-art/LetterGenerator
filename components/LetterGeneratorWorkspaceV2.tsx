@@ -6,11 +6,9 @@ import DashboardOperationsWorkspace from './DashboardOperationsWorkspace';
 import FilingTrackerWorkspace from './FilingTrackerWorkspace';
 import GuidedSourceDataFlow from './GuidedSourceDataFlow';
 import OutputReviewWorkspace, { type ReviewOutput } from './OutputReviewWorkspace';
-import type { FinalPdfPacket } from './PdfPacketPreview';
 import TemplateProgressiveWorkspace from './TemplateProgressiveWorkspace';
 import WorkspaceSettingsPanel from './WorkspaceSettingsPanel';
-import { addFinalFilings, clearOperationsRecords, exportOperationsRecords, loadClientCases, loadFilings, markFilingSent, upsertClientCase, type ClientCaseRecord, type ClientCaseStatus, type FilingRecord } from '../lib/client-operations-store';
-import { assembleFinalPdf, type PdfPacketPart } from '../lib/final-pdf-packet';
+import { clearOperationsRecords, exportOperationsRecords, loadClientCases, loadFilings, markFilingSent, upsertClientCase, type ClientCaseRecord, type ClientCaseStatus, type FilingRecord } from '../lib/client-operations-store';
 import { addOrderedPacketFolders } from '../lib/ordered-packet-archive';
 import { isDocx, renderReferenceDisputeDocx } from '../lib/docx-renderer';
 import { highlightTextInDocx } from '../lib/docx-review-marker';
@@ -18,7 +16,6 @@ import { renderLatePaymentReference } from '../lib/late-reference-renderer';
 import { resolveAffidavitJurisdiction } from '../lib/affidavit-jurisdiction';
 import { bureauInfo, bureaus, createNormalizedSourceCopy, detectRoutes, parseSource, type Bureau, type LetterRoute, type LetterType } from '../lib/letter-engine';
 import { loadPacketAssets, type PacketAssets } from '../lib/packet-assets';
-import { createSupportingDocumentsPdf } from '../lib/packet-renderer';
 import { defaultReferences, loadReferenceMeta, readReferenceFile, removeReferenceFile, saveReferenceFile, saveReferenceMeta, type LetterReference, type Round } from '../lib/reference-store';
 import { renderMappedAppendix } from '../lib/supplemental-template-renderer';
 import { unresolvedCustomTemplateFields } from '../lib/template-contracts';
@@ -82,12 +79,9 @@ export default function LetterGeneratorWorkspaceV2() {
   const [templates, setTemplates] = useState<TemplateExhibits>(emptyTemplates);
   const [docs, setDocs] = useState<ReviewOutput[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
-  const [workingZip, setWorkingZip] = useState<{ name: string; blob: Blob } | null>(null);
-  const [packets, setPackets] = useState<FinalPdfPacket[]>([]);
-  const [finalZip, setFinalZip] = useState<{ name: string; blob: Blob } | null>(null);
+  const [orderedZip, setOrderedZip] = useState<{ name: string; blob: Blob } | null>(null);
   const [docDate, setDocDate] = useState('');
   const [busy, setBusy] = useState(false);
-  const [finalizing, setFinalizing] = useState(false);
   const [status, setStatus] = useState('Configure packet templates, then load a client source file.');
   const [statusTone, setStatusTone] = useState<StatusTone>('info');
 
@@ -110,7 +104,7 @@ export default function LetterGeneratorWorkspaceV2() {
   const missingLetters = Array.from(new Set(routes.map((route) => route.type))).filter((type) => !refs.find((item) => item.type === type)?.file);
   const dispute = routes.some((route) => route.type === 'DISPUTE');
   const disputed = bureaus.some((bureau) => parsed.dispute[bureau].length > 0);
-  const affidavitRequired = Boolean(templates.AFFIDAVIT && disputed);
+  const affidavitRequired = dispute && disputed;
   const affidavitJurisdiction = useMemo(() => resolveAffidavitJurisdiction(parsed), [parsed]);
   const affidavitSource = useMemo(() => ({ ...parsed, address: parsed.address.length ? parsed.address : ['N/A'], affidavitState: affidavitJurisdiction.state, affidavitCounty: affidavitJurisdiction.county }), [parsed, affidavitJurisdiction]);
   const sourceWarnings = [...activeWorkflowDiagnostics(parsed.diagnostics.filter((item) => item.level === 'warning')), ...(affidavitRequired && affidavitJurisdiction.reviewRequired ? [{ message: affidavitJurisdiction.explanation }] : [])];
@@ -124,14 +118,14 @@ export default function LetterGeneratorWorkspaceV2() {
   useEffect(() => setEvidence(evidenceKey ? loadPacketAssets(evidenceKey) : emptyEvidence()), [evidenceKey]);
 
   function report(message: string, tone: StatusTone = 'info') { setStatus(message); setStatusTone(tone); }
-  function clearOutputs() { setDocs([]); setWarnings([]); setWorkingZip(null); setPackets([]); setFinalZip(null); setDocDate(''); }
+  function clearOutputs() { setDocs([]); setWarnings([]); setOrderedZip(null); setDocDate(''); }
   function captureDraft(label: string) { if (source.trim()) setRecoveryDraft({ text: source, normalized, label, capturedAt: new Date().toISOString() }); }
   function saveCase(statusValue: ClientCaseStatus, data: Partial<ClientCaseRecord> = {}) {
     const id = data.id || caseId;
     const name = data.clientName || parsed.name;
     if (!id || !name) return null;
     const previous = cases.find((item) => item.id === id);
-    const record: ClientCaseRecord = { id, clientName: name, round, routeCount: routes.length, bureaus: Array.from(new Set(routes.map((route) => route.bureau))), evidenceCount: data.evidenceCount ?? previous?.evidenceCount ?? evidence.supporting.length, editableCount: data.editableCount ?? previous?.editableCount ?? docs.length, pdfCount: data.pdfCount ?? previous?.pdfCount ?? packets.length, status: statusValue, updatedAt: new Date().toISOString() };
+    const record: ClientCaseRecord = { id, clientName: name, round, routeCount: routes.length, bureaus: Array.from(new Set(routes.map((route) => route.bureau))), evidenceCount: data.evidenceCount ?? previous?.evidenceCount ?? evidence.supporting.length, editableCount: data.editableCount ?? previous?.editableCount ?? docs.length, pdfCount: data.pdfCount ?? previous?.pdfCount ?? 0, status: statusValue, updatedAt: new Date().toISOString() };
     setCases(upsertClientCase(record));
     return record;
   }
@@ -191,15 +185,18 @@ export default function LetterGeneratorWorkspaceV2() {
     const zip = new JSZip();
     items.forEach((item) => zip.file(item.path, item.blob));
     await addOrderedPacketFolders(zip, items, round, evidenceKey, parsed.name, routes.map((route) => ({ type: route.type, bureau: route.bureau })));
-    zip.file('Generation Manifest.txt', ['WORKING DOCUMENTS', `Client: ${parsed.name}`, `Round: ${round}`, `Date: ${date}`, 'Generation status: all required route letters were created before this review package was released.', 'Affidavit is a shared client document reused inside applicable dispute packets.', 'FTC Identity Theft Report generation is disabled and excluded.', ...items.map((item) => `- ${item.path}`), ...notes.map((item) => `- ${item}`)].join('\n'));
+    zip.file('Package Manifest.txt', ['COMPLETE ORDERED COMPONENT PACKAGE', `Client: ${parsed.name}`, `Round: ${round}`, `Date: ${date}`, 'Delivery format: ordered bureau folders containing DOCX and PDF components.', 'Dispute order: 01 Dispute Letter.docx; 02 Supporting Documents.pdf; 03 FCRA Legal Exhibit.pdf; 04 Affidavit.docx; 05 Attachment.pdf.', 'FTC Identity Theft Report generation is disabled and excluded.', ...items.map((item) => `- Editable source: ${item.path}`), ...notes.map((item) => `- ${item}`)].join('\n'));
     return zip.generateAsync({ type: 'blob' });
   }
   async function generate() {
-    if (!canGenerate || !evidence.supporting.length || !affidavitReady || !customReady || (preferences.strictValidation && missingLetters.length)) { report('Complete required generation checks first.', 'error'); return; }
+    if (!canGenerate || !evidence.supporting.length || !affidavitReady || !customReady || missingNodes.length || (preferences.strictValidation && missingLetters.length)) {
+      const detail = missingNodes.length ? ` Required Templates items: ${missingNodes.map((kind) => exhibitTitles[kind]).join(', ')}.` : '';
+      report(`Complete the required ordered-package contract before generation.${detail}`, 'error'); return;
+    }
     setBusy(true); clearOutputs();
     const date = dateNow();
     const output: ReviewOutput[] = [];
-    const notes = missingNodes.map((kind) => `${exhibitTitles[kind]} is not configured; required before final PDF delivery.`);
+    const notes: string[] = [];
     try {
       for (const route of routes) {
         const reference = refs.find((item) => item.type === route.type);
@@ -219,56 +216,38 @@ export default function LetterGeneratorWorkspaceV2() {
         return;
       }
       const context = routes.find((route) => route.type === 'DISPUTE');
-      if (context && affidavitRequired) {
+      if (context) {
         report('Generating client Affidavit…');
-        try {
-          const file = await withTimeout('Generating Affidavit', () => affidavit(context.bureau, date));
-          if (file) output.push({ id: 'CLIENT-AFFIDAVIT', path: `Editable Documents/${clean(parsed.name)} 04 ${exhibitTitles.AFFIDAVIT}.docx`, type: 'DISPUTE', role: 'AFFIDAVIT', sequence: 4, bureau: 'CLIENT', count: 1, detail: 'Shared client affidavit', blob: file, packetSteps: order('DISPUTE') });
-        } catch (error) { notes.push(`Affidavit: ${errorMessage(error)}`); }
+        const file = await withTimeout('Generating Affidavit', () => affidavit(context.bureau, date));
+        if (!file) throw new Error('Required component missing: 04 Affidavit.docx could not be generated.');
+        output.push({ id: 'CLIENT-AFFIDAVIT', path: `Editable Documents/${clean(parsed.name)} 04 ${exhibitTitles.AFFIDAVIT}.docx`, type: 'DISPUTE', role: 'AFFIDAVIT', sequence: 4, bureau: 'CLIENT', count: 1, detail: 'Shared client affidavit', blob: file, packetSteps: order('DISPUTE') });
       }
-      report('Preparing ordered review package…');
+      report('Preparing complete ordered component package…');
       const zip = await withTimeout('Preparing ordered package ZIP', () => makeZip(output, notes, date), ARCHIVE_TIMEOUT_MS);
-      setDocs(output); setWarnings(notes); setWorkingZip({ name: `${base(parsed.name)}_${base(round)}_WORKING_DOCUMENTS.zip`, blob: zip }); setDocDate(date); setPackets([]); setFinalZip(null);
+      const zipName = `${base(parsed.name)}_${base(round)}_ORDERED_PACKET_PACKAGE.zip`;
+      setDocs(output); setWarnings(notes); setOrderedZip({ name: zipName, blob: zip }); setDocDate(date);
       saveCase('REVIEW_READY', { editableCount: output.length, evidenceCount: evidence.supporting.length, pdfCount: 0 });
-      report(notes.length ? 'Required bureau letters generated. Complete required final-delivery components before creating PDFs.' : 'Ordered review package generated successfully.', notes.length ? 'info' : 'success');
+      report('Complete ordered packet package is ready for review and download.', 'success');
       setPanel('Outputs');
-    } catch (error) { const message = `Package generation failed: ${errorMessage(error)}`; setWarnings([...notes, message]); setWorkingZip(null); report(message, 'error'); }
+    } catch (error) { const message = `Ordered package generation failed: ${errorMessage(error)}`; setWarnings([...notes, message]); setOrderedZip(null); report(message, 'error'); }
     finally { setBusy(false); }
   }
   async function saveEdited(output: ReviewOutput, file: File) {
     const next = docs.map((item) => item.path === output.path ? { ...item, blob: file } : item);
-    try { const zip = await withTimeout('Saving edited document package', () => makeZip(next, warnings, docDate || dateNow()), ARCHIVE_TIMEOUT_MS); setDocs(next); setWorkingZip({ name: workingZip?.name || 'WORKING_DOCUMENTS.zip', blob: zip }); setPackets([]); setFinalZip(null); report('Document edit saved to the working package.', 'success'); }
-    catch (error) { report(`Document save failed: ${errorMessage(error)}`, 'error'); }
-  }
-  async function assemble(type: LetterType, bureau: string, items: ReviewOutput[], finalDelivery = false) {
-    const supporting = evidenceKey ? await createSupportingDocumentsPdf(evidenceKey).catch(() => null) : null;
-    const letterDoc = items.find((item) => item.type === type && item.bureau === bureau && item.role === 'LETTER');
-    if (!supporting) throw new Error('Required Supporting Documents page could not be prepared.');
-    const parts: PdfPacketPart[] = [letterDoc ? { label: labels[type], kind: 'DOCX', blob: letterDoc.blob } : { label: labels[type], kind: 'BLANK' }, { label: 'Supporting Documents', kind: 'PDF', blob: supporting }];
-    if (type === 'DISPUTE') {
-      const fcra = await readTemplateExhibit(round, 'FCRA');
-      const attachment = await readTemplateExhibit(round, 'ATTACHMENT');
-      const signedAffidavit = items.find((item) => item.role === 'AFFIDAVIT' && (item.bureau === bureau || item.bureau === 'CLIENT'));
-      parts.push(fcra ? { label: 'FCRA', kind: 'PDF', blob: fcra } : { label: 'FCRA', kind: 'BLANK' }, signedAffidavit ? { label: 'Affidavit', kind: 'DOCX', blob: signedAffidavit.blob } : { label: 'Affidavit', kind: 'BLANK' }, attachment ? { label: 'Attachment', kind: 'PDF', blob: attachment } : { label: 'Attachment', kind: 'BLANK' });
-    }
-    return assembleFinalPdf(parts, { requireAllParts: finalDelivery });
-  }
-  async function preview(output: ReviewOutput, pending: Blob): Promise<FinalPdfPacket> { const items = docs.map((item) => item.path === output.path ? { ...item, blob: pending } : item); return { path: `Preview/${clean(parsed.name)} ${output.bureau} PACKET.pdf`, type: output.type, bureau: output.bureau, sequence: order(output.type), blob: await withTimeout(`Preparing ${output.bureau} packet preview`, () => assemble(output.type, output.bureau, items)) }; }
-  async function finalize() {
-    const coverage = assessRouteCoverage(routes, docs);
-    if (!coverage.complete) { report(requiredGenerationFailureMessage(coverage, 'Regenerate the review package before final PDF creation.'), 'error'); return; }
-    if (missingNodes.length) { report(`Final delivery requires configured packet components: ${missingNodes.map((kind) => exhibitTitles[kind]).join(', ')}. Return to Templates to complete the packet contract.`, 'error'); return; }
-    if (!evidence.supporting.length || !affidavitReady || !customReady) { report('Complete required evidence and document information before final PDF creation.', 'error'); return; }
-    setFinalizing(true);
     try {
-      const final: FinalPdfPacket[] = [];
-      for (const route of routes) { report(`Creating final PDF packet for ${route.bureau}…`); final.push({ path: `Final PDF Packets/${route.type === 'DISPUTE' ? 'DISPUTE PACKETS' : 'LATE PAYMENT PACKETS'}/${clean(parsed.name)} ${route.bureau} PACKET.pdf`, type: route.type, bureau: route.bureau, sequence: order(route.type), blob: await withTimeout(`Creating final PDF packet for ${route.bureau}`, () => assemble(route.type, route.bureau, docs, true), ARCHIVE_TIMEOUT_MS) }); }
-      const zip = new JSZip(); final.forEach((item) => zip.file(item.path, item.blob)); setPackets(final); setFinalZip({ name: `${base(parsed.name)}_${base(round)}_FINAL_PDF_PACKETS.zip`, blob: await withTimeout('Compressing final PDF delivery ZIP', () => zip.generateAsync({ type: 'blob' }), ARCHIVE_TIMEOUT_MS) });
-      const record = saveCase('PDF_READY', { pdfCount: final.length }); if (record) setFilings(addFinalFilings(record, final.map((item) => ({ bureau: item.bureau, type: item.type, path: item.path })))); report('Final PDF packets are ready for download.', 'success'); if (preferences.openTrackerAfterFinalization) setPanel('Filing Tracker');
-    } catch (error) { report(`Final PDF creation failed: ${errorMessage(error)}`, 'error'); }
-    finally { setFinalizing(false); }
+      const zip = await withTimeout('Rebuilding ordered component package', () => makeZip(next, warnings, docDate || dateNow()), ARCHIVE_TIMEOUT_MS);
+      setDocs(next); setOrderedZip({ name: orderedZip?.name || 'ORDERED_PACKET_PACKAGE.zip', blob: zip }); report('Document edit saved and ordered package rebuilt.', 'success');
+    } catch (error) { report(`Package rebuild failed: ${errorMessage(error)}`, 'error'); }
   }
-  function dashboard() { return <DashboardOperationsWorkspace cases={cases} filings={filings} activeCaseId={caseId} onNewCase={begin} onOpenTemplates={() => setPanel('Templates')} onOpenOutputs={() => setPanel(workingZip ? 'Outputs' : 'Dashboard')} onOpenTracker={() => setPanel('Filing Tracker')} onContinueCase={(item) => setPanel(item.id === caseId && item.status !== 'PDF_READY' ? (item.status === 'REVIEW_READY' ? 'Outputs' : 'Source Data') : 'Filing Tracker')} />; }
+  async function updateOutputEvidence(value: PacketAssets) {
+    setEvidence(value);
+    if (!docs.length) return;
+    try {
+      const zip = await withTimeout('Rebuilding package with updated supporting documents', () => makeZip(docs, warnings, docDate || dateNow()), ARCHIVE_TIMEOUT_MS);
+      setOrderedZip({ name: orderedZip?.name || 'ORDERED_PACKET_PACKAGE.zip', blob: zip }); report('Supporting Documents updated and ordered package rebuilt.', 'success');
+    } catch (error) { setOrderedZip(null); report(`Package rebuild failed: ${errorMessage(error)}`, 'error'); }
+  }
+  function dashboard() { return <DashboardOperationsWorkspace cases={cases} filings={filings} activeCaseId={caseId} onNewCase={begin} onOpenTemplates={() => setPanel('Templates')} onOpenOutputs={() => setPanel(orderedZip ? 'Outputs' : 'Dashboard')} onOpenTracker={() => setPanel('Filing Tracker')} onContinueCase={(item) => setPanel(item.id === caseId && item.status !== 'PDF_READY' ? (item.status === 'REVIEW_READY' ? 'Outputs' : 'Source Data') : 'Filing Tracker')} />; }
   function sourceView() { return <GuidedSourceDataFlow source={source} originalSource={originalSource} recoveryDraft={recoveryDraft} normalized={normalized} verified={verified} parsed={affidavitRequired ? affidavitSource : parsed} routes={routes} sourceWarnings={sourceWarnings} evidenceKey={evidenceKey} evidence={evidence} canGenerate={canGenerate} missingLetters={missingLetters.map((item) => labels[item])} missingInsertCount={missingNodes.length} affidavitRequired={affidavitRequired} ftcRequired={false} customFields={customFields} strict={preferences.strictValidation} busy={busy} onImportSource={importSource} onStandardizeDraft={standardizeDraft} onStartManualDraft={startManualDraft} onEditSource={(value) => { setSource(value); setNormalized(false); clearOutputs(); }} onSourceFieldChange={setLine} onFtcAccountChange={() => {}} onFtcAccountAdd={() => {}} onFtcAccountRemove={() => {}} onFtcAccountSeed={() => {}} onRestoreOriginal={restoreOriginal} onRecoverDraft={recoverDraft} onEvidenceChanged={(value) => { setEvidence(value); clearOutputs(); saveCase(value.supporting.length ? 'EVIDENCE_READY' : 'SOURCE_LOCKED', { evidenceCount: value.supporting.length, editableCount: 0, pdfCount: 0 }); }} onMessage={(message) => report(message)} onGenerate={generate} />; }
-  return <main className="app-shell"><aside className="sidebar"><div className="brand"><span /><div><strong>LetterGenerator</strong><small>Packet workflow</small></div></div><nav>{panels.map((item) => <button key={item} className={panel === item ? 'active' : ''} disabled={item === 'Outputs' && !workingZip} onClick={() => setPanel(item)}><strong>{item}</strong></button>)}</nav></aside><section className="main-area"><header className="header"><div><p className="eyebrow">{panel === 'Dashboard' ? 'Client operations' : `${round} workflow`}</p><h1>{panel}</h1></div></header><p className={`workspace-operation-status ${statusTone}`} role={statusTone === 'error' ? 'alert' : 'status'} aria-live="polite">{status}</p>{panel === 'Dashboard' && dashboard()}{panel === 'Templates' && <TemplateProgressiveWorkspace round={round} slots={refs} supportingReady={evidence.supporting.length > 0} onSelectRound={(value) => { setRound(value); clearOutputs(); }} onUploadLetter={uploadRef} onRemoveLetter={removeRef} onExhibitsChange={(value) => { setTemplates(value); clearOutputs(); }} onMessage={(message) => report(message)} />}{panel === 'Source Data' && sourceView()}{panel === 'Outputs' && <OutputReviewWorkspace round={round} outputs={docs} expectedRoutes={routes} zipName={workingZip?.name} warnings={warnings} finalPackets={packets} finalizing={finalizing} finalZipName={finalZip?.name} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={(value) => setEvidence(value)} onMessage={(message) => report(message)} onZip={() => workingZip && download(workingZip.name, workingZip.blob)} onFinalZip={() => finalZip && download(finalZip.name, finalZip.blob)} onFinalize={finalize} onPreviewPacket={preview} onPdfDownload={(item) => download(item.path.split('/').pop() || 'packet.pdf', item.blob)} onReplace={saveEdited} />}{panel === 'Filing Tracker' && <FilingTrackerWorkspace records={filings} outputsAvailable={Boolean(workingZip)} onReturnToOutputs={() => setPanel('Outputs')} onStartCase={begin} onMarkSent={(id) => setFilings(markFilingSent(id))} />}{panel === 'Settings' && <WorkspaceSettingsPanel preferences={preferences} caseCount={cases.length} filingCount={filings.length} onChange={(value) => setPreferences(saveWorkspacePreferences(value))} onExportRecords={() => download('LETTERGENERATOR_OPERATIONAL_RECORDS.json', new Blob([JSON.stringify(exportOperationsRecords(), null, 2)], { type: 'application/json' }))} onClearRecords={() => { const value = clearOperationsRecords(); setCases(value.cases); setFilings(value.filings); }} />}</section></main>;
+  return <main className="app-shell"><aside className="sidebar"><div className="brand"><span /><div><strong>LetterGenerator</strong><small>Packet workflow</small></div></div><nav>{panels.map((item) => <button key={item} className={panel === item ? 'active' : ''} disabled={item === 'Outputs' && !orderedZip} onClick={() => setPanel(item)}><strong>{item}</strong></button>)}</nav></aside><section className="main-area"><header className="header"><div><p className="eyebrow">{panel === 'Dashboard' ? 'Client operations' : `${round} workflow`}</p><h1>{panel}</h1></div></header><p className={`workspace-operation-status ${statusTone}`} role={statusTone === 'error' ? 'alert' : 'status'} aria-live="polite">{status}</p>{panel === 'Dashboard' && dashboard()}{panel === 'Templates' && <TemplateProgressiveWorkspace round={round} slots={refs} supportingReady={evidence.supporting.length > 0} onSelectRound={(value) => { setRound(value); clearOutputs(); }} onUploadLetter={uploadRef} onRemoveLetter={removeRef} onExhibitsChange={(value) => { setTemplates(value); clearOutputs(); }} onMessage={(message) => report(message)} />}{panel === 'Source Data' && sourceView()}{panel === 'Outputs' && <OutputReviewWorkspace round={round} outputs={docs} expectedRoutes={routes} zipName={orderedZip?.name} warnings={warnings} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={(value) => void updateOutputEvidence(value)} onMessage={(message) => report(message)} onZip={() => orderedZip && download(orderedZip.name, orderedZip.blob)} onReplace={saveEdited} />}{panel === 'Filing Tracker' && <FilingTrackerWorkspace records={filings} outputsAvailable={Boolean(orderedZip)} onReturnToOutputs={() => setPanel('Outputs')} onStartCase={begin} onMarkSent={(id) => setFilings(markFilingSent(id))} />}{panel === 'Settings' && <WorkspaceSettingsPanel preferences={preferences} caseCount={cases.length} filingCount={filings.length} onChange={(value) => setPreferences(saveWorkspacePreferences(value))} onExportRecords={() => download('LETTERGENERATOR_OPERATIONAL_RECORDS.json', new Blob([JSON.stringify(exportOperationsRecords(), null, 2)], { type: 'application/json' }))} onClearRecords={() => { const value = clearOperationsRecords(); setCases(value.cases); setFilings(value.filings); }} />}</section></main>;
 }
