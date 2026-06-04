@@ -15,9 +15,11 @@ const ACCOUNT_SECTION_PATTERNS = [
 const LEGAL_BOUNDARY_PATTERNS = [
   /^LEGAL\s+DEMAND(?:\s+AND\s+NOTICE\s+OF\s+DUTY)?$/i,
   /^REQUEST(?:ED)?\s+ACTION$/i,
-  /^NOTICE\s+OF\s+DUTY$/i
+  /^NOTICE\s+OF\s+DUTY$/i,
+  /^CONCLUSION$/i,
+  /^CLOSING$/i
 ];
-const SIGNATURE_PATTERN = /^Sincerely,?$/i;
+const SIGNATURE_PATTERN = /^(?:Sincerely|Respectfully(?:\s+submitted)?|Best\s+regards|Regards|Yours\s+(?:truly|sincerely)|Very\s+truly\s+yours|Thank\s+you),?$/i;
 
 export type TemplateValue = string | number | boolean | Array<Record<string, string>>;
 export type PlaceholderValues = Record<string, TemplateValue>;
@@ -43,11 +45,6 @@ export async function renderDocxTemplate(template: File, values: PlaceholderValu
 function paragraphs(body: Element) { return Array.from(body.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'p') as Element[]; }
 function content(paragraph: Element) { return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't')).map((node) => node.textContent || '').join('').trim(); }
 function findParagraph(all: Element[], patterns: RegExp[]) { return all.find((paragraph) => patterns.some((pattern) => pattern.test(content(paragraph)))); }
-function required(all: Element[], pattern: RegExp, label: string) {
-  const found = all.find((paragraph) => pattern.test(content(paragraph)));
-  if (!found) throw new Error(`Reference DOCX is missing section: ${label}`);
-  return found;
-}
 function styleOf(paragraph: Element) {
   const runs = Array.from(paragraph.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'r');
   return (runs.find((run) => content(run)) || runs[0] || paragraph.ownerDocument.createElementNS(WORD_NS, 'w:r')).cloneNode(true) as Element;
@@ -171,24 +168,35 @@ function disputePlaceholderValues(values: ReferenceDisputeValues): PlaceholderVa
     hard_inquiry_lines: source.inquiries.join('\n')
   };
 }
-function writeReferenceDisputeItems(body: Element, source: { accounts: string[]; inquiries: string[] }) {
+function terminalBodyBoundary(body: Element) {
+  return Array.from(body.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'sectPr') || null;
+}
+function insertMappedDisputeItems(body: Element, source: { accounts: string[]; inquiries: string[] }) {
+  if (!source.accounts.length && !source.inquiries.length) throw new Error('No matching account or inquiry records were found.');
   const all = paragraphs(body);
   const accountHeading = findParagraph(all, ACCOUNT_SECTION_PATTERNS);
   const legalBoundary = findParagraph(all, LEGAL_BOUNDARY_PATTERNS);
   const signatureBoundary = all.find((paragraph) => SIGNATURE_PATTERN.test(content(paragraph)));
-  const insertionBoundary = legalBoundary || signatureBoundary;
-  if (!insertionBoundary) throw new Error('Reference DOCX needs a Legal Demand or Sincerely section to insert disputed accounts.');
-  if (!source.accounts.length && !source.inquiries.length) throw new Error('No matching account or inquiry records were found.');
-  const headingIndex = accountHeading ? all.indexOf(accountHeading) : -1;
-  const legalIndex = legalBoundary ? all.indexOf(legalBoundary) : -1;
-  const reusableRegion = accountHeading && legalBoundary && legalIndex > headingIndex
-    ? all.slice(headingIndex + 1, legalIndex)
+  const terminalBoundary = terminalBodyBoundary(body);
+  const standardBoundary = legalBoundary || signatureBoundary;
+  const accountHeadingIndex = accountHeading ? all.indexOf(accountHeading) : -1;
+  const standardBoundaryIndex = standardBoundary ? all.indexOf(standardBoundary) : -1;
+  const reusableRegion = accountHeading && standardBoundary && standardBoundaryIndex > accountHeadingIndex
+    ? all.slice(accountHeadingIndex + 1, standardBoundaryIndex)
     : [];
-  const itemStyle = reusableRegion.find((paragraph) => content(paragraph) && !content(paragraph).startsWith(STATEMENT_PREFIX)) || accountHeading || insertionBoundary;
+  const itemStyle = reusableRegion.find((paragraph) => content(paragraph) && !content(paragraph).startsWith(STATEMENT_PREFIX))
+    || accountHeading
+    || standardBoundary
+    || all.find((paragraph) => content(paragraph))!;
   const statementStyle = reusableRegion.find((paragraph) => content(paragraph).startsWith(STATEMENT_PREFIX));
   const spacer = reusableRegion.find((paragraph) => !content(paragraph));
   if (reusableRegion.length) reusableRegion.forEach((paragraph) => body.removeChild(paragraph));
-  const insert = (node: Node) => body.insertBefore(node, insertionBoundary);
+
+  // Prefer an existing packet boundary. When the reference letter uses custom wording,
+  // put mapped items directly beneath an existing account heading; otherwise append a
+  // clearly titled account block before Word's final section node for manual review.
+  const boundary = standardBoundary || (accountHeading ? accountHeading.nextSibling : terminalBoundary);
+  const insert = (node: Node) => boundary ? body.insertBefore(node, boundary) : body.appendChild(node);
   const addSpace = () => { if (spacer) insert(spacer.cloneNode(true)); };
   if (!accountHeading) insert(cloneWithText(itemStyle, ['DISPUTED ACCOUNTS']));
   addSpace();
@@ -218,18 +226,20 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   const body = xml.getElementsByTagNameNS(WORD_NS, 'body')[0];
   if (!body) throw new Error('DOCX body is unavailable.');
   const source = resolved(values);
-  let all = paragraphs(body);
+  const all = paragraphs(body);
   const nonEmpty = all.filter((paragraph) => content(paragraph));
   if (nonEmpty.length < 3) throw new Error('Reference header layout is incomplete.');
   writeLines(nonEmpty[0], [values.consumerName, ...disputeAddressLines(values), `DOB: ${values.dob}`, `SSN: ${values.ssn}`]);
   writeLines(nonEmpty[1], [values.letterDate]);
   writeLines(nonEmpty[2], [values.bureauName, ...values.bureauAddressLines]);
   compactSsnDateBoundary(body, nonEmpty[0], nonEmpty[1]);
-  writeReferenceDisputeItems(body, source);
-  all = paragraphs(body);
-  const close = required(all, SIGNATURE_PATTERN, 'Sincerely');
-  const signature = all.slice(all.indexOf(close) + 1).find((paragraph) => content(paragraph));
-  if (signature) writeLines(signature, [values.consumerName]);
+  insertMappedDisputeItems(body, source);
+  const renderedParagraphs = paragraphs(body);
+  const close = renderedParagraphs.find((paragraph) => SIGNATURE_PATTERN.test(content(paragraph)));
+  if (close) {
+    const signature = renderedParagraphs.slice(renderedParagraphs.indexOf(close) + 1).find((paragraph) => content(paragraph));
+    if (signature) writeLines(signature, [values.consumerName]);
+  }
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
   return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
