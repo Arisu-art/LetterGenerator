@@ -1,5 +1,5 @@
-/* Measured print-layout DOCX preview.
-   Content is flowed into fixed visible sheets by docx-preview-pagination.ts. */
+/* Template-native print-layout DOCX preview.
+   Word section geometry defines each sheet and printable content area. */
 .consolidated-packet-editor .packet-inline-docx-host {
   padding: 22px 18px 42px !important;
   background: #e6ebf1 !important;
@@ -16,21 +16,36 @@
   overflow: visible !important;
   background: transparent !important;
 }
-.consolidated-packet-editor .packet-inline-docx-host section.docx,
-.consolidated-packet-editor .packet-inline-docx-host section.packet-inline-docx {
+.consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page {
   position: relative !important;
   flex: 0 0 auto !important;
-  width: var(--docx-page-width, 8.5in) !important;
-  min-width: var(--docx-page-width, 8.5in) !important;
-  max-width: var(--docx-page-width, 8.5in) !important;
-  height: var(--docx-page-height, 11in) !important;
-  min-height: var(--docx-page-height, 11in) !important;
-  max-height: var(--docx-page-height, 11in) !important;
+  width: var(--docx-page-width) !important;
+  min-width: var(--docx-page-width) !important;
+  max-width: var(--docx-page-width) !important;
+  height: var(--docx-page-height) !important;
+  min-height: var(--docx-page-height) !important;
+  max-height: var(--docx-page-height) !important;
   margin: 0 auto !important;
-  overflow: visible !important;
+  padding: 0 !important;
+  overflow: hidden !important;
   box-sizing: border-box !important;
   background: #fff !important;
   box-shadow: 0 12px 30px rgba(15,23,37,.16) !important;
+}
+.consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page .measured-docx-content {
+  position: absolute !important;
+  left: var(--docx-margin-left) !important;
+  top: var(--docx-margin-top) !important;
+  width: var(--docx-content-width) !important;
+  height: var(--docx-content-height) !important;
+  min-height: 0 !important;
+  max-height: var(--docx-content-height) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 .consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page::after {
   content: 'Page ' attr(data-page-number);
@@ -43,7 +58,7 @@
   letter-spacing: .04em;
   text-transform: uppercase;
 }
-.consolidated-packet-editor .packet-inline-docx-host section.docx-page-oversized {
+.consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page.docx-page-oversized {
   outline: 2px solid #d24b45;
   outline-offset: 2px;
 }
@@ -76,6 +91,19 @@
   font-weight: 730;
   text-align: center;
 }
+.docx-page-layout-label {
+  min-height: 29px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #dbe4ee;
+  border-radius: 999px;
+  color: #667085;
+  background: #f8fafc;
+  font-size: 10px;
+  font-weight: 690;
+  white-space: nowrap;
+}
 .docx-page-oversized-alert {
   margin: 0;
   padding: 10px 14px;
@@ -86,12 +114,9 @@
   line-height: 1.5;
 }
 @media(max-width: 980px) {
-  .consolidated-packet-editor .packet-inline-docx-host section.docx,
-  .consolidated-packet-editor .packet-inline-docx-host section.packet-inline-docx {
-    transform-origin: top center !important;
-  }
   .docx-page-navigation {
     width: 100%;
     order: 2;
+    flex-wrap: wrap;
   }
 }
