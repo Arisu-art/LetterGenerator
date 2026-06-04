@@ -1,36 +1,22 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import {
-  applyPaperPreset,
-  changePageLayout,
-  describePageLayout,
-  paginateDocxPreview,
-  readDocxPageLayout,
-  writeDocxPageLayout,
-  type DocxPageLayout,
-  type PaperName
-} from '../lib/docx-preview-pagination';
+import { paginateDocxPreview, readDocxPageLayout } from '../lib/docx-preview-pagination';
 import { readEditableParagraphs, saveEditedParagraphs, type EditableParagraph, type ParagraphAlignment } from '../lib/simple-docx-editor';
 import type { ReviewOutput } from './OutputReviewWorkspace';
 
 type Props = { label: string; slotId: string; output: ReviewOutput; onSave: (output: ReviewOutput, file: File) => void | Promise<void> };
 const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36];
 const LINE_SPACING = [1, 1.15, 1.5, 2];
-const PAPER_OPTIONS: PaperName[] = ['Letter', 'Legal', 'A4', 'A3', 'Custom'];
 function fileName(output: ReviewOutput) { return output.path.split('/').pop() || 'document.docx'; }
 function textOf(node: HTMLElement) { return (node.innerText || '').replace(/\u00a0/g, ' ').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim(); }
 function pageLabel(page: number, total: number) { return total ? `Page ${page} of ${total}` : 'Preparing pages'; }
-function numberValue(value: string, fallback: number) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
 function applyPreviewFormatting(node: HTMLElement, paragraph: EditableParagraph) {
   const properties: Array<[string, string]> = [['font-weight', paragraph.bold ? '700' : '400'], ['font-style', paragraph.italic ? 'italic' : 'normal'], ['text-decoration', paragraph.underline ? 'underline' : 'none'], ['color', paragraph.color], ['font-size', `${paragraph.fontSize}pt`]];
   node.style.setProperty('text-align', paragraph.alignment, 'important');
   node.style.setProperty('line-height', String(paragraph.lineSpacing), 'important');
   node.style.setProperty('margin-bottom', `${paragraph.spacingAfter}pt`, 'important');
   [node, ...Array.from(node.querySelectorAll<HTMLElement>('span'))].forEach((element) => properties.forEach(([name, value]) => element.style.setProperty(name, value, 'important')));
-}
-function MarginField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return <label className="docx-layout-field"><span>{label}</span><input type="number" min="0" step="0.05" value={value} onChange={(event) => onChange(numberValue(event.target.value, value))} /><small>in</small></label>;
 }
 export default function MeasuredDocxEditorSection({ label, slotId, output, onSave }: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -39,39 +25,22 @@ export default function MeasuredDocxEditorSection({ label, slotId, output, onSav
   const [paragraphs, setParagraphs] = useState<EditableParagraph[]>([]);
   const [activeId, setActiveId] = useState('');
   const [dirty, setDirty] = useState(false);
-  const [layout, setLayout] = useState<DocxPageLayout | null>(null);
-  const [layoutDirty, setLayoutDirty] = useState(false);
-  const [layoutOpen, setLayoutOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('Loading document');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageCount, setPageCount] = useState(0);
   const [oversizedPages, setOversizedPages] = useState<number[]>([]);
   const selected = paragraphs.find((paragraph) => paragraph.id === activeId) || paragraphs[0];
-  const hasChanges = dirty || layoutDirty;
   function goToPage(value: number) { const page = Math.max(1, Math.min(value, pages.current.length || 1)); pages.current[page - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' }); setCurrentPage(page); }
-  function updateLayout(change: Partial<DocxPageLayout>) {
-    if (!layout) return;
-    setLayout(changePageLayout(layout, change)); setLayoutDirty(true); setStatus('Save to apply document layout');
-  }
-  function choosePaper(name: PaperName) {
-    if (!layout) return;
-    setLayout(applyPaperPreset(layout, name, layout.orientation)); setLayoutDirty(true); setStatus('Save to apply document layout');
-  }
-  function chooseOrientation(orientation: DocxPageLayout['orientation']) {
-    if (!layout) return;
-    setLayout(layout.name === 'Custom' ? changePageLayout(layout, { orientation, widthIn: layout.heightIn, heightIn: layout.widthIn }) : applyPaperPreset(layout, layout.name, orientation));
-    setLayoutDirty(true); setStatus('Save to apply document layout');
-  }
   useEffect(() => {
     let live = true; let removeScroll: (() => void) | undefined;
-    setDirty(false); setLayoutDirty(false); setStatus('Loading document'); setCurrentPage(1); setPageCount(0); setOversizedPages([]); nodes.current.clear(); pages.current = [];
-    void Promise.all([readEditableParagraphs(output.blob), readDocxPageLayout(output.blob), import('docx-preview')]).then(async ([items, pageLayout, renderer]) => {
+    setDirty(false); setStatus('Loading document'); setCurrentPage(1); setPageCount(0); setOversizedPages([]); nodes.current.clear(); pages.current = [];
+    void Promise.all([readEditableParagraphs(output.blob), readDocxPageLayout(output.blob), import('docx-preview')]).then(async ([items, templateLayout, renderer]) => {
       if (!live || !host.current) return;
-      setParagraphs(items); setActiveId(items[0]?.id || ''); setLayout(pageLayout); host.current.innerHTML = '';
+      setParagraphs(items); setActiveId(items[0]?.id || ''); host.current.innerHTML = '';
       await renderer.renderAsync(await output.blob.arrayBuffer(), host.current, undefined, { className: 'packet-inline-docx', inWrapper: true, ignoreWidth: false, ignoreHeight: false, breakPages: true, renderHeaders: false, renderFooters: false });
       if (!live || !host.current) return;
-      const paginated = paginateDocxPreview(host.current, pageLayout);
+      const paginated = paginateDocxPreview(host.current, templateLayout);
       pages.current = paginated.pages; setPageCount(paginated.pages.length || 1); setOversizedPages(paginated.oversizedPages);
       const scrollRoot = host.current.closest<HTMLElement>('.packet-focus-scroll');
       if (scrollRoot && paginated.pages.length > 1) {
@@ -80,7 +49,7 @@ export default function MeasuredDocxEditorSection({ label, slotId, output, onSav
       }
       const renderedParagraphs = Array.from(host.current.querySelectorAll<HTMLElement>('.measured-docx-content p')).filter((element) => Boolean(element.textContent?.trim()));
       items.forEach((item, index) => { const element = renderedParagraphs[index]; if (!element) return; nodes.current.set(item.id, element); element.contentEditable = 'true'; element.spellcheck = true; element.addEventListener('focus', () => setActiveId(item.id)); element.addEventListener('input', () => { setDirty(true); setStatus('Save to recalculate pages'); setParagraphs((current) => current.map((entry) => entry.id === item.id ? { ...entry, text: textOf(element), dirty: true } : entry)); }); });
-      setStatus('Layout preview ready');
+      setStatus('Template layout preview ready');
     }).catch((error: Error) => { if (live) setStatus(error.message); });
     return () => { live = false; removeScroll?.(); };
   }, [output.blob, label]);
@@ -88,18 +57,16 @@ export default function MeasuredDocxEditorSection({ label, slotId, output, onSav
   async function save() {
     setSaving(true); setStatus('Saving');
     try {
-      let blob = dirty ? await saveEditedParagraphs(output.blob, paragraphs) : output.blob;
-      if (layoutDirty && layout) blob = await writeDocxPageLayout(blob, layout);
+      const blob = await saveEditedParagraphs(output.blob, paragraphs);
       await onSave(output, new File([blob], fileName(output), { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
-      setDirty(false); setLayoutDirty(false); setStatus('Saved · preview rebuilding');
+      setDirty(false); setStatus('Saved · preview rebuilding');
     } catch (error) { setStatus(error instanceof Error ? error.message : 'Save failed.'); }
     finally { setSaving(false); }
   }
   return <article className="packet-focus-section packet-stack-editable" data-slot={slotId}>
-    <div className="packet-document-toolbar"><div className="docx-page-navigation" aria-label="Document pages"><button type="button" disabled={currentPage <= 1 || pageCount < 2} onClick={() => goToPage(currentPage - 1)}>Previous page</button><strong>{pageLabel(currentPage, pageCount)}</strong>{layout && <span className="docx-page-layout-label">{describePageLayout(layout)}</span>}<button type="button" className="docx-layout-toggle" onClick={() => setLayoutOpen((open) => !open)}>{layoutOpen ? 'Hide layout' : 'Document layout'}</button><button type="button" disabled={currentPage >= pageCount || pageCount < 2} onClick={() => goToPage(currentPage + 1)}>Next page</button></div><span className={`packet-edit-state ${hasChanges ? 'changed' : ''}`}>{status}</span><button className="packet-save-button" type="button" disabled={!hasChanges || saving} onClick={() => void save()}>{saving ? 'Saving…' : hasChanges ? 'Save changes' : 'Saved'}</button></div>
-    {layoutOpen && layout && <section className="docx-layout-panel" aria-label="Document layout settings"><header><div><p className="eyebrow">Document layout</p><h3>Page size and margins</h3><p>Default values are read from the DOCX template. Saving writes these settings into the generated document.</p></div><small>{layout.sectionCount} Word section{layout.sectionCount === 1 ? '' : 's'} updated</small></header><div className="docx-layout-controls"><label className="docx-layout-select"><span>Paper</span><select value={layout.name} onChange={(event) => choosePaper(event.target.value as PaperName)}>{PAPER_OPTIONS.map((paper) => <option key={paper} value={paper}>{paper}</option>)}</select></label><label className="docx-layout-select"><span>Orientation</span><select value={layout.orientation} onChange={(event) => chooseOrientation(event.target.value as DocxPageLayout['orientation'])}><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label><MarginField label="Width" value={layout.widthIn} onChange={(value) => updateLayout({ widthIn: value })} /><MarginField label="Height" value={layout.heightIn} onChange={(value) => updateLayout({ heightIn: value })} /><MarginField label="Top margin" value={layout.marginTopIn} onChange={(value) => updateLayout({ marginTopIn: value })} /><MarginField label="Right margin" value={layout.marginRightIn} onChange={(value) => updateLayout({ marginRightIn: value })} /><MarginField label="Bottom margin" value={layout.marginBottomIn} onChange={(value) => updateLayout({ marginBottomIn: value })} /><MarginField label="Left margin" value={layout.marginLeftIn} onChange={(value) => updateLayout({ marginLeftIn: value })} /></div></section>}
+    <div className="packet-document-toolbar"><div className="docx-page-navigation" aria-label="Document pages"><button type="button" disabled={currentPage <= 1 || pageCount < 2} onClick={() => goToPage(currentPage - 1)}>Previous page</button><strong>{pageLabel(currentPage, pageCount)}</strong><button type="button" disabled={currentPage >= pageCount || pageCount < 2} onClick={() => goToPage(currentPage + 1)}>Next page</button></div><span className={`packet-edit-state ${dirty ? 'changed' : ''}`}>{status}</span><button className="packet-save-button" type="button" disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}</button></div>
     <div className="docx-format-toolbar" aria-label="Document formatting toolbar"><div className="docx-format-selection"><span>Selected paragraph</span><strong>{selected ? `Paragraph ${paragraphs.findIndex((item) => item.id === selected.id) + 1}` : 'Select text'}</strong></div><div className="docx-format-group docx-format-toggles"><button type="button" className={selected?.bold ? 'active' : ''} disabled={!selected} onClick={() => format({ bold: !selected?.bold })}><b>B</b></button><button type="button" className={selected?.italic ? 'active' : ''} disabled={!selected} onClick={() => format({ italic: !selected?.italic })}><i>I</i></button><button type="button" className={selected?.underline ? 'active' : ''} disabled={!selected} onClick={() => format({ underline: !selected?.underline })}><u>U</u></button></div><label className="docx-format-field"><span>Size</span><select disabled={!selected} value={selected?.fontSize || 11} onChange={(event) => format({ fontSize: Number(event.target.value) })}>{FONT_SIZES.map((size) => <option key={size} value={size}>{size} pt</option>)}</select></label><label className="docx-format-field color-field"><span>Color</span><input type="color" disabled={!selected} value={selected?.color || '#111827'} onChange={(event) => format({ color: event.target.value })} /></label><label className="docx-format-field"><span>Alignment</span><select disabled={!selected} value={selected?.alignment || 'left'} onChange={(event) => format({ alignment: event.target.value as ParagraphAlignment })}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option></select></label><label className="docx-format-field"><span>Line spacing</span><select disabled={!selected} value={selected?.lineSpacing || 1.15} onChange={(event) => format({ lineSpacing: Number(event.target.value) })}>{LINE_SPACING.map((spacing) => <option key={spacing} value={spacing}>{spacing}</option>)}</select></label></div>
-    {oversizedPages.length > 0 && <p className="docx-page-oversized-alert" role="alert">A protected content block is larger than the printable area on page {oversizedPages.join(', ')}. Reduce its size or adjust margins before delivery.</p>}
-    <div ref={host} className="packet-inline-docx-host" aria-label={`${label} template-size layout preview`} />
+    {oversizedPages.length > 0 && <p className="docx-page-oversized-alert" role="alert">A protected content block is larger than the printable area on page {oversizedPages.join(', ')}. Review the original template layout or reduce that block before delivery.</p>}
+    <div ref={host} className="packet-inline-docx-host" aria-label={`${label} template-controlled layout preview`} />
   </article>;
 }
