@@ -1,5 +1,5 @@
-/* Print-layout DOCX preview
-   Preserve visible paper boundaries so reviewers can inspect page flow before download. */
+/* Measured print-layout DOCX preview.
+   Content is flowed into fixed visible sheets by docx-preview-pagination.ts. */
 .consolidated-packet-editor .packet-inline-docx-host {
   padding: 22px 18px 42px !important;
   background: #e6ebf1 !important;
@@ -32,8 +32,7 @@
   background: #fff !important;
   box-shadow: 0 12px 30px rgba(15,23,37,.16) !important;
 }
-.consolidated-packet-editor .packet-inline-docx-host section.docx::after,
-.consolidated-packet-editor .packet-inline-docx-host section.packet-inline-docx::after {
+.consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page::after {
   content: 'Page ' attr(data-page-number);
   position: absolute;
   right: 0;
@@ -44,8 +43,7 @@
   letter-spacing: .04em;
   text-transform: uppercase;
 }
-.consolidated-packet-editor .packet-inline-docx-host section.docx.docx-page-overflow,
-.consolidated-packet-editor .packet-inline-docx-host section.packet-inline-docx.docx-page-overflow {
+.consolidated-packet-editor .packet-inline-docx-host section.docx-page-oversized {
   outline: 2px solid #d24b45;
   outline-offset: 2px;
 }
@@ -78,7 +76,7 @@
   font-weight: 730;
   text-align: center;
 }
-.docx-page-overflow-alert {
+.docx-page-oversized-alert {
   margin: 0;
   padding: 10px 14px;
   border-bottom: 1px solid #ecd0cc;
