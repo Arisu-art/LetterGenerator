@@ -1,6 +1,6 @@
 'use client';
 
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib';
 
 export type PdfPacketPart = {
   label: string;
@@ -23,16 +23,58 @@ export type PdfAssemblyOptions = {
   requireAllParts?: boolean;
 };
 
+type PacketFonts = { regular: PDFFont; bold: PDFFont };
+
+/**
+ * Weak caches release their entries automatically after the corresponding uploaded
+ * document blobs are discarded. The same Affidavit, FTC report and static PDFs
+ * are reused across bureau packets, so rendering them once prevents repeated
+ * browser-side DOCX rasterization and repeated binary reads on large jobs.
+ */
+const renderedDocxPdfCache = new WeakMap<Blob, Promise<Blob>>();
+const blobBufferCache = new WeakMap<Blob, Promise<ArrayBuffer>>();
+const packetFontCache = new WeakMap<PDFDocument, Promise<PacketFonts>>();
+
 function toPdfBlob(bytes: Uint8Array) {
   const copy = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
   return new Blob([copy.buffer], { type: 'application/pdf' });
 }
 
+function readBlobBuffer(blob: Blob) {
+  let cached = blobBufferCache.get(blob);
+  if (!cached) {
+    cached = blob.arrayBuffer().catch((error) => {
+      blobBufferCache.delete(blob);
+      throw error;
+    });
+    blobBufferCache.set(blob, cached);
+  }
+  return cached;
+}
+
+function loadPacketFonts(target: PDFDocument) {
+  let cached = packetFontCache.get(target);
+  if (!cached) {
+    cached = Promise.all([
+      target.embedFont(StandardFonts.Helvetica),
+      target.embedFont(StandardFonts.HelveticaBold)
+    ]).then(([regular, bold]) => ({ regular, bold }));
+    packetFontCache.set(target, cached);
+  }
+  return cached;
+}
+
+function yieldToBrowser() {
+  return new Promise<void>((resolve) => {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
+    else setTimeout(resolve, 0);
+  });
+}
+
 async function addNonePage(target: PDFDocument, label: string) {
   const page = target.addPage([612, 792]);
-  const regular = await target.embedFont(StandardFonts.Helvetica);
-  const bold = await target.embedFont(StandardFonts.HelveticaBold);
+  const { regular, bold } = await loadPacketFonts(target);
   page.drawText(label.toUpperCase(), { x: 54, y: 710, size: 11, font: bold, color: rgb(0.15, 0.4, 0.7) });
   page.drawLine({ start: { x: 54, y: 693 }, end: { x: 558, y: 693 }, thickness: 1, color: rgb(0.86, 0.9, 0.94) });
   page.drawText('None', { x: 54, y: 420, size: 40, font: bold, color: rgb(0.18, 0.23, 0.32) });
@@ -48,18 +90,18 @@ export async function createBlankPdf(label = 'Packet component') {
   return toPdfBlob(await document.save());
 }
 
-async function addRenderedDocx(target: PDFDocument, blob: Blob, label: string) {
+async function renderDocxToPdf(blob: Blob, label: string) {
   const [{ renderAsync }, html2canvas] = await Promise.all([
     import('docx-preview'),
     import('html2canvas').then((module) => module.default)
   ]);
+  const target = await PDFDocument.create();
   const host = document.createElement('div');
   host.className = 'pdf-render-host';
   host.setAttribute('aria-hidden', 'true');
   document.body.appendChild(host);
-  let count = 0;
   try {
-    await renderAsync(await blob.arrayBuffer(), host, undefined, {
+    await renderAsync(await readBlobBuffer(blob), host, undefined, {
       className: 'packet-pdf-docx', inWrapper: true, ignoreWidth: false, ignoreHeight: false,
       breakPages: true, renderHeaders: true, renderFooters: true
     });
@@ -71,17 +113,29 @@ async function addRenderedDocx(target: PDFDocument, blob: Blob, label: string) {
       const embedded = await target.embedPng(canvas.toDataURL('image/png'));
       const pdfPage = target.addPage([embedded.width, embedded.height]);
       pdfPage.drawImage(embedded, { x: 0, y: 0, width: embedded.width, height: embedded.height });
-      count += 1;
+      await yieldToBrowser();
     }
   } finally {
     host.remove();
   }
-  return count;
+  return toPdfBlob(await target.save());
+}
+
+function renderedDocxPdf(blob: Blob, label: string) {
+  let cached = renderedDocxPdfCache.get(blob);
+  if (!cached) {
+    cached = renderDocxToPdf(blob, label).catch((error) => {
+      renderedDocxPdfCache.delete(blob);
+      throw error;
+    });
+    renderedDocxPdfCache.set(blob, cached);
+  }
+  return cached;
 }
 
 async function addStaticPdf(target: PDFDocument, blob: Blob, label: string, requireAllParts: boolean) {
   try {
-    const source = await PDFDocument.load(await blob.arrayBuffer());
+    const source = await PDFDocument.load(await readBlobBuffer(blob));
     const copied = await target.copyPages(source, source.getPageIndices());
     if (!copied.length) throw new Error(`${label} PDF contains no pages.`);
     copied.forEach((page) => target.addPage(page));
@@ -98,8 +152,9 @@ async function addPart(target: PDFDocument, part: PdfPacketPart, requireAllParts
     return addNonePage(target, part.label);
   }
   if (part.kind === 'DOCX') {
-    try { return await addRenderedDocx(target, part.blob, part.label); }
-    catch (error) {
+    try {
+      return await addStaticPdf(target, await renderedDocxPdf(part.blob, part.label), part.label, requireAllParts);
+    } catch (error) {
       if (requireAllParts) throw error;
       return addNonePage(target, part.label);
     }
