@@ -123,10 +123,10 @@
   border-color: #cbd5e1;
   background: #fff;
 }
+/* Expanded configuration is intentionally in normal flow; only editing tools remain pinned. */
 .docx-layout-panel {
-  position: sticky;
-  top: 40px;
-  z-index: 12;
+  position: relative;
+  z-index: 2;
   display: grid;
   gap: 15px;
   padding: 15px 16px;
