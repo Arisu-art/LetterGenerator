@@ -1,5 +1,6 @@
 /* Template-native print-layout DOCX preview.
-   Word section geometry defines each sheet and printable content area. */
+   Word section geometry defines each sheet and printable content area.
+   QA rule: preview may warn, but must never silently hide generated text. */
 .consolidated-packet-editor .packet-inline-docx-host {
   padding: 22px 18px 42px !important;
   background: #e6ebf1 !important;
@@ -22,27 +23,21 @@
   width: var(--docx-page-width) !important;
   min-width: var(--docx-page-width) !important;
   max-width: var(--docx-page-width) !important;
-  height: var(--docx-page-height) !important;
   min-height: var(--docx-page-height) !important;
-  max-height: var(--docx-page-height) !important;
   margin: 0 auto !important;
   padding: 0 !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   box-sizing: border-box !important;
   background: #fff !important;
   box-shadow: 0 12px 30px rgba(15,23,37,.16) !important;
 }
 .consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page .measured-docx-content {
-  position: absolute !important;
-  left: var(--docx-margin-left) !important;
-  top: var(--docx-margin-top) !important;
+  position: relative !important;
   width: var(--docx-content-width) !important;
-  height: var(--docx-content-height) !important;
-  min-height: 0 !important;
-  max-height: var(--docx-content-height) !important;
-  margin: 0 !important;
+  min-height: var(--docx-content-height) !important;
+  margin: var(--docx-margin-top) var(--docx-margin-right) var(--docx-margin-bottom) var(--docx-margin-left) !important;
   padding: 0 !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   box-sizing: border-box !important;
   background: transparent !important;
   box-shadow: none !important;
@@ -56,7 +51,8 @@
   margin: 0;
   padding: 0;
 }
-.consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page::after {
+.consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page::after,
+.consolidated-packet-editor .packet-inline-docx-host section.native-docx-proof-page::after {
   content: 'Page ' attr(data-page-number);
   position: absolute;
   right: 0;
@@ -70,6 +66,12 @@
 .consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page.docx-page-oversized {
   outline: 2px solid #d24b45;
   outline-offset: 2px;
+}
+.consolidated-packet-editor .packet-inline-docx-host section.native-docx-proof-page {
+  position: relative !important;
+  margin: 0 auto 28px !important;
+  overflow: visible !important;
+  box-shadow: 0 12px 30px rgba(15,23,37,.16) !important;
 }
 .docx-page-navigation {
   margin-right: auto;
@@ -105,6 +107,7 @@
   font-weight: 730;
   text-align: center;
 }
+.docx-preview-qa-notice,
 .docx-page-oversized-alert {
   margin: 0;
   padding: 10px 14px;
@@ -113,6 +116,11 @@
   background: #fff6f5;
   font-size: 11px;
   line-height: 1.5;
+}
+.docx-preview-qa-notice {
+  border-bottom-color: #dbe4ee;
+  color: #475467;
+  background: #f8fafc;
 }
 @media(max-width: 980px) {
   .docx-page-navigation {
