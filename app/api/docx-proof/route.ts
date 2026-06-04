@@ -43,12 +43,9 @@ async function convertWithLibreOffice(binary: string, inputPath: string, outputD
   await execFileAsync(binary, args, { timeout: 60000, windowsHide: true, maxBuffer: 1024 * 1024 * 8 });
 }
 export async function POST(request: NextRequest) {
-  const workDir = await mkdir(path.join(os.tmpdir(), `letter-generator-docx-proof-${randomUUID()}`), { recursive: true }).then(() => path.join(os.tmpdir(), `letter-generator-docx-proof-${randomUUID()}`)).catch(async () => {
-    const fallback = path.join(os.tmpdir(), `letter-generator-docx-proof-${Date.now()}-${Math.random().toString(16).slice(2)}`);
-    await mkdir(fallback, { recursive: true });
-    return fallback;
-  });
+  const workDir = path.join(os.tmpdir(), `letter-generator-docx-proof-${randomUUID()}`);
   try {
+    await mkdir(workDir, { recursive: true });
     const binary = await findLibreOffice();
     if (!binary) {
       return NextResponse.json({ error: 'LibreOffice/soffice is not installed or is not available on PATH. Install LibreOffice in the Codespace/server or set SOFFICE_BIN.' }, { status: 503 });
