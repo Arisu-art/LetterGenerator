@@ -1,0 +1,1 @@
+.focused-packet-editor .editor-packet-map ol > li:nth-child(6){display:none}.focused-packet-editor:has(.packet-focus-section[data-slot="ATTACHMENT"]) .packet-focus-controls button:last-child{visibility:hidden;pointer-events:none}

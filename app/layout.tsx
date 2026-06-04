@@ -43,6 +43,7 @@ import './affidavit-source-mapping.css';
 import './ftc-source-mapping.css';
 import './source-review-compact.css';
 import './generation-activity-monitor.css';
+import './inactive-packet-position.css';
 
 export const metadata = {
   title: 'LetterGenerator',
