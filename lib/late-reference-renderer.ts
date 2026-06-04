@@ -5,6 +5,7 @@ import { applyLetterFlowRules } from './docx-flow';
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const XML_NS = 'http://www.w3.org/XML/1998/namespace';
 const TOKEN = /\{\{\s*[#\/^]?\s*[\w.-]+\s*\}\}/g;
+const CALENDAR_MONTH = '(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan\.?|Feb\.?|Mar\.?|Apr\.?|Jun\.?|Jul\.?|Aug\.?|Sep(?:t)?\.?|Oct\.?|Nov\.?|Dec\.?)';
 
 export type LateReferenceValues = {
   consumerName: string;
@@ -47,29 +48,78 @@ function replaceParagraph(paragraph: Element, lines: string[]) {
     value.textContent = line; run.appendChild(value); paragraph.appendChild(run);
   });
 }
+function cloneParagraph(source: Element, lines: string[]) {
+  const clone = source.cloneNode(true) as Element;
+  replaceParagraph(clone, lines);
+  return clone;
+}
 function matching(all: Element[], expressions: RegExp[], start = -1): Element | undefined { return all.slice(start + 1).find((paragraph) => expressions.some((expression) => expression.test(text(paragraph)))); }
 function exact(all: Element[], expression: RegExp, message: string): Element { const paragraph = all.find((entry) => expression.test(text(entry))); if (!paragraph) throw new Error(message); return paragraph; }
 function normalizedLabel(value: string) { return value.replace(/[\[\]]/g, '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').replace(/:$/, '').trim().toUpperCase(); }
 function bureauGreeting(bureauName: string) { if (/^TransUnion/i.test(bureauName)) return 'TransUnion'; if (/^Equifax/i.test(bureauName)) return 'Equifax'; return 'Experian'; }
+function isDateAnchor(value: string) {
+  const raw = value.replace(/[\[\]]/g, '').replace(/\s+/g, ' ').trim();
+  const key = normalizedLabel(raw);
+  if (/\bDOB\b|DATE\s+OF\s+BIRTH/i.test(key)) return false;
+  return /^(?:DATE|LETTER DATE|DOCUMENT DATE|DATE OF LETTER)(?:\s*[:\-]\s*.*)?$/i.test(raw)
+    || new RegExp(`^${CALENDAR_MONTH}\\s+\\d{1,2},?\\s+\\d{4}$`, 'i').test(raw)
+    || /^\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}$/.test(raw);
+}
+function containsDateMarker(value: string) {
+  return /(?:^|\s)(?:LETTER\s+|DOCUMENT\s+)?DATE(?:\s|:|\]|$)/i.test(value) && !/\bDOB\b|DATE\s+OF\s+BIRTH/i.test(value);
+}
+/** Maps legacy reference headers without forcing one exact date-label layout. */
 function replaceHeaderFromReference(header: Element[], values: LateReferenceValues) {
-  let individualMatches = 0; let clientBlockReplaced = false; let dateReplaced = false; let recipientBlockReplaced = false;
+  let individualMatches = 0;
+  let clientBlockReplaced = false;
+  let dateReplaced = false;
+  let recipientBlockReplaced = false;
+  let clientParagraph: Element | undefined;
+  let recipientParagraph: Element | undefined;
+
   header.forEach((paragraph) => {
-    const key = normalizedLabel(text(paragraph));
-    if (!clientBlockReplaced && /NAME/.test(key) && /ADDRESS/.test(key) && /DOB/.test(key) && /SSN/.test(key)) { replaceParagraph(paragraph, [values.consumerName, ...values.addressLines, `DOB: ${values.dob}`, `SSN: ${values.ssn}`]); clientBlockReplaced = true; return; }
-    if (!recipientBlockReplaced && /(CREDIT\s*BUREAU\s*NAME|BUREAU\s*NAME)/.test(key) && /(DISPUTE\s*ADDRESS|BUREAU\s*ADDRESS|CREDIT\s*BUREAU\s*ADDRESS)/.test(key)) { replaceParagraph(paragraph, [values.bureauName, ...values.bureauAddressLines]); recipientBlockReplaced = true; return; }
+    const visible = text(paragraph);
+    const key = normalizedLabel(visible);
+    const hasDateMarker = containsDateMarker(visible);
+    if (!clientBlockReplaced && /NAME/.test(key) && /ADDRESS/.test(key) && /DOB/.test(key) && /SSN/.test(key)) {
+      replaceParagraph(paragraph, [values.consumerName, ...values.addressLines, `DOB: ${values.dob}`, `SSN: ${values.ssn}`, ...(hasDateMarker ? [values.letterDate] : [])]);
+      clientBlockReplaced = true;
+      clientParagraph = paragraph;
+      if (hasDateMarker) dateReplaced = true;
+      return;
+    }
+    if (!recipientBlockReplaced && /(CREDIT\s*BUREAU\s*NAME|BUREAU\s*NAME)/.test(key) && /(DISPUTE\s*ADDRESS|BUREAU\s*ADDRESS|CREDIT\s*BUREAU\s*ADDRESS)/.test(key)) {
+      replaceParagraph(paragraph, [...(hasDateMarker ? [values.letterDate] : []), values.bureauName, ...values.bureauAddressLines]);
+      recipientBlockReplaced = true;
+      recipientParagraph = paragraph;
+      if (hasDateMarker) dateReplaced = true;
+      return;
+    }
     if (/^(NAME|CLIENT NAME|CONSUMER NAME)$/.test(key)) { replaceParagraph(paragraph, [values.consumerName]); individualMatches += 1; }
     else if (/^(ADDRESS|STREET ADDRESS)$/.test(key)) { replaceParagraph(paragraph, [values.addressLines[0] || '']); individualMatches += 1; }
     else if (/^(CITY,? STATE ZIP|CITY,? STATE,? ZIP|CITY STATE ZIP)$/.test(key)) { replaceParagraph(paragraph, [values.addressLines.slice(1).join(' ') || '']); individualMatches += 1; }
     else if (/^DOB$/.test(key)) { replaceParagraph(paragraph, [`DOB: ${values.dob}`]); individualMatches += 1; }
     else if (/^SSN$/.test(key)) { replaceParagraph(paragraph, [`SSN: ${values.ssn}`]); individualMatches += 1; }
-    else if (/^(DATE|LETTER DATE)$/.test(key)) { replaceParagraph(paragraph, [values.letterDate]); dateReplaced = true; }
-    else if (/^(CREDIT BUREAU NAME|BUREAU NAME)$/.test(key)) { replaceParagraph(paragraph, [values.bureauName]); individualMatches += 1; }
-    else if (/^(DISPUTE ADDRESS|BUREAU ADDRESS|CREDIT BUREAU ADDRESS)$/.test(key)) { replaceParagraph(paragraph, values.bureauAddressLines); individualMatches += 1; }
+    else if (isDateAnchor(visible)) { replaceParagraph(paragraph, [values.letterDate]); dateReplaced = true; }
+    else if (/^(CREDIT BUREAU NAME|BUREAU NAME)$/.test(key)) { replaceParagraph(paragraph, [values.bureauName]); individualMatches += 1; recipientParagraph = paragraph; }
+    else if (/^(DISPUTE ADDRESS|BUREAU ADDRESS|CREDIT BUREAU ADDRESS)$/.test(key)) { replaceParagraph(paragraph, values.bureauAddressLines); individualMatches += 1; recipientParagraph = recipientParagraph || paragraph; }
   });
-  if ((clientBlockReplaced && dateReplaced && recipientBlockReplaced) || individualMatches >= 5) return;
+
+  if (!dateReplaced && clientBlockReplaced && recipientBlockReplaced && recipientParagraph) {
+    recipientParagraph.parentNode?.insertBefore(cloneParagraph(recipientParagraph, [values.letterDate]), recipientParagraph);
+    dateReplaced = true;
+  }
+  if (clientBlockReplaced && dateReplaced && recipientBlockReplaced) return;
+  if (individualMatches >= 5) {
+    if (!dateReplaced) {
+      const target = recipientParagraph || header[header.length - 1];
+      target.parentNode?.insertBefore(cloneParagraph(target, [values.letterDate]), target);
+    }
+    return;
+  }
   if (header.length >= 9) { replaceParagraph(header[0], [values.consumerName]); replaceParagraph(header[1], [values.addressLines[0] || '']); replaceParagraph(header[2], [values.addressLines.slice(1).join(' ') || '']); replaceParagraph(header[3], [`DOB: ${values.dob}`]); replaceParagraph(header[4], [`SSN: ${values.ssn}`]); replaceParagraph(header[5], [values.letterDate]); replaceParagraph(header[6], [values.bureauName]); replaceParagraph(header[7], [values.bureauAddressLines[0] || '']); replaceParagraph(header[8], [values.bureauAddressLines.slice(1).join(' ') || '']); return; }
   if (header.length >= 3 && individualMatches === 0 && !clientBlockReplaced && !recipientBlockReplaced) { replaceParagraph(header[0], [values.consumerName, ...values.addressLines, `DOB: ${values.dob}`, `SSN: ${values.ssn}`]); replaceParagraph(header[1], [values.letterDate]); replaceParagraph(header[2], [values.bureauName, ...values.bureauAddressLines]); return; }
-  throw new Error(`Late Payment reference header mapping incomplete: client block=${clientBlockReplaced ? 'found' : 'missing'}, date=${dateReplaced ? 'found' : 'missing'}, bureau block=${recipientBlockReplaced ? 'found' : 'missing'}, separate fields=${individualMatches}.`);
+  throw new Error(`Late Payment reference header mapping incomplete: client block=${clientBlockReplaced ? 'found' : 'missing'}, date=${dateReplaced ? 'found' : 'missing'}, bureau block=${recipientBlockReplaced ? 'found' : 'missing'}, separate fields=${individualMatches}. Use placeholder tags or a reference layout with identifiable client and bureau blocks.`);
 }
 function sourceItemLines(value: string, accountNameLabel: string) { return value.split('\n').map((line) => line.trim()).filter(Boolean).filter((line) => !/^Late\s*Payment\s*:/i.test(line)).map((line) => line.replace(/^(Account|Creditor)\s+Name\s*:/i, accountNameLabel)); }
 function itemValue(value: string) {
@@ -88,6 +138,7 @@ async function validateGenerated(blob: Blob, values: LateReferenceValues) {
   if (TOKEN.test(output)) throw new Error('Late Payment output contains unresolved placeholder tags.');
   if (!canonical(output).includes(canonical(values.bureauName))) throw new Error(`Late Payment output recipient integrity check failed: expected ${values.bureauName}.`);
   if (!canonical(output).includes(canonical(values.consumerName))) throw new Error(`Late Payment output consumer integrity check failed: expected ${values.consumerName}.`);
+  if (!canonical(output).includes(canonical(values.letterDate))) throw new Error(`Late Payment output document-date integrity check failed: expected ${values.letterDate}.`);
   return blob;
 }
 
