@@ -98,9 +98,17 @@
   min-height: 100% !important;
 }
 .consolidated-packet-editor .packet-document-toolbar {
+  position: sticky !important;
+  top: -10px !important;
+  z-index: 12 !important;
   min-height: 50px !important;
   padding: 6px 11px !important;
   border-radius: 16px 16px 0 0 !important;
+}
+.consolidated-packet-editor .docx-format-toolbar {
+  position: sticky !important;
+  top: 40px !important;
+  z-index: 11 !important;
 }
 .consolidated-packet-editor .packet-inline-docx-host {
   min-height: calc(100dvh - 156px) !important;
@@ -161,8 +169,15 @@
 @media (max-width: 920px) {
   .consolidated-packet-editor .ordered-packet-body {
     grid-template-columns: 1fr !important;
+    grid-template-rows: auto minmax(0, 1fr);
   }
   .consolidated-packet-editor .packet-focus-scroll {
     padding: 7px !important;
+  }
+  .consolidated-packet-editor .packet-document-toolbar {
+    top: -7px !important;
+  }
+  .consolidated-packet-editor .docx-format-toolbar {
+    top: 43px !important;
   }
 }

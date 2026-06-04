@@ -20,7 +20,7 @@ type Props = {
   onClose: () => void;
   onSave: (output: ReviewOutput, file: File) => void | Promise<void>;
 };
-type SlotId = 'LETTER' | 'SUPPORTING' | 'FCRA' | 'AFFIDAVIT' | 'ATTACHMENT' | 'FTC';
+type SlotId = 'LETTER' | 'SUPPORTING' | 'FCRA' | 'AFFIDAVIT' | 'ATTACHMENT';
 type Slot = { id: SlotId; number: number; label: string; document?: ReviewOutput; configured?: boolean; message: string };
 const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36];
 const LINE_SPACING = [1, 1.15, 1.5, 2];
@@ -29,11 +29,9 @@ function roleOf(output: ReviewOutput) { return output.role || 'LETTER'; }
 function textOf(node: HTMLElement) { return (node.innerText || '').replace(/\u00a0/g, ' ').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim(); }
 function stateOf(slot: Slot) { return slot.document ? 'Editable DOCX' : slot.id === 'SUPPORTING' ? 'Evidence layout' : slot.configured ? 'Configured' : 'Not generated'; }
 function slotForDocument(path: string | undefined, documents: ReviewOutput[]): SlotId {
-  const role = documents.find((document) => document.path === path)?.role;
-  return role === 'AFFIDAVIT' || role === 'FTC' ? role : 'LETTER';
+  return documents.find((document) => document.path === path)?.role === 'AFFIDAVIT' ? 'AFFIDAVIT' : 'LETTER';
 }
 function missingReason(slot: Slot, warnings: string[]) {
-  if (slot.id === 'FTC') return warnings.find((message) => /^FTC\s+Report\s*:/i.test(message)) || 'FTC document was not generated. Review the FTC template mapping and source data, then regenerate documents.';
   if (slot.id === 'AFFIDAVIT') return warnings.find((message) => /^Affidavit\s*:/i.test(message)) || 'Affidavit document was not generated. Review the Affidavit template mapping and source data, then regenerate documents.';
   return slot.message || 'No generated document for this packet position.';
 }
@@ -83,9 +81,8 @@ export default function SimpleDocxEditor({ round, output, documents, initialDocu
   const exhibits = useMemo(() => loadTemplateExhibits(round), [round]);
   const letter = documents.find((document) => roleOf(document) === 'LETTER') || output;
   const affidavit = documents.find((document) => roleOf(document) === 'AFFIDAVIT');
-  const ftc = documents.find((document) => roleOf(document) === 'FTC');
   const slots: Slot[] = output.type === 'DISPUTE' ? [
-    { id: 'LETTER', number: 1, label: 'Dispute Letter', document: letter, message: 'Editable DOCX component' }, { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', configured: Boolean(evidence?.supporting.length), message: 'One-page evidence layout' }, { id: 'FCRA', number: 3, label: 'FCRA', configured: Boolean(exhibits.FCRA), message: exhibits.FCRA ? 'Configured insert' : 'Not configured' }, { id: 'AFFIDAVIT', number: 4, label: 'Affidavit', document: affidavit, configured: Boolean(affidavit), message: affidavit ? 'Editable DOCX component' : 'Not generated' }, { id: 'ATTACHMENT', number: 5, label: 'Attachment', configured: Boolean(exhibits.ATTACHMENT), message: exhibits.ATTACHMENT ? 'Configured insert' : 'Not configured' }, { id: 'FTC', number: 6, label: 'FTC Report', document: ftc, configured: Boolean(ftc), message: ftc ? 'Editable DOCX component' : 'Not generated' }
+    { id: 'LETTER', number: 1, label: 'Dispute Letter', document: letter, message: 'Editable DOCX component' }, { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', configured: Boolean(evidence?.supporting.length), message: 'One-page evidence layout' }, { id: 'FCRA', number: 3, label: 'FCRA', configured: Boolean(exhibits.FCRA), message: exhibits.FCRA ? 'Configured insert' : 'Not configured' }, { id: 'AFFIDAVIT', number: 4, label: 'Affidavit', document: affidavit, configured: Boolean(affidavit), message: affidavit ? 'Editable DOCX component' : 'Not generated' }, { id: 'ATTACHMENT', number: 5, label: 'Attachment', configured: Boolean(exhibits.ATTACHMENT), message: exhibits.ATTACHMENT ? 'Configured insert' : 'Not configured' }
   ] : [{ id: 'LETTER', number: 1, label: 'Late Payment Letter', document: letter, message: 'Editable DOCX component' }, { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', configured: Boolean(evidence?.supporting.length), message: 'One-page evidence layout' }];
   useEffect(() => { setActive(slotForDocument(initialDocumentPath, documents)); }, [initialDocumentPath, output.path, documents]);
   const activeIndex = Math.max(0, slots.findIndex((slot) => slot.id === active)); const selected = slots[activeIndex]; const previous = activeIndex > 0 ? slots[activeIndex - 1] : null; const next = activeIndex < slots.length - 1 ? slots[activeIndex + 1] : null; const evidenceToolsId = `packet-evidence-tools-${output.bureau.replace(/[^A-Za-z0-9]/g, '').toLowerCase()}`;
