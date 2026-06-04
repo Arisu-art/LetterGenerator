@@ -4,10 +4,20 @@ import PizZip from 'pizzip';
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const XML_NS = 'http://www.w3.org/XML/1998/namespace';
-const ACCOUNTS_HEADING = ['FRAUDULENT ACCOUNTS', ' FOR IMMEDIATE BLOCKING AND DELETION'].join('');
-const LEGAL_HEADING = ['LEGAL DEMAND', ' AND NOTICE OF DUTY'].join('');
 const STATEMENT_PREFIX = ['Pursuant to ', '15 USC'].join('');
 const DISPUTE_EXCLUDED_ADDRESS_FIELD = /^(?:PHONE(?:\s+NO\.?)?|TELEPHONE|MOBILE|EMAIL|E-?MAIL|COUNTRY|DOB|SSN)\s*:/i;
+const ACCOUNT_SECTION_PATTERNS = [
+  /^DISPUTE(?:D)?\s+ACCOUNTS?$/i,
+  /^ACCOUNTS?\s+(?:IN\s+DISPUTE|TO\s+BE\s+DISPUTED)$/i,
+  /^(?:INACCURATE|UNVERIFIED|NEGATIVE)\s+ACCOUNTS?$/i,
+  /^FRAUDULENT\s+ACCOUNTS(?:\s+FOR\s+IMMEDIATE\s+BLOCKING\s+AND\s+DELETION)?$/i
+];
+const LEGAL_BOUNDARY_PATTERNS = [
+  /^LEGAL\s+DEMAND(?:\s+AND\s+NOTICE\s+OF\s+DUTY)?$/i,
+  /^REQUEST(?:ED)?\s+ACTION$/i,
+  /^NOTICE\s+OF\s+DUTY$/i
+];
+const SIGNATURE_PATTERN = /^Sincerely,?$/i;
 
 export type TemplateValue = string | number | boolean | Array<Record<string, string>>;
 export type PlaceholderValues = Record<string, TemplateValue>;
@@ -32,9 +42,10 @@ export async function renderDocxTemplate(template: File, values: PlaceholderValu
 }
 function paragraphs(body: Element) { return Array.from(body.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'p') as Element[]; }
 function content(paragraph: Element) { return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't')).map((node) => node.textContent || '').join('').trim(); }
-function required(all: Element[], target: string) {
-  const found = all.find((paragraph) => content(paragraph) === target);
-  if (!found) throw new Error(`Reference DOCX is missing section: ${target}`);
+function findParagraph(all: Element[], patterns: RegExp[]) { return all.find((paragraph) => patterns.some((pattern) => pattern.test(content(paragraph)))); }
+function required(all: Element[], pattern: RegExp, label: string) {
+  const found = all.find((paragraph) => pattern.test(content(paragraph)));
+  if (!found) throw new Error(`Reference DOCX is missing section: ${label}`);
   return found;
 }
 function styleOf(paragraph: Element) {
@@ -60,6 +71,11 @@ function writeLines(paragraph: Element, lines: string[]) {
     run.appendChild(value);
     paragraph.appendChild(run);
   });
+}
+function cloneWithText(source: Element, lines: string[]) {
+  const paragraph = source.cloneNode(true) as Element;
+  writeLines(paragraph, lines);
+  return paragraph;
 }
 function paragraphProperties(paragraph: Element) {
   const existing = Array.from(paragraph.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'pPr') as Element | undefined;
@@ -155,6 +171,38 @@ function disputePlaceholderValues(values: ReferenceDisputeValues): PlaceholderVa
     hard_inquiry_lines: source.inquiries.join('\n')
   };
 }
+function writeReferenceDisputeItems(body: Element, source: { accounts: string[]; inquiries: string[] }) {
+  const all = paragraphs(body);
+  const accountHeading = findParagraph(all, ACCOUNT_SECTION_PATTERNS);
+  const legalBoundary = findParagraph(all, LEGAL_BOUNDARY_PATTERNS);
+  const signatureBoundary = all.find((paragraph) => SIGNATURE_PATTERN.test(content(paragraph)));
+  const insertionBoundary = legalBoundary || signatureBoundary;
+  if (!insertionBoundary) throw new Error('Reference DOCX needs a Legal Demand or Sincerely section to insert disputed accounts.');
+  if (!source.accounts.length && !source.inquiries.length) throw new Error('No matching account or inquiry records were found.');
+  const headingIndex = accountHeading ? all.indexOf(accountHeading) : -1;
+  const legalIndex = legalBoundary ? all.indexOf(legalBoundary) : -1;
+  const reusableRegion = accountHeading && legalBoundary && legalIndex > headingIndex
+    ? all.slice(headingIndex + 1, legalIndex)
+    : [];
+  const itemStyle = reusableRegion.find((paragraph) => content(paragraph) && !content(paragraph).startsWith(STATEMENT_PREFIX)) || accountHeading || insertionBoundary;
+  const statementStyle = reusableRegion.find((paragraph) => content(paragraph).startsWith(STATEMENT_PREFIX));
+  const spacer = reusableRegion.find((paragraph) => !content(paragraph));
+  if (reusableRegion.length) reusableRegion.forEach((paragraph) => body.removeChild(paragraph));
+  const insert = (node: Node) => body.insertBefore(node, insertionBoundary);
+  const addSpace = () => { if (spacer) insert(spacer.cloneNode(true)); };
+  if (!accountHeading) insert(cloneWithText(itemStyle, ['DISPUTED ACCOUNTS']));
+  addSpace();
+  source.accounts.forEach((account) => {
+    insert(cloneWithText(itemStyle, account.split('\n')));
+    if (statementStyle) insert(statementStyle.cloneNode(true));
+    addSpace();
+  });
+  if (source.inquiries.length) {
+    insert(cloneWithText(itemStyle, ['HARD INQUIRIES']));
+    insert(cloneWithText(itemStyle, source.inquiries));
+    addSpace();
+  }
+}
 
 export async function renderReferenceDisputeDocx(reference: File, values: ReferenceDisputeValues): Promise<Blob> {
   const zip = new PizZip(await reference.arrayBuffer());
@@ -177,34 +225,9 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   writeLines(nonEmpty[1], [values.letterDate]);
   writeLines(nonEmpty[2], [values.bureauName, ...values.bureauAddressLines]);
   compactSsnDateBoundary(body, nonEmpty[0], nonEmpty[1]);
+  writeReferenceDisputeItems(body, source);
   all = paragraphs(body);
-  const accountHeading = required(all, ACCOUNTS_HEADING);
-  const legalHeading = required(all, LEGAL_HEADING);
-  const region = all.slice(all.indexOf(accountHeading) + 1, all.indexOf(legalHeading));
-  const itemStyle = region.find((paragraph) => content(paragraph) && !content(paragraph).startsWith(STATEMENT_PREFIX));
-  const statementStyle = region.find((paragraph) => content(paragraph).startsWith(STATEMENT_PREFIX));
-  const spacer = region.find((paragraph) => !content(paragraph));
-  if (!itemStyle || !statementStyle) throw new Error('Reference item layout is incomplete.');
-  if (!source.accounts.length && !source.inquiries.length) throw new Error('No matching account or inquiry records were found.');
-  region.forEach((paragraph) => body.removeChild(paragraph));
-  const insert = (node: Node) => body.insertBefore(node, legalHeading);
-  const addSpace = () => { if (spacer) insert(spacer.cloneNode(true)); };
-  addSpace();
-  source.accounts.forEach((account) => {
-    const node = itemStyle.cloneNode(true) as Element;
-    writeLines(node, account.split('\n'));
-    insert(node);
-    insert(statementStyle.cloneNode(true));
-    addSpace();
-  });
-  if (source.inquiries.length) {
-    const node = itemStyle.cloneNode(true) as Element;
-    writeLines(node, source.inquiries);
-    insert(node);
-    addSpace();
-  }
-  all = paragraphs(body);
-  const close = required(all, 'Sincerely,');
+  const close = required(all, SIGNATURE_PATTERN, 'Sincerely');
   const signature = all.slice(all.indexOf(close) + 1).find((paragraph) => content(paragraph));
   if (signature) writeLines(signature, [values.consumerName]);
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
