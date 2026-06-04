@@ -31,14 +31,6 @@ function packageFiles(type: LetterType, supportingCount: number): PackageFile[] 
   return [{ position: '01', label: 'Late Payment Letter', format: 'DOCX' }, { position: '02', label: 'Supporting Documents', format: 'PDF', supportingCount }];
 }
 function fallbackCoverage(packets: ReviewOutput[]): RouteCoverage { return { expected: packets.length, generated: packets.length, complete: packets.length > 0, routes: [], missing: [] }; }
-function Coverage({ routes, outputs }: { routes: LetterRoute[]; outputs: ReviewOutput[] }) {
-  const coverage = assessRouteCoverage(routes, outputs);
-  return <section className={`execution-coverage-panel ${coverage.complete ? 'complete' : 'blocked'}`}>
-    <header><div><p className="eyebrow">Execution integrity</p><h3>Required letters included</h3></div><strong>{coverage.generated}/{coverage.expected} generated</strong></header>
-    <div className="execution-coverage-grid">{coverage.routes.map((route) => <article key={route.key} className={route.generated ? 'complete' : 'blocked'}><span>{route.bureau}</span><b>{route.label}</b><small>{route.generated ? 'Included in ordered package' : 'Missing generated letter'}</small></article>)}</div>
-    {!coverage.complete && <p className="execution-coverage-blocker">Package download is blocked. Regenerate after resolving missing letter output.</p>}
-  </section>;
-}
 export default function OutputReviewWorkspace({ round, outputs, expectedRoutes, zipName, warnings, evidenceKey = '', evidence, onEvidenceChanged, onMessage, onZip, onReplace }: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [reviewed, setReviewed] = useState<string[]>([]);
@@ -54,7 +46,6 @@ export default function OutputReviewWorkspace({ round, outputs, expectedRoutes, 
   useEffect(() => setReviewed((value) => value.filter((path) => packets.some((packet) => packet.path === path))), [packets]);
   function openPacket(packet: ReviewOutput) { setSelectedPath(packet.path); setReviewed((value) => value.includes(packet.path) ? value : [...value, packet.path]); }
   return <section className="outputs-workspace guided-output-workspace progressive-output-workspace"><section className="panel output-stage output-review-stage shared-stage-surface canonical-output-surface">
-    {planned && <Coverage routes={expectedRoutes || []} outputs={active} />}
     <section className="output-packet-review canonical-package-review"><header className="output-section-heading"><p className="eyebrow">Ordered folders</p><h3>Package Contents by Bureau</h3><p>The DOCX and PDF components below are the exact files written into each bureau folder.</p></header><div className="review-cards output-packet-grid">{packets.map((packet) => <article className={`review-card packet-card component-package-card ${reviewed.includes(packet.path) ? 'reviewed' : ''}`} key={packet.path}><header className="output-card-head"><span className="output-bureau">{packet.bureau}</span><span className="packet-status ready">ZIP Folder</span></header><h3>{packetTitle(packet)}</h3><p className="output-card-order">{packetOrderText(packet.type)}</p><div className="package-file-list">{packageFiles(packet.type, supportingCount).map((file) => <div key={file.position}><b>{file.position}</b><strong>{file.label}</strong><small>{file.format}{file.supportingCount ? ` · ${file.supportingCount} file${file.supportingCount === 1 ? '' : 's'}` : ''}</small><span>Included</span></div>)}</div><button type="button" className="edit-document" onClick={() => openPacket(packet)}>Open Packet Editor</button></article>)}</div></section>
     {notices.length > 0 && <div className="output-notices"><strong>Package notice</strong>{notices.map((notice, index) => <p key={index}>{notice}</p>)}</div>}
     <section className="complete-package-delivery"><div><p className="eyebrow">Single archive delivery</p><h3>Download ordered packet package</h3><p>Includes letter DOCX, Supporting Documents PDF, FCRA PDF, Affidavit DOCX and Attachment PDF by bureau. FTC is excluded.</p></div><button type="button" className="action-button" disabled={!coverage.complete || !zipName} onClick={onZip}>Download Ordered Package ZIP</button></section>
