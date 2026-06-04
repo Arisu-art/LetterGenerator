@@ -18,9 +18,9 @@ type Props = {
   onMessage: (message: string) => void;
 };
 
-function positionCount(packet: LetterType) { return packet === 'DISPUTE' ? '6 positions' : '2 positions'; }
+function positionCount(packet: LetterType) { return packet === 'DISPUTE' ? '5 positions' : '2 positions'; }
 function packetTitle(packet: LetterType) { return packet === 'DISPUTE' ? 'Dispute Packet' : 'Late Payment Packet'; }
-function packetOrder(packet: LetterType) { return packet === 'DISPUTE' ? 'Letter → Supporting → FCRA → Affidavit → Attachment → FTC' : 'Late Payment Letter → Supporting Documents'; }
+function packetOrder(packet: LetterType) { return packet === 'DISPUTE' ? 'Letter → Supporting → FCRA → Affidavit → Attachment' : 'Late Payment Letter → Supporting Documents'; }
 function packetType(packet: LetterType) { return packet === 'DISPUTE' ? 'Standard filing order' : 'Optional route'; }
 
 export default function TemplateProgressiveWorkspace({ round, slots, supportingReady, onSelectRound, onUploadLetter, onRemoveLetter, onExhibitsChange, onMessage }: Props) {
@@ -70,8 +70,8 @@ export default function TemplateProgressiveWorkspace({ round, slots, supportingR
         <button type="button" className="template-packet-choice primary" onClick={() => choosePacket('DISPUTE')}>
           <span className="template-selection-tag">Standard packet</span>
           <h3>Dispute Packet</h3>
-          <p>Letter → Supporting → FCRA → Affidavit → Attachment → FTC</p>
-          <div className="template-choice-footer"><strong>6 positions</strong><span>Configure →</span></div>
+          <p>Letter → Supporting → FCRA → Affidavit → Attachment</p>
+          <div className="template-choice-footer"><strong>5 positions</strong><span>Configure →</span></div>
         </button>
         <button type="button" className="template-packet-choice" onClick={() => choosePacket('LATE_PAYMENT')}>
           <span className="template-selection-tag optional">Optional route</span>
