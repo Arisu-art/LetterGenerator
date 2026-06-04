@@ -13,7 +13,7 @@ function safe(value: string) {
   return value.replace(/[\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
 }
 
-function findDocument(docs: ReviewOutput[], route: PacketRoute, role: 'LETTER' | 'AFFIDAVIT' | 'FTC') {
+function findDocument(docs: ReviewOutput[], route: PacketRoute, role: 'LETTER' | 'AFFIDAVIT') {
   return docs.find((doc) => doc.type === route.type && (
     role === 'LETTER'
       ? doc.bureau === route.bureau && (!doc.role || doc.role === 'LETTER')
@@ -47,9 +47,7 @@ export async function addOrderedPacketFolders(
     }
     if (route.type === 'DISPUTE') {
       const affidavit = findDocument(docs, route, 'AFFIDAVIT');
-      const ftc = findDocument(docs, route, 'FTC');
       if (affidavit) zip.file(`${folder}04 Affidavit.docx`, await assertGeneratedDocx(affidavit.blob, 'Affidavit', [clientName]));
-      if (ftc) zip.file(`${folder}06 FTC Identity Theft Report.docx`, await assertGeneratedDocx(ftc.blob, 'FTC Identity Theft Report', [clientName]));
     }
   }
 }
