@@ -12,10 +12,7 @@ const ACCOUNT_SECTION_PATTERNS = [
   /^(?:INACCURATE|UNVERIFIED|NEGATIVE)\s+ACCOUNTS?$/i,
   /^FRAUDULENT\s+ACCOUNTS(?:\s+FOR\s+IMMEDIATE\s+BLOCKING\s+AND\s+DELETION)?$/i
 ];
-const HARD_INQUIRY_SECTION_PATTERNS = [
-  /^HARD\s+INQUIR(?:Y|IES)$/i,
-  /^HARD\s+CREDIT\s+INQUIR(?:Y|IES)$/i
-];
+const HARD_INQUIRY_LABEL = /^HARD\s+(?:CREDIT\s+)?INQUIR(?:Y|IES)(?:\s*[:\-]\s*(.*))?$/i;
 const LEGAL_BOUNDARY_PATTERNS = [
   /^LEGAL\s+DEMAND(?:\s+AND\s+NOTICE\s+OF\s+DUTY)?$/i,
   /^REQUEST(?:ED)?\s+ACTION$/i,
@@ -36,7 +33,7 @@ export type ReferenceDisputeValues = {
   bureauName: string;
   bureauAddressLines: string[];
   disputeItems?: string[];
-  /** Accepted for backward compatibility; hard inquiries are never rendered in a dispute letter. */
+  /** Rendered as inquiry rows only; no HARD INQUIRIES label is emitted. */
   hardInquiryItems?: string[];
   fraudItems?: string[];
 };
@@ -113,19 +110,15 @@ function findPopulatedHeaderParagraphs(body: Element, values: ReferenceDisputeVa
   const dateParagraph = all.slice(index + 1).find((paragraph) => content(paragraph).includes(values.letterDate));
   return dateParagraph ? { ssnParagraph, dateParagraph } : null;
 }
-/** Removes inquiry-only content from dispute letters, including static headings in configured templates. */
-function removeHardInquirySections(body: Element) {
-  let all = paragraphs(body);
-  let index = all.findIndex((paragraph) => HARD_INQUIRY_SECTION_PATTERNS.some((pattern) => pattern.test(content(paragraph))));
-  while (index >= 0) {
-    const boundaryIndex = all.findIndex((paragraph, position) => position > index && (
-      LEGAL_BOUNDARY_PATTERNS.some((pattern) => pattern.test(content(paragraph))) || SIGNATURE_PATTERN.test(content(paragraph))
-    ));
-    const section = boundaryIndex >= 0 ? all.slice(index, boundaryIndex) : all.slice(index);
-    section.forEach((paragraph) => body.removeChild(paragraph));
-    all = paragraphs(body);
-    index = all.findIndex((paragraph) => HARD_INQUIRY_SECTION_PATTERNS.some((pattern) => pattern.test(content(paragraph))));
-  }
+/** Suppresses only the inquiry heading; inquiry rows remain in the generated dispute document. */
+function removeHardInquiryLabels(body: Element) {
+  paragraphs(body).forEach((paragraph) => {
+    const match = content(paragraph).match(HARD_INQUIRY_LABEL);
+    if (!match) return;
+    const inlineRecord = match[1]?.trim();
+    if (inlineRecord) writeLines(paragraph, [inlineRecord]);
+    else body.removeChild(paragraph);
+  });
 }
 async function finalizeRenderedDisputeTemplate(blob: Blob, values: ReferenceDisputeValues) {
   const zip = new PizZip(await blob.arrayBuffer());
@@ -136,13 +129,17 @@ async function finalizeRenderedDisputeTemplate(blob: Blob, values: ReferenceDisp
   if (!body) return blob;
   const header = findPopulatedHeaderParagraphs(body, values);
   if (header) compactSsnDateBoundary(body, header.ssnParagraph, header.dateParagraph);
-  removeHardInquirySections(body);
+  removeHardInquiryLabels(body);
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
   return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
 function resolved(values: ReferenceDisputeValues) {
-  const accounts = values.disputeItems || (values.fraudItems || []).filter((entry) => /^(Account|Creditor)\s+Name\s*:/i.test(entry.trim()));
-  return { accounts, inquiries: [] as string[] };
+  if (values.disputeItems || values.hardInquiryItems) return { accounts: values.disputeItems || [], inquiries: values.hardInquiryItems || [] };
+  const combined = values.fraudItems || [];
+  return {
+    accounts: combined.filter((entry) => /^(Account|Creditor)\s+Name\s*:/i.test(entry.trim())),
+    inquiries: combined.filter((entry) => !/^(Account|Creditor)\s+Name\s*:/i.test(entry.trim()))
+  };
 }
 function disputeAddressLines(values: ReferenceDisputeValues) {
   return values.addressLines.map((line) => line.trim()).filter(Boolean).filter((line) => !DISPUTE_EXCLUDED_ADDRESS_FIELD.test(line));
@@ -157,6 +154,7 @@ function disputePlaceholderValues(values: ReferenceDisputeValues): PlaceholderVa
   const source = resolved(values);
   const address = disputeAddressLines(values);
   const accounts = source.accounts.map(accountValues);
+  const inquiries = source.inquiries.map((text) => ({ inquiry_line: text, display_text: text }));
   return {
     consumer_name: values.consumerName,
     client_name: values.consumerName,
@@ -177,16 +175,16 @@ function disputePlaceholderValues(values: ReferenceDisputeValues): PlaceholderVa
     bureau_address_line_2: values.bureauAddressLines.slice(1).join(' '),
     accounts,
     dispute_accounts: accounts,
-    hard_inquiries: [],
+    hard_inquiries: inquiries,
     account_lines: accounts.map((item) => item.display_text).join('\n\n'),
-    hard_inquiry_lines: ''
+    hard_inquiry_lines: source.inquiries.join('\n')
   };
 }
 function terminalBodyBoundary(body: Element) {
   return Array.from(body.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'sectPr') || null;
 }
-function insertMappedDisputeItems(body: Element, source: { accounts: string[] }) {
-  if (!source.accounts.length) throw new Error('No disputed account records were found for this dispute letter.');
+function insertMappedDisputeItems(body: Element, source: { accounts: string[]; inquiries: string[] }) {
+  if (!source.accounts.length && !source.inquiries.length) throw new Error('No matching account or inquiry records were found.');
   const all = paragraphs(body);
   const accountHeading = findParagraph(all, ACCOUNT_SECTION_PATTERNS);
   const legalBoundary = findParagraph(all, LEGAL_BOUNDARY_PATTERNS);
@@ -215,6 +213,10 @@ function insertMappedDisputeItems(body: Element, source: { accounts: string[] })
     if (statementStyle) insert(statementStyle.cloneNode(true));
     addSpace();
   });
+  if (source.inquiries.length) {
+    insert(cloneWithText(itemStyle, source.inquiries));
+    addSpace();
+  }
 }
 
 export async function renderReferenceDisputeDocx(reference: File, values: ReferenceDisputeValues): Promise<Blob> {
@@ -237,7 +239,7 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   writeLines(nonEmpty[1], [values.letterDate]);
   writeLines(nonEmpty[2], [values.bureauName, ...values.bureauAddressLines]);
   compactSsnDateBoundary(body, nonEmpty[0], nonEmpty[1]);
-  removeHardInquirySections(body);
+  removeHardInquiryLabels(body);
   insertMappedDisputeItems(body, source);
   const renderedParagraphs = paragraphs(body);
   const close = renderedParagraphs.find((paragraph) => SIGNATURE_PATTERN.test(content(paragraph)));
