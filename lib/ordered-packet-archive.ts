@@ -2,6 +2,8 @@
 
 import JSZip from 'jszip';
 import type { ReviewOutput } from '../components/OutputReviewWorkspace';
+import { assertGeneratedDocx } from './docx-review-marker';
+import { bureauInfo, type Bureau } from './letter-engine';
 import type { Round } from './reference-store';
 
 type PacketType = 'DISPUTE' | 'LATE_PAYMENT';
@@ -39,13 +41,15 @@ export async function addOrderedPacketFolders(
     const letter = findDocument(docs, route, 'LETTER');
     if (letter) {
       const title = route.type === 'DISPUTE' ? 'Dispute Letter' : 'Late Payment Letter';
-      zip.file(`${folder}01 ${title}.docx`, letter.blob);
+      const recipient = bureauInfo[route.bureau as Bureau]?.name || route.bureau;
+      const validated = await assertGeneratedDocx(letter.blob, `${route.bureau} ${title}`, [clientName, recipient]);
+      zip.file(`${folder}01 ${title}.docx`, validated);
     }
     if (route.type === 'DISPUTE') {
       const affidavit = findDocument(docs, route, 'AFFIDAVIT');
       const ftc = findDocument(docs, route, 'FTC');
-      if (affidavit) zip.file(`${folder}04 Affidavit.docx`, affidavit.blob);
-      if (ftc) zip.file(`${folder}06 FTC Identity Theft Report.docx`, ftc.blob);
+      if (affidavit) zip.file(`${folder}04 Affidavit.docx`, await assertGeneratedDocx(affidavit.blob, 'Affidavit', [clientName]));
+      if (ftc) zip.file(`${folder}06 FTC Identity Theft Report.docx`, await assertGeneratedDocx(ftc.blob, 'FTC Identity Theft Report', [clientName]));
     }
   }
 }
