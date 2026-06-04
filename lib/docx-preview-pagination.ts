@@ -21,7 +21,8 @@ export type DocxPageLayout = {
   marginBottomIn: number;
   marginLeftIn: number;
 };
-export type PaginatedPreview = { pages: HTMLElement[]; oversizedPages: number[]; layout: DocxPageLayout };
+export type PreviewQuality = 'verified-pagination' | 'native-fallback';
+export type PaginatedPreview = { pages: HTMLElement[]; oversizedPages: number[]; layout: DocxPageLayout; quality: PreviewQuality; notice?: string };
 type PageShell = { section: HTMLElement; body: HTMLElement };
 
 function attr(element: Element | undefined, name: string) {
@@ -52,17 +53,14 @@ function safeNativeLayout(layout: DocxPageLayout): DocxPageLayout {
   const limitX = Math.max(0, widthIn / 2 - 0.25);
   const limitY = Math.max(0, heightIn / 2 - 0.25);
   return {
-    ...layout,
-    widthIn, heightIn,
-    name: paperName(widthIn, heightIn),
-    orientation: widthIn > heightIn ? 'landscape' : 'portrait',
+    ...layout, widthIn, heightIn, name: paperName(widthIn, heightIn), orientation: widthIn > heightIn ? 'landscape' : 'portrait',
     marginTopIn: Math.min(limitY, Math.max(0, Number(layout.marginTopIn) || 0)),
     marginRightIn: Math.min(limitX, Math.max(0, Number(layout.marginRightIn) || 0)),
     marginBottomIn: Math.min(limitY, Math.max(0, Number(layout.marginBottomIn) || 0)),
     marginLeftIn: Math.min(limitX, Math.max(0, Number(layout.marginLeftIn) || 0))
   };
 }
-/** Reads immutable geometry already inherited by the generated DOCX from its configured template. */
+/** Reads immutable page geometry inherited by the generated DOCX from its configured template. */
 export async function readDocxPageLayout(blob: Blob): Promise<DocxPageLayout> {
   try {
     const xmlText = new PizZip(await blob.arrayBuffer()).file('word/document.xml')?.asText();
@@ -82,13 +80,26 @@ export async function readDocxPageLayout(blob: Blob): Promise<DocxPageLayout> {
     });
   } catch { return fallbackLayout(); }
 }
+function normalizedText(value: string | null | undefined) { return (value || '').replace(/\s+/g, ' ').trim(); }
 function sourcePages(host: HTMLElement) {
   const pages = Array.from(host.querySelectorAll<HTMLElement>('section.packet-inline-docx, section.docx'));
   return pages.filter((page, index) => !pages.some((other, otherIndex) => otherIndex < index && other.contains(page)));
 }
 function flowRoot(page: HTMLElement) { return page.querySelector<HTMLElement>(':scope > article') || page.querySelector<HTMLElement>('article') || page; }
 function meaningfulNodes(root: HTMLElement) { return Array.from(root.childNodes).filter((node) => node.nodeType !== Node.TEXT_NODE || Boolean(node.textContent?.trim())); }
-function nodeText(node: Node) { return (node.textContent || '').replace(/\s+/g, ' ').trim(); }
+function nodeText(node: Node) { return normalizedText(node.textContent); }
+function isSafeLeaf(element: HTMLElement) { return /^(P|TABLE|IMG|SVG|FIGURE|UL|OL|BLOCKQUOTE|HR)$/i.test(element.tagName); }
+/** Flattens presentation wrappers until real paragraph/table/image flow blocks are reached. */
+function leafBlocks(root: HTMLElement): Node[] {
+  const result: Node[] = [];
+  meaningfulNodes(root).forEach((node) => {
+    if (!(node instanceof HTMLElement) || isSafeLeaf(node)) { result.push(node); return; }
+    const nested = leafBlocks(node);
+    if (nested.length && normalizedText(nested.map((child) => child.textContent || '').join(' ')) === normalizedText(node.textContent)) result.push(...nested);
+    else result.push(node);
+  });
+  return result;
+}
 function atomicBlocks(nodes: Node[]) {
   const grouped: Node[] = [];
   for (let index = 0; index < nodes.length; index += 1) {
@@ -110,16 +121,7 @@ function atomicBlocks(nodes: Node[]) {
   }
   return grouped;
 }
-function contentBlocks(page: HTMLElement) {
-  let root = flowRoot(page);
-  let nodes = meaningfulNodes(root);
-  while (nodes.length === 1 && nodes[0] instanceof HTMLElement && !/^(P|TABLE|IMG|SVG|UL|OL)$/i.test(nodes[0].tagName)) {
-    const nested = meaningfulNodes(nodes[0]);
-    if (!nested.length) break;
-    root = nodes[0]; nodes = nested;
-  }
-  return atomicBlocks(nodes);
-}
+function contentBlocks(page: HTMLElement) { return atomicBlocks(leafBlocks(flowRoot(page))); }
 function setNativeLayoutVariables(section: HTMLElement, layout: DocxPageLayout) {
   section.style.setProperty('--docx-page-width', `${layout.widthIn}in`); section.style.setProperty('--docx-page-height', `${layout.heightIn}in`);
   section.style.setProperty('--docx-margin-top', `${layout.marginTopIn}in`); section.style.setProperty('--docx-margin-right', `${layout.marginRightIn}in`);
@@ -134,10 +136,21 @@ function newPage(reference: HTMLElement, parent: HTMLElement, anchor: HTMLElemen
   body.classList.add('measured-docx-content'); body.removeAttribute('style'); section.appendChild(body); parent.insertBefore(section, anchor); return { section, body };
 }
 function overflows(body: HTMLElement) { return body.scrollHeight > body.clientHeight + 2; }
-/** Paginates real content inside inherited template dimensions while preserving protected account groups. */
+function nativeFallback(host: HTMLElement, nativeMarkup: string, layout: DocxPageLayout, notice: string): PaginatedPreview {
+  host.innerHTML = nativeMarkup;
+  const pages = sourcePages(host);
+  pages.forEach((page, index) => { page.classList.add('native-docx-proof-page'); page.dataset.pageNumber = String(index + 1); setNativeLayoutVariables(page, layout); });
+  return { pages, oversizedPages: [], layout, quality: 'native-fallback', notice };
+}
+/**
+ * Builds page sheets only when the reconstructed preview preserves all source text.
+ * On any integrity risk it displays the untouched native renderer output rather than clipping content.
+ */
 export function paginateDocxPreview(host: HTMLElement, layout: DocxPageLayout): PaginatedPreview {
+  const nativeMarkup = host.innerHTML;
+  const sourceText = normalizedText(host.textContent);
   const originals = sourcePages(host); const parent = originals[0]?.parentElement;
-  if (!originals.length || !parent) return { pages: originals, oversizedPages: [], layout };
+  if (!originals.length || !parent) return { pages: originals, oversizedPages: [], layout, quality: 'native-fallback', notice: 'No page containers were available for measured pagination.' };
   const anchor = originals[0]; const built: PageShell[] = [];
   const addPage = () => { const page = newPage(originals[0], parent, anchor, layout); built.push(page); return page; };
   let current = addPage();
@@ -153,5 +166,7 @@ export function paginateDocxPreview(host: HTMLElement, layout: DocxPageLayout): 
   });
   originals.forEach((page) => page.remove());
   const pages = built.map((page, index) => { page.section.dataset.pageNumber = String(index + 1); return page.section; });
-  return { pages, oversizedPages: pages.flatMap((page, index) => page.classList.contains('docx-page-oversized') ? [index + 1] : []), layout };
+  const renderedText = normalizedText(host.textContent);
+  if (sourceText !== renderedText) return nativeFallback(host, nativeMarkup, layout, 'Measured pagination did not preserve all document text. Native preview shown without clipping.');
+  return { pages, oversizedPages: pages.flatMap((page, index) => page.classList.contains('docx-page-oversized') ? [index + 1] : []), layout, quality: 'verified-pagination' };
 }
