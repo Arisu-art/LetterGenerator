@@ -5,7 +5,7 @@ import SimpleDocxEditor from './SimpleDocxEditor';
 import type { FinalPdfPacket } from './PdfPacketPreview';
 import type { PacketAssets } from '../lib/packet-assets';
 import type { LetterRoute, LetterType } from '../lib/letter-engine';
-import { assessRouteCoverage } from '../lib/workflow-execution';
+import { assessRouteCoverage, type RouteCoverage } from '../lib/workflow-execution';
 import { packetOrderText, packetPositionCount } from '../lib/workflow-framework';
 import { runSharedTransition } from '../lib/shared-transition';
 
@@ -13,7 +13,7 @@ export type DocumentRole = 'LETTER' | 'AFFIDAVIT' | 'FTC';
 export type ReviewOutput = { id?: string; path: string; type: LetterType; role?: DocumentRole; sequence?: number; bureau: string; count: number; detail: string; blob: Blob; packetSteps?: string[] };
 type Stage = 'REVIEW' | 'FINALIZE' | 'DELIVERY';
 type Props = {
-  round: string; outputs: ReviewOutput[]; expectedRoutes: LetterRoute[]; zipName?: string; warnings: string[];
+  round: string; outputs: ReviewOutput[]; expectedRoutes?: LetterRoute[]; zipName?: string; warnings: string[];
   finalPackets?: FinalPdfPacket[]; finalizing?: boolean; finalZipName?: string;
   evidenceKey?: string; evidence?: PacketAssets;
   onEvidenceChanged?: (assets: PacketAssets) => void; onMessage?: (message: string) => void;
@@ -37,14 +37,18 @@ function CoveragePanel({ expectedRoutes, outputs }: { expectedRoutes: LetterRout
     {!coverage.complete && <p className="execution-coverage-blocker">Finalization is blocked. Return to Source Data and regenerate after resolving the missing required letter output.</p>}
   </section>;
 }
+function legacyCoverage(packets: ReviewOutput[]): RouteCoverage {
+  return { expected: packets.length, generated: packets.length, complete: packets.length > 0, routes: [], missing: [] };
+}
 
 export default function OutputReviewWorkspace({ round, outputs, expectedRoutes, zipName, warnings, finalPackets = [], finalizing = false, finalZipName, evidenceKey = '', evidence, onEvidenceChanged, onMessage, onZip, onFinalZip, onFinalize, onPdfDownload, onReplace }: Props) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [stage, setStage] = useState<Stage>(finalPackets.length ? 'DELIVERY' : 'REVIEW');
   const [reviewed, setReviewed] = useState<string[]>([]);
   const activeOutputs = useMemo(() => outputs.filter((item) => item.role !== 'FTC'), [outputs]);
-  const coverage = useMemo(() => assessRouteCoverage(expectedRoutes, activeOutputs), [expectedRoutes, activeOutputs]);
   const packets = useMemo(() => activeOutputs.filter(isLetter).sort((a, b) => a.bureau.localeCompare(b.bureau) || a.type.localeCompare(b.type)), [activeOutputs]);
+  const hasExecutionPlan = Boolean(expectedRoutes?.length);
+  const coverage = useMemo(() => hasExecutionPlan ? assessRouteCoverage(expectedRoutes || [], activeOutputs) : legacyCoverage(packets), [hasExecutionPlan, expectedRoutes, activeOutputs, packets]);
   const docxDocuments = useMemo(() => [...activeOutputs].sort((a, b) => (a.sequence || 1) - (b.sequence || 1) || a.bureau.localeCompare(b.bureau)), [activeOutputs]);
   const selectedDocument = activeOutputs.find((item) => item.path === selectedPath) || null;
   const selectedPacket = selectedDocument ? (isLetter(selectedDocument) ? selectedDocument : packets.find((packet) => packet.type === selectedDocument.type) || null) : null;
@@ -59,8 +63,8 @@ export default function OutputReviewWorkspace({ round, outputs, expectedRoutes, 
   const reviewedCount = reviewed.length;
   return <section className="outputs-workspace guided-output-workspace progressive-output-workspace">
     {stage === 'REVIEW' && <section className="panel output-stage output-review-stage shared-stage-surface" style={{ viewTransitionName: 'output-work-stage' }}>
-      <OutputStageHeader stage="REVIEW" eyebrow="Step 01 · Review" title="Review packets by bureau" description="Every required source route must have a generated letter before the packet set can be finalized."><span className={`output-count-pill ${coverage.complete ? '' : 'blocked'}`}>{coverage.generated}/{coverage.expected} generated</span></OutputStageHeader>
-      <CoveragePanel expectedRoutes={expectedRoutes} outputs={activeOutputs} />
+      <OutputStageHeader stage="REVIEW" eyebrow="Step 01 · Review" title="Review packets by bureau" description={hasExecutionPlan ? 'Every required source route must have a generated letter before the packet set can be finalized.' : 'Review generated packet documents before final delivery.'}><span className={`output-count-pill ${coverage.complete ? '' : 'blocked'}`}>{coverage.generated}/{coverage.expected} generated</span></OutputStageHeader>
+      {hasExecutionPlan && <CoveragePanel expectedRoutes={expectedRoutes || []} outputs={activeOutputs} />}
       <section className="output-docx-documents" aria-label="Editable DOCX documents"><header className="output-section-heading"><p className="eyebrow">Editable documents</p><h3>DOCX Documents</h3><p>Open any generated letter or affidavit in the simple editor.</p></header><div className="review-cards output-packet-grid">{docxDocuments.map((document) => <article className="review-card packet-card document-card" key={document.path}><header className="output-card-head"><span className="output-bureau">{document.bureau}</span><span className="packet-status ready">DOCX</span></header><h3>{documentTitle(document)}</h3><p className="output-card-order">{roleOf(document) === 'LETTER' ? 'Generated letter document' : 'Generated packet document'}</p><div className="output-card-meta"><span>Editable DOCX</span><span>Position {String(document.sequence || 1).padStart(2, '0')}</span></div><button type="button" className="edit-document" onClick={() => openDocument(document)}>Edit DOCX</button></article>)}</div></section>
       <section className="output-packet-review" aria-label="Packet review"><header className="output-section-heading"><p className="eyebrow">Ordered packets</p><h3>Packet Review</h3><p>Review each complete bureau packet and its shared documents in filing order.</p></header><div className="review-cards output-packet-grid">{packets.map((packet) => { const components = packetDocuments(packet, activeOutputs); const isReviewed = reviewed.includes(packet.path); return <article className={`review-card packet-card ${isReviewed ? 'reviewed' : ''}`} key={packet.path}><header className="output-card-head"><span className="output-bureau">{packet.bureau}</span><span className={`packet-status ${isReviewed ? 'ready' : 'neutral'}`}>{isReviewed ? 'Reviewed' : 'Ready to review'}</span></header><h3>{packetTitle(packet)}</h3><p className="output-card-order">{packetOrderText(packet.type)}</p><div className="output-card-meta"><span>{components.length} editable DOCX</span><span>{packetPositionCount(packet.type)} positions</span></div><button type="button" className="edit-document" onClick={() => openPacket(packet)}>{isReviewed ? 'Reopen Packet Editor' : 'Open Packet Editor'}</button></article>; })}</div></section>
       {notices.length > 0 && <div className="output-notices"><strong>Generation requires attention</strong>{notices.map((notice, index) => <p key={index}>{notice}</p>)}</div>}
@@ -68,7 +72,7 @@ export default function OutputReviewWorkspace({ round, outputs, expectedRoutes, 
     </section>}
     {stage === 'FINALIZE' && <section className="panel output-stage output-finalize-stage shared-stage-surface" style={{ viewTransitionName: 'output-work-stage' }}>
       <OutputStageHeader stage="FINALIZE" eyebrow="Step 02 · Finalize" title="Finalize delivery" description={`Final PDFs follow the locked packet contract: ${packetOrderText('DISPUTE')}.`}><span className="output-count-pill">{coverage.generated}/{coverage.expected} validated</span></OutputStageHeader>
-      <CoveragePanel expectedRoutes={expectedRoutes} outputs={activeOutputs} />
+      {hasExecutionPlan && <CoveragePanel expectedRoutes={expectedRoutes || []} outputs={activeOutputs} />}
       {notices.length > 0 && <div className="output-notices"><strong>Missing or failed generated documents</strong>{notices.map((notice, index) => <p key={index}>{notice}</p>)}</div>}
       <div className="output-finalize-grid">{zipName && <article className="output-delivery-option secondary"><div><span className="output-option-label">Working files</span><h3>Editable DOCX package</h3><p>Download source documents and manifest for additional offline edits.</p></div><button type="button" className="secondary-button" onClick={onZip}>Download DOCX ZIP</button></article>}<article className="output-delivery-option primary"><div><span className="output-option-label">Final delivery</span><h3>Ordered PDF packets</h3><p>Supporting Documents are merged into each final packet directly after its generated letter.</p></div><button type="button" className="action-button" disabled={!coverage.complete || finalizing || !activeOutputs.length || !onFinalize} onClick={() => void onFinalize?.()}>{finalizing ? 'Creating final PDFs…' : 'Create Final PDFs'}</button></article></div>
       <footer className="output-stage-footer"><button type="button" className="secondary-button" onClick={() => showStage('REVIEW')}>Back to Review</button></footer>
