@@ -1,6 +1,7 @@
 'use client';
 
 import type { ClientCaseRecord, ClientCaseStatus, FilingRecord } from '../lib/client-operations-store';
+import PlatformQualityCanvas from './PlatformQualityCanvas';
 
 type Props = {
   cases: ClientCaseRecord[];
@@ -45,6 +46,7 @@ export default function DashboardOperationsWorkspace({ cases, filings, activeCas
     <section className="panel dashboard-command-card dashboard-command-single">
       <div className="dashboard-command-copy"><p className="eyebrow">Client operations</p><h2>{primary.title}</h2><p>{primary.copy}</p><div className="dashboard-command-actions"><button type="button" className="action-button" onClick={executePrimary}>{primary.button}</button>{activeCase ? <button type="button" className="secondary-button" onClick={onNewCase}>New Case</button> : <button type="button" className="secondary-button" onClick={onOpenTemplates}>Review Templates</button>}</div></div>
     </section>
+    <PlatformQualityCanvas />
     <div className="dashboard-operational-metrics" aria-label="Operational summary">
       <article><small>Client cases</small><strong>{cases.length}</strong><span>{reviewCases.length} awaiting review</span></article>
       <article className={readyToSend.length ? 'attention' : ''}><small>Ready to send</small><strong>{readyToSend.length}</strong><span>Final packet delivery</span></article>
