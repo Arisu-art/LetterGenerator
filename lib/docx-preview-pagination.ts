@@ -99,8 +99,10 @@ function newPage(reference: HTMLElement, parent: HTMLElement, anchor: HTMLElemen
   section.classList.add('measured-docx-page');
   section.removeAttribute('style');
   setLayoutVariables(section, layout);
-  const body = document.createElement('article');
-  body.className = 'measured-docx-content';
+  const sourceBody = flowRoot(reference);
+  const body = sourceBody === reference ? document.createElement('article') : sourceBody.cloneNode(false) as HTMLElement;
+  body.classList.add('measured-docx-content');
+  body.removeAttribute('style');
   section.appendChild(body);
   parent.insertBefore(section, anchor);
   return { section, body };
