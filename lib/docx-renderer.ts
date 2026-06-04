@@ -12,6 +12,10 @@ const ACCOUNT_SECTION_PATTERNS = [
   /^(?:INACCURATE|UNVERIFIED|NEGATIVE)\s+ACCOUNTS?$/i,
   /^FRAUDULENT\s+ACCOUNTS(?:\s+FOR\s+IMMEDIATE\s+BLOCKING\s+AND\s+DELETION)?$/i
 ];
+const HARD_INQUIRY_SECTION_PATTERNS = [
+  /^HARD\s+INQUIR(?:Y|IES)$/i,
+  /^HARD\s+CREDIT\s+INQUIR(?:Y|IES)$/i
+];
 const LEGAL_BOUNDARY_PATTERNS = [
   /^LEGAL\s+DEMAND(?:\s+AND\s+NOTICE\s+OF\s+DUTY)?$/i,
   /^REQUEST(?:ED)?\s+ACTION$/i,
@@ -32,6 +36,7 @@ export type ReferenceDisputeValues = {
   bureauName: string;
   bureauAddressLines: string[];
   disputeItems?: string[];
+  /** Accepted for backward compatibility; hard inquiries are never rendered in a dispute letter. */
   hardInquiryItems?: string[];
   fraudItems?: string[];
 };
@@ -108,7 +113,21 @@ function findPopulatedHeaderParagraphs(body: Element, values: ReferenceDisputeVa
   const dateParagraph = all.slice(index + 1).find((paragraph) => content(paragraph).includes(values.letterDate));
   return dateParagraph ? { ssnParagraph, dateParagraph } : null;
 }
-async function compactRenderedDisputeHeader(blob: Blob, values: ReferenceDisputeValues) {
+/** Removes inquiry-only content from dispute letters, including static headings in configured templates. */
+function removeHardInquirySections(body: Element) {
+  let all = paragraphs(body);
+  let index = all.findIndex((paragraph) => HARD_INQUIRY_SECTION_PATTERNS.some((pattern) => pattern.test(content(paragraph))));
+  while (index >= 0) {
+    const boundaryIndex = all.findIndex((paragraph, position) => position > index && (
+      LEGAL_BOUNDARY_PATTERNS.some((pattern) => pattern.test(content(paragraph))) || SIGNATURE_PATTERN.test(content(paragraph))
+    ));
+    const section = boundaryIndex >= 0 ? all.slice(index, boundaryIndex) : all.slice(index);
+    section.forEach((paragraph) => body.removeChild(paragraph));
+    all = paragraphs(body);
+    index = all.findIndex((paragraph) => HARD_INQUIRY_SECTION_PATTERNS.some((pattern) => pattern.test(content(paragraph))));
+  }
+}
+async function finalizeRenderedDisputeTemplate(blob: Blob, values: ReferenceDisputeValues) {
   const zip = new PizZip(await blob.arrayBuffer());
   const file = zip.file('word/document.xml');
   if (!file) return blob;
@@ -116,18 +135,14 @@ async function compactRenderedDisputeHeader(blob: Blob, values: ReferenceDispute
   const body = xml.getElementsByTagNameNS(WORD_NS, 'body')[0];
   if (!body) return blob;
   const header = findPopulatedHeaderParagraphs(body, values);
-  if (!header) return blob;
-  compactSsnDateBoundary(body, header.ssnParagraph, header.dateParagraph);
+  if (header) compactSsnDateBoundary(body, header.ssnParagraph, header.dateParagraph);
+  removeHardInquirySections(body);
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
   return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
 function resolved(values: ReferenceDisputeValues) {
-  if (values.disputeItems || values.hardInquiryItems) return { accounts: values.disputeItems || [], inquiries: values.hardInquiryItems || [] };
-  const combined = values.fraudItems || [];
-  return {
-    accounts: combined.filter((entry) => /^(Account|Creditor)\s+Name\s*:/i.test(entry.trim())),
-    inquiries: combined.filter((entry) => !/^(Account|Creditor)\s+Name\s*:/i.test(entry.trim()))
-  };
+  const accounts = values.disputeItems || (values.fraudItems || []).filter((entry) => /^(Account|Creditor)\s+Name\s*:/i.test(entry.trim()));
+  return { accounts, inquiries: [] as string[] };
 }
 function disputeAddressLines(values: ReferenceDisputeValues) {
   return values.addressLines.map((line) => line.trim()).filter(Boolean).filter((line) => !DISPUTE_EXCLUDED_ADDRESS_FIELD.test(line));
@@ -142,7 +157,6 @@ function disputePlaceholderValues(values: ReferenceDisputeValues): PlaceholderVa
   const source = resolved(values);
   const address = disputeAddressLines(values);
   const accounts = source.accounts.map(accountValues);
-  const inquiries = source.inquiries.map((text) => ({ inquiry_line: text, display_text: text }));
   return {
     consumer_name: values.consumerName,
     client_name: values.consumerName,
@@ -163,16 +177,16 @@ function disputePlaceholderValues(values: ReferenceDisputeValues): PlaceholderVa
     bureau_address_line_2: values.bureauAddressLines.slice(1).join(' '),
     accounts,
     dispute_accounts: accounts,
-    hard_inquiries: inquiries,
+    hard_inquiries: [],
     account_lines: accounts.map((item) => item.display_text).join('\n\n'),
-    hard_inquiry_lines: source.inquiries.join('\n')
+    hard_inquiry_lines: ''
   };
 }
 function terminalBodyBoundary(body: Element) {
   return Array.from(body.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'sectPr') || null;
 }
-function insertMappedDisputeItems(body: Element, source: { accounts: string[]; inquiries: string[] }) {
-  if (!source.accounts.length && !source.inquiries.length) throw new Error('No matching account or inquiry records were found.');
+function insertMappedDisputeItems(body: Element, source: { accounts: string[] }) {
+  if (!source.accounts.length) throw new Error('No disputed account records were found for this dispute letter.');
   const all = paragraphs(body);
   const accountHeading = findParagraph(all, ACCOUNT_SECTION_PATTERNS);
   const legalBoundary = findParagraph(all, LEGAL_BOUNDARY_PATTERNS);
@@ -191,10 +205,6 @@ function insertMappedDisputeItems(body: Element, source: { accounts: string[]; i
   const statementStyle = reusableRegion.find((paragraph) => content(paragraph).startsWith(STATEMENT_PREFIX));
   const spacer = reusableRegion.find((paragraph) => !content(paragraph));
   if (reusableRegion.length) reusableRegion.forEach((paragraph) => body.removeChild(paragraph));
-
-  // Prefer an existing packet boundary. When the reference letter uses custom wording,
-  // put mapped items directly beneath an existing account heading; otherwise append a
-  // clearly titled account block before Word's final section node for manual review.
   const boundary = standardBoundary || (accountHeading ? accountHeading.nextSibling : terminalBoundary);
   const insert = (node: Node) => boundary ? body.insertBefore(node, boundary) : body.appendChild(node);
   const addSpace = () => { if (spacer) insert(spacer.cloneNode(true)); };
@@ -205,11 +215,6 @@ function insertMappedDisputeItems(body: Element, source: { accounts: string[]; i
     if (statementStyle) insert(statementStyle.cloneNode(true));
     addSpace();
   });
-  if (source.inquiries.length) {
-    insert(cloneWithText(itemStyle, ['HARD INQUIRIES']));
-    insert(cloneWithText(itemStyle, source.inquiries));
-    addSpace();
-  }
 }
 
 export async function renderReferenceDisputeDocx(reference: File, values: ReferenceDisputeValues): Promise<Blob> {
@@ -217,9 +222,8 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   const file = zip.file('word/document.xml');
   if (!file) throw new Error('DOCX document XML is unavailable.');
   const documentXml = file.asText();
-  // Placeholder templates remain authoritative, with only the requested SSN-to-date header boundary compacted after mapping.
   if (/\{\{\s*[#\/^]?[\w.-]+\s*\}\}/.test(documentXml)) {
-    return compactRenderedDisputeHeader(await renderDocxTemplate(reference, disputePlaceholderValues(values)), values);
+    return finalizeRenderedDisputeTemplate(await renderDocxTemplate(reference, disputePlaceholderValues(values)), values);
   }
   const xml = new DOMParser().parseFromString(documentXml, 'application/xml');
   if (xml.getElementsByTagName('parsererror').length) throw new Error('DOCX content could not be read.');
@@ -233,6 +237,7 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   writeLines(nonEmpty[1], [values.letterDate]);
   writeLines(nonEmpty[2], [values.bureauName, ...values.bureauAddressLines]);
   compactSsnDateBoundary(body, nonEmpty[0], nonEmpty[1]);
+  removeHardInquirySections(body);
   insertMappedDisputeItems(body, source);
   const renderedParagraphs = paragraphs(body);
   const close = renderedParagraphs.find((paragraph) => SIGNATURE_PATTERN.test(content(paragraph)));
