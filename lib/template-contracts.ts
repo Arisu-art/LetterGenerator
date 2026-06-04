@@ -15,6 +15,7 @@ const BASE_FIELDS: Record<string, Omit<TemplateFieldContract, 'key'>> = {
 };
 const LOOP_FIELDS = new Set(['accounts', 'dispute_accounts', 'hard_inquiries', 'ftc_accounts']);
 const LOOP_CHILDREN = new Set(['account_name', 'account_number', 'account_line', 'display_text', 'inquiry_line', 'fraud_began', 'date_discovered', 'fraudulent_amount', 'fraud_amount']);
+const SYSTEM_ROUTING_FIELDS = new Set(['bureau_name', 'bureau_address', 'bureau_address_line_1', 'bureau_address_line_2']);
 const FTC_LEGACY_KEYS = ['ftc_report_number', 'ftc_report_date', 'consumer_first_name', 'consumer_middle_name', 'consumer_last_name', 'address', 'country', 'phone', 'email', 'ftc_accounts'];
 const AFFIDAVIT_LEGACY_KEYS = ['affidavit_state', 'affidavit_county', 'consumer_name', 'address_inline', 'ssn_masked', 'account_lines', 'document_date'];
 const REFERENCE_KEYS = ['consumer_name', 'address', 'dob', 'ssn_masked', 'document_date', 'bureau_name', 'bureau_address'];
@@ -34,6 +35,6 @@ export async function inspectTemplateContract(file: File, kind: TemplateDocument
   const tags = unique(tokens.filter((token) => !token.marker && !LOOP_FIELDS.has(token.key)).map((token) => token.key));
   const mode = tags.length || loops.length ? 'PLACEHOLDERS' : kind === 'DISPUTE_LETTER' || kind === 'LATE_PAYMENT_LETTER' ? 'REFERENCE_LAYOUT' : 'LEGACY_HIGHLIGHTED';
   const fields = mode === 'PLACEHOLDERS' ? placeholderFields(tags, loops, kind) : implicitFields(kind);
-  return { version: 1, kind, mode, tags, loops, fields, customFields: fields.filter((field) => field.section === 'CUSTOM') };
+  return { version: 1, kind, mode, tags, loops, fields, customFields: fields.filter((field) => field.section === 'CUSTOM' && !SYSTEM_ROUTING_FIELDS.has(field.key)) };
 }
-export function unresolvedCustomTemplateFields(contracts: Array<TemplateContract | undefined | null>) { const seen = new Set<string>(); return contracts.flatMap((contract) => contract?.customFields || []).filter((field) => { if (seen.has(field.key)) return false; seen.add(field.key); return true; }); }
+export function unresolvedCustomTemplateFields(contracts: Array<TemplateContract | undefined | null>) { const seen = new Set<string>(); return contracts.flatMap((contract) => contract?.customFields || []).filter((field) => { if (SYSTEM_ROUTING_FIELDS.has(field.key) || seen.has(field.key)) return false; seen.add(field.key); return true; }); }
