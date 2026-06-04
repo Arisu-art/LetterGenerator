@@ -1,6 +1,6 @@
 import PizZip from 'pizzip';
 import { DOCX_MIME, renderDocxTemplate, type PlaceholderValues } from './docx-renderer';
-import { bureaus, ftcFraudMonthYearFromReportDate, MAX_FTC_ACCOUNTS, type Bureau, type FtcAffectedAccount, type ParsedSource, type SourceItem } from './letter-engine';
+import { bureaus, ftcFraudMonthYearFromReportDate, MAX_FTC_ACCOUNTS, type Bureau, type ParsedSource, type SourceItem } from './letter-engine';
 
 export type MappedAppendixKind = 'AFFIDAVIT' | 'FTC';
 export type MappedAppendixContext = { kind: MappedAppendixKind; bureau: Bureau; documentDate: string; recipientName: string; recipientAddressLines: string[]; source: ParsedSource };
@@ -10,12 +10,19 @@ type RenderRow = { account_name: string; account_number: string; account_line: s
 type Opened = { zip: PizZip; xmlText: string; xml: XMLDocument; body: Element };
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const X = 'http://www.w3.org/XML/1998/namespace';
+let activeController: AbortController | null = null;
 
-function abortError() { const error = new Error('Document generation was cancelled.'); error.name = 'AbortError'; return error; }
+function emitProgress(progress: AppendixRenderProgress) {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent<AppendixRenderProgress>('lettergenerator:appendix-progress', { detail: progress }));
+}
+export function cancelActiveAppendixRender() { activeController?.abort(); }
+function abortError() { const error = new Error('Document generation was cancelled. Completed documents remain available in the review package.'); error.name = 'AbortError'; return error; }
 function assertActive(options: AppendixRenderOptions) { if (options.signal?.aborted) throw abortError(); }
 async function checkpoint(options: AppendixRenderOptions, phase: string, completed = 0, total = 1) {
   assertActive(options);
-  options.onProgress?.({ phase, completed, total });
+  const progress = { phase, completed, total };
+  options.onProgress?.(progress);
+  emitProgress(progress);
   await new Promise<void>((resolve) => {
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
     else setTimeout(resolve, 0);
@@ -47,4 +54,25 @@ async function open(file: File, label: string, options: AppendixRenderOptions): 
 async function save(opened: Opened, options: AppendixRenderOptions) { await checkpoint(options, 'Serializing DOCX output', 0, 2); opened.zip.file('word/document.xml', new XMLSerializer().serializeToString(opened.xml)); await checkpoint(options, 'Compressing DOCX output', 1, 2); assertActive(options); return opened.zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'STORE' }); }
 async function affidavit(ctx: MappedAppendixContext, opened: Opened, options: AppendixRenderOptions) { const s = ctx.source, all = topParagraphs(opened.body), street = s.address[0] || 'N/A'; await checkpoint(options, 'Mapping affidavit identity fields', 0, 3); const state = all.find((p) => /^State\s+of\s*:/i.test(text(p))), county = all.find((p) => /^County\s+of\s*:/i.test(text(p))), opening = all.find((p) => /^I,\s/i.test(text(p))), personal = all.find((p) => /Personal\s+Information/i.test(text(p))); if (!state || !county || !opening || !personal) throw new Error('Uploaded Affidavit template is missing required standard value positions.'); captured(state, /^(State\s+of\s*:\s*)(.*)$/i, 2, (s.affidavitState || 'N/A').toUpperCase()); captured(county, /^(County\s+of\s*:\s*)(.*)$/i, 2, (s.affidavitCounty || 'N/A').toUpperCase()); captured(opening, /^(I,\s*)(.*?)(\s+residing\s+at\s+)/i, 2, s.name.toUpperCase()); captured(opening, /(\s+residing\s+at\s+)(.*?)(\s+being\s+duly\s+)/i, 2, street.toUpperCase()); captured(personal, /(current\s+address\s+is\s+)(.*?)(\.\s+My\s+(?:Social\s+)?Security)/i, 2, street.toUpperCase()); allMatches(personal, /(?:X{3}|\d{3})-(?:X{2}|\d{2})-(?:X{4}|\d{4})/gi, s.ssn); const start = all.findIndex((p) => /^Account\s+Information\s*:/i.test(text(p))), end = all.findIndex((p) => /^I\s+declare\s+that\s+this\s+account/i.test(text(p))), current = all.slice(start + 1, end).filter((p) => text(p)), sample = current[0]; if (start < 0 || end <= start || !sample?.parentNode) throw new Error('Uploaded Affidavit template is missing the account-list region.'); const items = affidavitItems(s); for (let index = 0; index < items.length; index += 1) { const copy = sample.cloneNode(true) as Element; lines(copy, [items[index].account_line]); sample.parentNode!.insertBefore(copy, sample); if (index % 4 === 0 || index === items.length - 1) await checkpoint(options, 'Writing affidavit account list', index + 1, items.length); } current.forEach((p) => p.parentNode?.removeChild(p)); await checkpoint(options, 'Completing affidavit signature', 2, 3); const sincere = all.findIndex((p) => /^Sincerely,?$/i.test(text(p))), signature = sincere >= 0 ? all.slice(sincere + 1).find((p) => text(p)) : undefined, date = all.find((p) => /^Date\s*:/i.test(text(p))); if (!signature || !date) throw new Error('Uploaded Affidavit template is missing signature or date positions.'); lines(signature, [similarCase(text(signature), s.name)]); captured(date, /^(Date\s*:\s*)(.*)$/i, 2, ctx.documentDate); return save(opened, options); }
 async function ftc(ctx: MappedAppendixContext, opened: Opened, options: AppendixRenderOptions) { const s = ctx.source, reportDate = s.ftcReportDate || ctx.documentDate, began = ftcFraudMonthYearFromReportDate(reportDate), all = topParagraphs(opened.body); if (!s.ftcReportNumber.trim() || !s.ftcAccounts.length) throw new Error('FTC report number and affected accounts are required before generating the FTC report.'); await checkpoint(options, 'Locating FTC report fields', 0, 4); const report = all.filter((p) => /FTC\s+Report\s+Number\s*:/i.test(raw(p))); if (!report.length) throw new Error('Uploaded FTC template is missing the report-number position.'); report.forEach((p) => allMatches(p, /\b\d{6,12}\b/g, s.ftcReportNumber)); const allTables = tables(opened.body), contact = allTables.find((table) => { const r = children(table, 'tr'); return r.length >= 4 && children(r[1], 'tc').length === 3 && children(r[3], 'tc').length === 3; }); if (!contact) throw new Error('Uploaded FTC template is missing its contact table.'); const contactRows = children(contact, 'tr'), names = children(contactRows[1], 'tc'), values = children(contactRows[3], 'tc'); cell(names[0], s.firstName.toUpperCase()); cell(names[1], ''); cell(names[2], s.lastName.toUpperCase()); const address = paragraphs(values[0])[0]; if (!address) throw new Error('FTC address cell is not editable.'); lines(address, [...s.address, s.country || 'USA']); cell(values[1], phone(s.phone)); cell(values[2], ''); await checkpoint(options, 'Writing FTC consumer information', 1, 4); const itemTables = allTables.filter((table) => { if (table === contact) return false; const rs = children(table, 'tr'); return rs.length >= 4 && children(rs[rs.length - 1], 'tc').length === 3; }); if (!itemTables.length) throw new Error('Uploaded FTC template is missing affected-item tables.'); const selected = s.ftcAccounts.slice(0, MAX_FTC_ACCOUNTS); for (let index = 0; index < selected.length; index += 1) { const item = selected[index], table = itemTables[index]; if (!table) break; const rs = children(table, 'tr'), bottom = children(rs[rs.length - 1], 'tc'); cell(children(rs[1], 'tc')[0], item.accountName, true); if (rs.length >= 5) cell(children(rs[2], 'tc')[0], item.accountNumber, true); cell(bottom[0], began); cell(bottom[1], item.dateDiscovered); cell(bottom[2], item.fraudulentAmount ? `$ ${item.fraudulentAmount}` : ''); await checkpoint(options, `Writing FTC affected item ${index + 1} of ${selected.length}`, index + 1, selected.length); } itemTables.slice(Math.min(s.ftcAccounts.length, MAX_FTC_ACCOUNTS)).forEach((table) => table.parentNode?.removeChild(table)); await checkpoint(options, 'Completing FTC signature fields', 3, 4); const date = all.find((p) => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(text(p))); if (!date) throw new Error('Uploaded FTC template is missing signed date position.'); lines(date, [reportDate.replace(/^0/, '').replace(/\/(0)(\d)\//, '/$2/')]); all.slice(0, all.indexOf(date)).filter((p) => /^([A-Z]+[\s'-]*){2,}$/.test(text(p))).slice(-2).forEach((p) => lines(p, [s.name.toUpperCase()])); return save(opened, options); }
-export async function renderMappedAppendix(template: File, context: MappedAppendixContext, options: AppendixRenderOptions = {}) { const label = context.kind === 'AFFIDAVIT' ? 'Affidavit' : 'FTC Report'; const opened = await open(template, label, options); if (opened.xmlText.includes('{{')) { await checkpoint(options, `Mapping ${label} placeholders`, 0, 2); const output = await renderDocxTemplate(template, placeholders(context)); await checkpoint(options, `${label} document complete`, 2, 2); return output; } return context.kind === 'AFFIDAVIT' ? affidavit(context, opened, options) : ftc(context, opened, options); }
+export async function renderMappedAppendix(template: File, context: MappedAppendixContext, options: AppendixRenderOptions = {}) {
+  const controller = new AbortController();
+  activeController = controller;
+  if (options.signal) {
+    if (options.signal.aborted) controller.abort();
+    else options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+  const effective = { ...options, signal: controller.signal };
+  const label = context.kind === 'AFFIDAVIT' ? 'Affidavit' : 'FTC Report';
+  try {
+    const opened = await open(template, label, effective);
+    if (opened.xmlText.includes('{{')) {
+      await checkpoint(effective, `Mapping ${label} placeholders`, 0, 2);
+      const output = await renderDocxTemplate(template, placeholders(context));
+      await checkpoint(effective, `${label} document complete`, 2, 2);
+      return output;
+    }
+    return context.kind === 'AFFIDAVIT' ? affidavit(context, opened, effective) : ftc(context, opened, effective);
+  } finally {
+    if (activeController === controller) activeController = null;
+  }
+}
