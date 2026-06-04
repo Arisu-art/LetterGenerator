@@ -24,7 +24,8 @@ function fixedPageSize(page: HTMLElement) {
 function shellFrom(reference: HTMLElement): PageShell {
   const section = reference.cloneNode(false) as HTMLElement;
   section.removeAttribute('data-page-number');
-  section.classList.remove('docx-page-oversized');
+  section.classList.remove('docx-page-overflow', 'docx-page-oversized');
+  section.classList.add('measured-docx-page');
   fixedPageSize(section);
   const originalBody = contentBody(reference);
   if (originalBody === reference) {
@@ -69,7 +70,7 @@ export function paginateDocxPreview(host: HTMLElement): PaginatedPreview {
     blocks.forEach((block) => {
       current.body.appendChild(block);
       if (!overflowing(current.section)) return;
-      if (!hasFlowContent(current.body) || current.body.childNodes.length === 1) {
+      if (current.body.childNodes.length === 1) {
         current.section.classList.add('docx-page-oversized');
         return;
       }
@@ -84,8 +85,5 @@ export function paginateDocxPreview(host: HTMLElement): PaginatedPreview {
     page.section.dataset.pageNumber = String(index + 1);
     return page.section;
   });
-  return {
-    pages,
-    oversizedPages: pages.flatMap((page, index) => page.classList.contains('docx-page-oversized') ? [index + 1] : [])
-  };
+  return { pages, oversizedPages: pages.flatMap((page, index) => page.classList.contains('docx-page-oversized') ? [index + 1] : []) };
 }
