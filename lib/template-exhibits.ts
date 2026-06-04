@@ -1,6 +1,7 @@
 import { inspectTemplateContract, type TemplateContract } from './template-contracts';
 
 export type ExhibitKind = 'FCRA' | 'AFFIDAVIT' | 'ATTACHMENT' | 'FTC';
+export type ActiveExhibitKind = Exclude<ExhibitKind, 'FTC'>;
 export type ExhibitMode = 'STATIC_PDF' | 'GENERATED_DOCX';
 export type ExhibitAsset = { id: string; kind: ExhibitKind; mode: ExhibitMode; name: string; type: string; size: number; contract?: TemplateContract };
 export type TemplateExhibits = Record<ExhibitKind, ExhibitAsset | null>;
@@ -9,7 +10,8 @@ const DB_NAME = 'lettergenerator-private-templates';
 const STORE_NAME = 'files';
 const META_PREFIX = 'lettergenerator.template-exhibits.v2.';
 const LEGACY_PREFIX = 'lettergenerator.template-exhibits.v1.';
-export const exhibitKinds: ExhibitKind[] = ['FCRA', 'AFFIDAVIT', 'ATTACHMENT', 'FTC'];
+/** FTC is retained in stored metadata for backward compatibility only; it is not an active packet component. */
+export const exhibitKinds: ActiveExhibitKind[] = ['FCRA', 'AFFIDAVIT', 'ATTACHMENT'];
 export const exhibitModes: Record<ExhibitKind, ExhibitMode> = {
   FCRA: 'STATIC_PDF',
   AFFIDAVIT: 'GENERATED_DOCX',
@@ -20,7 +22,7 @@ export const exhibitTitles: Record<ExhibitKind, string> = {
   FCRA: 'FCRA Legal Exhibit',
   AFFIDAVIT: 'Affidavit',
   ATTACHMENT: 'Attachment',
-  FTC: 'FTC Identity Theft Report'
+  FTC: 'FTC Identity Theft Report (disabled)'
 };
 export const exhibitAccept: Record<ExhibitKind, string> = {
   FCRA: '.pdf,application/pdf',
@@ -45,24 +47,18 @@ function normalizedAsset(kind: ExhibitKind, asset: ExhibitAsset | null | undefin
   if (!asset) return null;
   return { ...asset, kind, mode: exhibitModes[kind] };
 }
-function saveMeta(round: string, value: TemplateExhibits) {
-  localStorage.setItem(`${META_PREFIX}${round}`, JSON.stringify(value));
-}
+function saveMeta(round: string, value: TemplateExhibits) { localStorage.setItem(`${META_PREFIX}${round}`, JSON.stringify(value)); }
 export function loadTemplateExhibits(round: string): TemplateExhibits {
   if (typeof window === 'undefined') return empty();
   try {
     const raw = localStorage.getItem(`${META_PREFIX}${round}`) || localStorage.getItem(`${LEGACY_PREFIX}${round}`);
     if (!raw) return empty();
     const data = JSON.parse(raw) as Partial<TemplateExhibits>;
-    return {
-      FCRA: normalizedAsset('FCRA', data.FCRA),
-      AFFIDAVIT: normalizedAsset('AFFIDAVIT', data.AFFIDAVIT),
-      ATTACHMENT: normalizedAsset('ATTACHMENT', data.ATTACHMENT),
-      FTC: normalizedAsset('FTC', data.FTC)
-    };
+    return { FCRA: normalizedAsset('FCRA', data.FCRA), AFFIDAVIT: normalizedAsset('AFFIDAVIT', data.AFFIDAVIT), ATTACHMENT: normalizedAsset('ATTACHMENT', data.ATTACHMENT), FTC: null };
   } catch { return empty(); }
 }
 function assertFileType(kind: ExhibitKind, file: File) {
+  if (kind === 'FTC') throw new Error('FTC Identity Theft Report generation is temporarily disabled.');
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
   const isDocx = /\.docx$/i.test(file.name) || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   if (exhibitModes[kind] === 'STATIC_PDF' && !isPdf) throw new Error(`${exhibitTitles[kind]} accepts PDF files only.`);
@@ -74,10 +70,7 @@ export async function saveTemplateExhibit(round: string, kind: ExhibitKind, file
   const id = fileKey(round, kind);
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put(file, id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    const tx = db.transaction(STORE_NAME, 'readwrite'); tx.objectStore(STORE_NAME).put(file, id); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
   });
   db.close();
   const next = loadTemplateExhibits(round);
@@ -87,34 +80,17 @@ export async function saveTemplateExhibit(round: string, kind: ExhibitKind, file
 }
 export async function removeTemplateExhibit(round: string, kind: ExhibitKind) {
   const db = await openDb();
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).delete(fileKey(round, kind));
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  await new Promise<void>((resolve, reject) => { const tx = db.transaction(STORE_NAME, 'readwrite'); tx.objectStore(STORE_NAME).delete(fileKey(round, kind)); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); });
   db.close();
-  const next = loadTemplateExhibits(round);
-  next[kind] = null;
-  saveMeta(round, next);
-  return next;
+  const next = loadTemplateExhibits(round); next[kind] = null; saveMeta(round, next); return next;
 }
 export async function readTemplateExhibit(round: string, kind: ExhibitKind): Promise<File | null> {
+  if (kind === 'FTC') return null;
   const db = await openDb();
-  const value = await new Promise<File | null>((resolve, reject) => {
-    const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(fileKey(round, kind));
-    request.onsuccess = () => resolve((request.result as File) || null);
-    request.onerror = () => reject(request.error);
-  });
+  const value = await new Promise<File | null>((resolve, reject) => { const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(fileKey(round, kind)); request.onsuccess = () => resolve((request.result as File) || null); request.onerror = () => reject(request.error); });
   db.close();
   return value;
 }
-export function configuredExhibits(value: TemplateExhibits) {
-  return exhibitKinds.filter((kind) => Boolean(value[kind]));
-}
-export function generatedExhibits(value: TemplateExhibits) {
-  return exhibitKinds.filter((kind) => exhibitModes[kind] === 'GENERATED_DOCX' && Boolean(value[kind]));
-}
-export function staticPdfExhibits(value: TemplateExhibits) {
-  return exhibitKinds.filter((kind) => exhibitModes[kind] === 'STATIC_PDF' && Boolean(value[kind]));
-}
+export function configuredExhibits(value: TemplateExhibits) { return exhibitKinds.filter((kind) => Boolean(value[kind])); }
+export function generatedExhibits(value: TemplateExhibits) { return exhibitKinds.filter((kind) => exhibitModes[kind] === 'GENERATED_DOCX' && Boolean(value[kind])); }
+export function staticPdfExhibits(value: TemplateExhibits) { return exhibitKinds.filter((kind) => exhibitModes[kind] === 'STATIC_PDF' && Boolean(value[kind])); }
