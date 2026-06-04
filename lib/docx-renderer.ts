@@ -30,7 +30,7 @@ export async function renderDocxTemplate(template: File, values: PlaceholderValu
   document.render(values);
   return document.getZip().generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
-function paragraphs(body: Element) { return Array.from(body.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'p'); }
+function paragraphs(body: Element) { return Array.from(body.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'p') as Element[]; }
 function content(paragraph: Element) { return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't')).map((node) => node.textContent || '').join('').trim(); }
 function required(all: Element[], target: string) {
   const found = all.find((paragraph) => content(paragraph) === target);
@@ -39,7 +39,7 @@ function required(all: Element[], target: string) {
 }
 function styleOf(paragraph: Element) {
   const runs = Array.from(paragraph.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'r');
-  return (runs.find((run) => content(run).length > 0) || runs[0] || paragraph.ownerDocument.createElementNS(WORD_NS, 'w:r')).cloneNode(true) as Element;
+  return (runs.find((run) => content(run)) || runs[0] || paragraph.ownerDocument.createElementNS(WORD_NS, 'w:r')).cloneNode(true) as Element;
 }
 function blankRun(source: Element) {
   const run = source.cloneNode(true) as Element;
@@ -60,6 +60,53 @@ function writeLines(paragraph: Element, lines: string[]) {
     run.appendChild(value);
     paragraph.appendChild(run);
   });
+}
+function paragraphProperties(paragraph: Element) {
+  const existing = Array.from(paragraph.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'pPr') as Element | undefined;
+  if (existing) return existing;
+  const properties = paragraph.ownerDocument.createElementNS(WORD_NS, 'w:pPr');
+  paragraph.insertBefore(properties, paragraph.firstChild);
+  return properties;
+}
+function setSpacing(paragraph: Element, position: 'before' | 'after') {
+  const properties = paragraphProperties(paragraph);
+  let spacing = Array.from(properties.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'spacing') as Element | undefined;
+  if (!spacing) {
+    spacing = paragraph.ownerDocument.createElementNS(WORD_NS, 'w:spacing');
+    properties.appendChild(spacing);
+  }
+  spacing.setAttributeNS(WORD_NS, `w:${position}`, '0');
+}
+/** Compacts only the identity-header boundary; all body and exhibit layout remains template-controlled. */
+function compactSsnDateBoundary(body: Element, ssnParagraph: Element, dateParagraph: Element) {
+  const all = paragraphs(body);
+  const ssnIndex = all.indexOf(ssnParagraph);
+  const dateIndex = all.indexOf(dateParagraph);
+  if (ssnIndex < 0 || dateIndex <= ssnIndex) return;
+  all.slice(ssnIndex + 1, dateIndex).filter((paragraph) => !content(paragraph)).forEach((paragraph) => body.removeChild(paragraph));
+  setSpacing(ssnParagraph, 'after');
+  setSpacing(dateParagraph, 'before');
+}
+function findPopulatedHeaderParagraphs(body: Element, values: ReferenceDisputeValues) {
+  const all = paragraphs(body);
+  const ssnParagraph = all.find((paragraph) => /\bSSN\s*:/i.test(content(paragraph)) && content(paragraph).includes(values.ssn));
+  if (!ssnParagraph) return null;
+  const index = all.indexOf(ssnParagraph);
+  const dateParagraph = all.slice(index + 1).find((paragraph) => content(paragraph).includes(values.letterDate));
+  return dateParagraph ? { ssnParagraph, dateParagraph } : null;
+}
+async function compactRenderedDisputeHeader(blob: Blob, values: ReferenceDisputeValues) {
+  const zip = new PizZip(await blob.arrayBuffer());
+  const file = zip.file('word/document.xml');
+  if (!file) return blob;
+  const xml = new DOMParser().parseFromString(file.asText(), 'application/xml');
+  const body = xml.getElementsByTagNameNS(WORD_NS, 'body')[0];
+  if (!body) return blob;
+  const header = findPopulatedHeaderParagraphs(body, values);
+  if (!header) return blob;
+  compactSsnDateBoundary(body, header.ssnParagraph, header.dateParagraph);
+  zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
+  return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
 function resolved(values: ReferenceDisputeValues) {
   if (values.disputeItems || values.hardInquiryItems) return { accounts: values.disputeItems || [], inquiries: values.hardInquiryItems || [] };
@@ -114,8 +161,10 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   const file = zip.file('word/document.xml');
   if (!file) throw new Error('DOCX document XML is unavailable.');
   const documentXml = file.asText();
-  // Placeholder templates are authoritative: populate only their declared insertion tags and never reconstruct their layout.
-  if (/\{\{\s*[#\/^]?[\w.-]+\s*\}\}/.test(documentXml)) return renderDocxTemplate(reference, disputePlaceholderValues(values));
+  // Placeholder templates remain authoritative, with only the requested SSN-to-date header boundary compacted after mapping.
+  if (/\{\{\s*[#\/^]?[\w.-]+\s*\}\}/.test(documentXml)) {
+    return compactRenderedDisputeHeader(await renderDocxTemplate(reference, disputePlaceholderValues(values)), values);
+  }
   const xml = new DOMParser().parseFromString(documentXml, 'application/xml');
   if (xml.getElementsByTagName('parsererror').length) throw new Error('DOCX content could not be read.');
   const body = xml.getElementsByTagNameNS(WORD_NS, 'body')[0];
@@ -124,10 +173,10 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   let all = paragraphs(body);
   const nonEmpty = all.filter((paragraph) => content(paragraph));
   if (nonEmpty.length < 3) throw new Error('Reference header layout is incomplete.');
-  // Legacy reference-layout templates require these existing insertion positions; paragraph styling and spacing remain unchanged.
   writeLines(nonEmpty[0], [values.consumerName, ...disputeAddressLines(values), `DOB: ${values.dob}`, `SSN: ${values.ssn}`]);
   writeLines(nonEmpty[1], [values.letterDate]);
   writeLines(nonEmpty[2], [values.bureauName, ...values.bureauAddressLines]);
+  compactSsnDateBoundary(body, nonEmpty[0], nonEmpty[1]);
   all = paragraphs(body);
   const accountHeading = required(all, ACCOUNTS_HEADING);
   const legalHeading = required(all, LEGAL_HEADING);
@@ -158,7 +207,6 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   const close = required(all, 'Sincerely,');
   const signature = all.slice(all.indexOf(close) + 1).find((paragraph) => content(paragraph));
   if (signature) writeLines(signature, [values.consumerName]);
-  // Do not run automatic flow/spacing normalization. Uploaded DOCX formatting is the layout authority.
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
   return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
