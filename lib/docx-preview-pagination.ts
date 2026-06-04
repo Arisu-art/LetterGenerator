@@ -1,11 +1,18 @@
 import PizZip from 'pizzip';
+import { DOCX_MIME } from './docx-renderer';
 
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const TWIPS_PER_INCH = 1440;
 const DEFAULT_TWIPS = { width: 12240, height: 15840, top: 1440, right: 1440, bottom: 1440, left: 1440 };
-
+const PAPER = {
+  Letter: { widthIn: 8.5, heightIn: 11 },
+  Legal: { widthIn: 8.5, heightIn: 14 },
+  A4: { widthIn: 8.268, heightIn: 11.693 },
+  A3: { widthIn: 11.693, heightIn: 16.535 }
+} as const;
+export type PaperName = keyof typeof PAPER | 'Custom';
 export type DocxPageLayout = {
-  name: string;
+  name: PaperName;
   source: 'template' | 'fallback';
   orientation: 'portrait' | 'landscape';
   widthIn: number;
@@ -14,29 +21,49 @@ export type DocxPageLayout = {
   marginRightIn: number;
   marginBottomIn: number;
   marginLeftIn: number;
+  sectionCount: number;
 };
 export type PaginatedPreview = { pages: HTMLElement[]; oversizedPages: number[]; layout: DocxPageLayout };
 type PageShell = { section: HTMLElement; body: HTMLElement };
 
-function numberAttr(element: Element | undefined, name: string, fallback: number) {
-  if (!element) return fallback;
-  const value = element.getAttributeNS(WORD_NS, name) || element.getAttribute(`w:${name}`) || element.getAttribute(name);
-  const parsed = Number(value);
+function attr(element: Element | undefined, name: string) {
+  return element?.getAttributeNS(WORD_NS, name) || element?.getAttribute(`w:${name}`) || element?.getAttribute(name) || '';
+}
+function positiveTwips(element: Element | undefined, name: string, fallback: number) {
+  const parsed = Number(attr(element, name));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
+function marginTwips(element: Element | undefined, name: string, fallback: number) {
+  const parsed = Number(attr(element, name));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
 function inches(twips: number) { return Math.round((twips / TWIPS_PER_INCH) * 1000) / 1000; }
-function near(a: number, b: number, tolerance = 70) { return Math.abs(a - b) <= tolerance; }
-function paperName(width: number, height: number) {
-  const short = Math.min(width, height);
-  const long = Math.max(width, height);
-  if (near(short, 12240) && near(long, 15840)) return 'Letter';
-  if (near(short, 12240) && near(long, 20160)) return 'Legal';
-  if (near(short, 11906) && near(long, 16838)) return 'A4';
-  if (near(short, 16838) && near(long, 23811)) return 'A3';
-  return 'Custom';
+function toTwips(value: number) { return String(Math.round(Math.max(0, value) * TWIPS_PER_INCH)); }
+function near(a: number, b: number, tolerance = 0.05) { return Math.abs(a - b) <= tolerance; }
+function paperName(widthIn: number, heightIn: number): PaperName {
+  const width = Math.min(widthIn, heightIn);
+  const height = Math.max(widthIn, heightIn);
+  const matching = (Object.entries(PAPER) as Array<[keyof typeof PAPER, { widthIn: number; heightIn: number }]>).find(([, paper]) => near(width, paper.widthIn) && near(height, paper.heightIn));
+  return matching?.[0] || 'Custom';
 }
 function fallbackLayout(): DocxPageLayout {
-  return { name: 'Letter', source: 'fallback', orientation: 'portrait', widthIn: 8.5, heightIn: 11, marginTopIn: 1, marginRightIn: 1, marginBottomIn: 1, marginLeftIn: 1 };
+  return { name: 'Letter', source: 'fallback', orientation: 'portrait', widthIn: 8.5, heightIn: 11, marginTopIn: 1, marginRightIn: 1, marginBottomIn: 1, marginLeftIn: 1, sectionCount: 1 };
+}
+function sanitizeLayout(layout: DocxPageLayout): DocxPageLayout {
+  const widthIn = Math.max(2, Math.min(40, Number(layout.widthIn) || 8.5));
+  const heightIn = Math.max(2, Math.min(40, Number(layout.heightIn) || 11));
+  const limitX = Math.max(0, widthIn / 2 - 0.25);
+  const limitY = Math.max(0, heightIn / 2 - 0.25);
+  return {
+    ...layout,
+    widthIn, heightIn,
+    name: paperName(widthIn, heightIn),
+    orientation: widthIn > heightIn ? 'landscape' : 'portrait',
+    marginTopIn: Math.min(limitY, Math.max(0, Number(layout.marginTopIn) || 0)),
+    marginRightIn: Math.min(limitX, Math.max(0, Number(layout.marginRightIn) || 0)),
+    marginBottomIn: Math.min(limitY, Math.max(0, Number(layout.marginBottomIn) || 0)),
+    marginLeftIn: Math.min(limitX, Math.max(0, Number(layout.marginLeftIn) || 0))
+  };
 }
 export async function readDocxPageLayout(blob: Blob): Promise<DocxPageLayout> {
   try {
@@ -48,29 +75,82 @@ export async function readDocxPageLayout(blob: Blob): Promise<DocxPageLayout> {
     if (!section) return fallbackLayout();
     const size = Array.from(section.getElementsByTagNameNS(WORD_NS, 'pgSz'))[0];
     const margin = Array.from(section.getElementsByTagNameNS(WORD_NS, 'pgMar'))[0];
-    const width = numberAttr(size, 'w', DEFAULT_TWIPS.width);
-    const height = numberAttr(size, 'h', DEFAULT_TWIPS.height);
-    return {
-      name: paperName(width, height), source: 'template', orientation: width > height ? 'landscape' : 'portrait',
-      widthIn: inches(width), heightIn: inches(height),
-      marginTopIn: inches(numberAttr(margin, 'top', DEFAULT_TWIPS.top)), marginRightIn: inches(numberAttr(margin, 'right', DEFAULT_TWIPS.right)),
-      marginBottomIn: inches(numberAttr(margin, 'bottom', DEFAULT_TWIPS.bottom)), marginLeftIn: inches(numberAttr(margin, 'left', DEFAULT_TWIPS.left))
-    };
+    const widthIn = inches(positiveTwips(size, 'w', DEFAULT_TWIPS.width));
+    const heightIn = inches(positiveTwips(size, 'h', DEFAULT_TWIPS.height));
+    return sanitizeLayout({
+      name: paperName(widthIn, heightIn), source: 'template', orientation: widthIn > heightIn ? 'landscape' : 'portrait', widthIn, heightIn,
+      marginTopIn: inches(marginTwips(margin, 'top', DEFAULT_TWIPS.top)), marginRightIn: inches(marginTwips(margin, 'right', DEFAULT_TWIPS.right)),
+      marginBottomIn: inches(marginTwips(margin, 'bottom', DEFAULT_TWIPS.bottom)), marginLeftIn: inches(marginTwips(margin, 'left', DEFAULT_TWIPS.left)), sectionCount: sections.length
+    });
   } catch { return fallbackLayout(); }
 }
 export function describePageLayout(layout: DocxPageLayout) {
-  const dimension = `${layout.widthIn.toFixed(2).replace(/\.00$/, '')} × ${layout.heightIn.toFixed(2).replace(/\.00$/, '')} in`;
-  return `${layout.name}${layout.orientation === 'landscape' ? ' Landscape' : ''} · ${dimension}`;
+  const dimensions = `${layout.widthIn.toFixed(2).replace(/\.00$/, '')} × ${layout.heightIn.toFixed(2).replace(/\.00$/, '')} in`;
+  return `${layout.name}${layout.orientation === 'landscape' ? ' Landscape' : ''} · ${dimensions}`;
+}
+export function applyPaperPreset(layout: DocxPageLayout, name: PaperName, orientation: DocxPageLayout['orientation']) {
+  if (name === 'Custom') return sanitizeLayout({ ...layout, name, orientation });
+  const base = PAPER[name];
+  const widthIn = orientation === 'landscape' ? base.heightIn : base.widthIn;
+  const heightIn = orientation === 'landscape' ? base.widthIn : base.heightIn;
+  return sanitizeLayout({ ...layout, name, orientation, widthIn, heightIn });
+}
+export function changePageLayout(layout: DocxPageLayout, change: Partial<DocxPageLayout>) { return sanitizeLayout({ ...layout, ...change, source: 'template' }); }
+function child(parent: Element, localName: string) {
+  const existing = Array.from(parent.children).find((element) => element.namespaceURI === WORD_NS && element.localName === localName) as Element | undefined;
+  if (existing) return existing;
+  const created = parent.ownerDocument.createElementNS(WORD_NS, `w:${localName}`);
+  parent.appendChild(created);
+  return created;
+}
+function setAttribute(element: Element, name: string, value: string) { element.setAttributeNS(WORD_NS, `w:${name}`, value); }
+export async function writeDocxPageLayout(original: Blob, requested: DocxPageLayout) {
+  const layout = sanitizeLayout(requested);
+  const zip = new PizZip(await original.arrayBuffer());
+  const file = zip.file('word/document.xml');
+  if (!file) throw new Error('DOCX page layout could not be saved because document XML is missing.');
+  const xml = new DOMParser().parseFromString(file.asText(), 'application/xml');
+  const sections = Array.from(xml.getElementsByTagNameNS(WORD_NS, 'sectPr'));
+  if (!sections.length) throw new Error('DOCX page layout could not be saved because no Word section settings were found.');
+  sections.forEach((section) => {
+    const size = child(section, 'pgSz');
+    const margin = child(section, 'pgMar');
+    setAttribute(size, 'w', toTwips(layout.widthIn)); setAttribute(size, 'h', toTwips(layout.heightIn));
+    if (layout.orientation === 'landscape') setAttribute(size, 'orient', 'landscape');
+    else { size.removeAttributeNS(WORD_NS, 'orient'); size.removeAttribute('w:orient'); }
+    setAttribute(margin, 'top', toTwips(layout.marginTopIn)); setAttribute(margin, 'right', toTwips(layout.marginRightIn));
+    setAttribute(margin, 'bottom', toTwips(layout.marginBottomIn)); setAttribute(margin, 'left', toTwips(layout.marginLeftIn));
+  });
+  zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
+  return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
 function sourcePages(host: HTMLElement) {
   const pages = Array.from(host.querySelectorAll<HTMLElement>('section.packet-inline-docx, section.docx'));
   return pages.filter((page, index) => !pages.some((other, otherIndex) => otherIndex < index && other.contains(page)));
 }
-function flowRoot(page: HTMLElement) {
-  return page.querySelector<HTMLElement>(':scope > article') || page.querySelector<HTMLElement>('article') || page;
-}
-function meaningfulNodes(root: HTMLElement) {
-  return Array.from(root.childNodes).filter((node) => node.nodeType !== Node.TEXT_NODE || Boolean(node.textContent?.trim()));
+function flowRoot(page: HTMLElement) { return page.querySelector<HTMLElement>(':scope > article') || page.querySelector<HTMLElement>('article') || page; }
+function meaningfulNodes(root: HTMLElement) { return Array.from(root.childNodes).filter((node) => node.nodeType !== Node.TEXT_NODE || Boolean(node.textContent?.trim())); }
+function nodeText(node: Node) { return (node.textContent || '').replace(/\s+/g, ' ').trim(); }
+function atomicBlocks(nodes: Node[]) {
+  const grouped: Node[] = [];
+  for (let index = 0; index < nodes.length; index += 1) {
+    const node = nodes[index];
+    if (/^(Account|Creditor)\s+Name\s*:/i.test(nodeText(node))) {
+      const group = document.createElement('div');
+      group.className = 'docx-atomic-group account-flow-group';
+      group.appendChild(node);
+      while (index + 1 < nodes.length) {
+        const following = nodeText(nodes[index + 1]);
+        if (/^(Account|Creditor)\s+Name\s*:/i.test(following) || /^LEGAL\s+DEMAND/i.test(following)) break;
+        if (/^Account\s+Number\s*:/i.test(following) || /^Pursuant\s+to\s+15\s+USC/i.test(following) || !following) { group.appendChild(nodes[index + 1]); index += 1; continue; }
+        break;
+      }
+      grouped.push(group);
+      continue;
+    }
+    grouped.push(node);
+  }
+  return grouped;
 }
 function contentBlocks(page: HTMLElement) {
   let root = flowRoot(page);
@@ -78,47 +158,29 @@ function contentBlocks(page: HTMLElement) {
   while (nodes.length === 1 && nodes[0] instanceof HTMLElement && !/^(P|TABLE|IMG|SVG|UL|OL)$/i.test(nodes[0].tagName)) {
     const nested = meaningfulNodes(nodes[0]);
     if (!nested.length) break;
-    root = nodes[0];
-    nodes = nested;
+    root = nodes[0]; nodes = nested;
   }
-  return nodes;
+  return atomicBlocks(nodes);
 }
 function setLayoutVariables(section: HTMLElement, layout: DocxPageLayout) {
-  section.style.setProperty('--docx-page-width', `${layout.widthIn}in`);
-  section.style.setProperty('--docx-page-height', `${layout.heightIn}in`);
-  section.style.setProperty('--docx-margin-top', `${layout.marginTopIn}in`);
-  section.style.setProperty('--docx-margin-right', `${layout.marginRightIn}in`);
-  section.style.setProperty('--docx-margin-bottom', `${layout.marginBottomIn}in`);
-  section.style.setProperty('--docx-margin-left', `${layout.marginLeftIn}in`);
+  section.style.setProperty('--docx-page-width', `${layout.widthIn}in`); section.style.setProperty('--docx-page-height', `${layout.heightIn}in`);
+  section.style.setProperty('--docx-margin-top', `${layout.marginTopIn}in`); section.style.setProperty('--docx-margin-right', `${layout.marginRightIn}in`);
+  section.style.setProperty('--docx-margin-bottom', `${layout.marginBottomIn}in`); section.style.setProperty('--docx-margin-left', `${layout.marginLeftIn}in`);
   section.style.setProperty('--docx-content-width', `${Math.max(0.5, layout.widthIn - layout.marginLeftIn - layout.marginRightIn)}in`);
   section.style.setProperty('--docx-content-height', `${Math.max(0.5, layout.heightIn - layout.marginTopIn - layout.marginBottomIn)}in`);
 }
 function newPage(reference: HTMLElement, parent: HTMLElement, anchor: HTMLElement, layout: DocxPageLayout): PageShell {
   const section = reference.cloneNode(false) as HTMLElement;
-  section.classList.remove('docx-page-overflow', 'docx-page-oversized');
-  section.classList.add('measured-docx-page');
-  section.removeAttribute('style');
-  setLayoutVariables(section, layout);
-  const sourceBody = flowRoot(reference);
-  const body = sourceBody === reference ? document.createElement('article') : sourceBody.cloneNode(false) as HTMLElement;
-  body.classList.add('measured-docx-content');
-  body.removeAttribute('style');
-  section.appendChild(body);
-  parent.insertBefore(section, anchor);
-  return { section, body };
+  section.classList.remove('docx-page-overflow', 'docx-page-oversized'); section.classList.add('measured-docx-page'); section.removeAttribute('style'); setLayoutVariables(section, layout);
+  const sourceBody = flowRoot(reference); const body = sourceBody === reference ? document.createElement('article') : sourceBody.cloneNode(false) as HTMLElement;
+  body.classList.add('measured-docx-content'); body.removeAttribute('style'); section.appendChild(body); parent.insertBefore(section, anchor); return { section, body };
 }
 function overflows(body: HTMLElement) { return body.scrollHeight > body.clientHeight + 2; }
-
-/**
- * Paginates only real rendered content blocks inside a printable content box.
- * It never uses the docx-preview page wrapper as a measured object.
- */
+/** Paginates real content blocks inside the template-defined printable area and preserves protected account groups. */
 export function paginateDocxPreview(host: HTMLElement, layout: DocxPageLayout): PaginatedPreview {
-  const originals = sourcePages(host);
-  const parent = originals[0]?.parentElement;
+  const originals = sourcePages(host); const parent = originals[0]?.parentElement;
   if (!originals.length || !parent) return { pages: originals, oversizedPages: [], layout };
-  const anchor = originals[0];
-  const built: PageShell[] = [];
+  const anchor = originals[0]; const built: PageShell[] = [];
   const addPage = () => { const page = newPage(originals[0], parent, anchor, layout); built.push(page); return page; };
   let current = addPage();
   originals.forEach((source, sourceIndex) => {
@@ -127,9 +189,7 @@ export function paginateDocxPreview(host: HTMLElement, layout: DocxPageLayout): 
       current.body.appendChild(block);
       if (!overflows(current.body)) return;
       if (current.body.childNodes.length === 1) { current.section.classList.add('docx-page-oversized'); return; }
-      current.body.removeChild(block);
-      current = addPage();
-      current.body.appendChild(block);
+      current.body.removeChild(block); current = addPage(); current.body.appendChild(block);
       if (overflows(current.body)) current.section.classList.add('docx-page-oversized');
     });
   });
