@@ -44,6 +44,7 @@ import './ftc-source-mapping.css';
 import './source-review-compact.css';
 import './inactive-packet-position.css';
 import './platform-quality-canvas.css';
+import './execution-integrity.css';
 
 export const metadata = {
   title: 'LetterGenerator',
