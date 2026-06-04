@@ -37,12 +37,15 @@ export async function addOrderedPacketFolders(
     const root = route.type === 'DISPUTE' ? 'DISPUTE PACKETS' : 'LATE PAYMENT PACKETS';
     const folder = `${root}/${client} ${route.bureau}/`;
     const letter = findDocument(docs, route, 'LETTER');
-    if (letter) zip.file(`${folder}01 Letter.docx`, letter.blob);
+    if (letter) {
+      const title = route.type === 'DISPUTE' ? 'Dispute Letter' : 'Late Payment Letter';
+      zip.file(`${folder}01 ${title}.docx`, letter.blob);
+    }
     if (route.type === 'DISPUTE') {
       const affidavit = findDocument(docs, route, 'AFFIDAVIT');
       const ftc = findDocument(docs, route, 'FTC');
       if (affidavit) zip.file(`${folder}04 Affidavit.docx`, affidavit.blob);
-      if (ftc) zip.file(`${folder}06 FTC.docx`, ftc.blob);
+      if (ftc) zip.file(`${folder}06 FTC Identity Theft Report.docx`, ftc.blob);
     }
   }
 }
