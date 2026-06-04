@@ -21,6 +21,12 @@ type Props = {
   onSourceFieldChange: (field: string, value: string) => void;
   onRestoreOriginal: () => void; onRecoverDraft: () => void; onEvidenceChanged: (assets: PacketAssets) => void; onMessage: (message: string) => void;
   onGenerate: () => void | Promise<void>;
+  /** Deprecated transition props: accepted until the parent controller is decomposed, never used here. */
+  ftcRequired?: boolean;
+  onFtcAccountChange?: (...args: any[]) => void;
+  onFtcAccountAdd?: () => void;
+  onFtcAccountRemove?: (...args: any[]) => void;
+  onFtcAccountSeed?: () => void;
 };
 const BLANK_SOURCE = 'NAME:\nFIRST NAME:\nMIDDLE NAME:\nLAST NAME:\nADDRESS:\nCOUNTRY: USA\nDOB:\nSSN:\nPHONE:\nEMAIL:\nAFFIDAVIT STATE:\nAFFIDAVIT COUNTY:\n\nDISPUTE ACCOUNTS\n\nTRANSUNION\n\nEQUIFAX\n\nEXPERIAN\n\nHARD INQUIRIES\n\nLATE PAYMENTS\n';
 function SourceStageHeader({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children?: ReactNode }) { return <header className="source-progressive-command simplified-source-command"><div className="source-progressive-heading"><p className="eyebrow">{eyebrow}</p><h2>{title}</h2><p>{description}</p></div>{children && <div className="source-command-actions">{children}</div>}</header>; }
