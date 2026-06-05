@@ -1,10 +1,12 @@
 'use client';
 
 import type { EditableParagraph, ParagraphAlignment } from '../lib/simple-docx-editor';
+import type { ProofStatus } from './DocxProofPreview';
 
 type Props = {
   paragraphs: EditableParagraph[];
   activeId: string;
+  proofStatus: ProofStatus;
   onSelect: (id: string) => void;
   onChange: (id: string, change: Partial<EditableParagraph>) => void;
 };
@@ -18,10 +20,11 @@ function titleFor(text: string, index: number) {
   if (clean.length > 48) return `${clean.slice(0, 48)}…`;
   return clean || `Paragraph ${index + 1}`;
 }
-export default function StructuredDocxEditor({ paragraphs, activeId, onSelect, onChange }: Props) {
+export default function StructuredDocxEditor({ paragraphs, activeId, proofStatus, onSelect, onChange }: Props) {
   const active = paragraphs.find((paragraph) => paragraph.id === activeId) || paragraphs[0];
   return <section className="structured-docx-editor" aria-label="Structured DOCX content editor">
-    <header><div><p className="eyebrow">Editable source</p><h3>Document Content Editor</h3><p>Edit the DOCX source paragraphs. Save changes to rebuild the LibreOffice proof preview.</p></div><strong>{paragraphs.length} paragraphs</strong></header>
+    <header><div><p className="eyebrow">Editable source</p><h3>DOCX Content Editor</h3><p>This editor modifies the same generated DOCX used for the proof PDF above. Save changes to rebuild the proof from the updated DOCX.</p></div><div className="structured-proof-link"><strong>{paragraphs.length} paragraphs</strong><span>{proofStatus.label}</span></div></header>
+    <div className="docx-proof-link-banner"><b>Same-document wiring</b><span>Proof PDF is read-only. Edits happen here against the DOCX source, then the proof is regenerated from that same DOCX.</span></div>
     <div className="structured-editor-layout">
       <aside className="structured-paragraph-list" aria-label="Paragraph list">
         {paragraphs.map((paragraph, index) => <button type="button" key={paragraph.id} className={paragraph.id === active?.id ? 'active' : ''} onClick={() => onSelect(paragraph.id)}><b>{String(index + 1).padStart(2, '0')}</b><span>{titleFor(paragraph.text, index)}</span></button>)}
