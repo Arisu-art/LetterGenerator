@@ -42,7 +42,7 @@ export default function MeasuredDocxEditorSection({ label, slotId, output, onSav
     finally { setSaving(false); }
   }
   return <article className="packet-focus-section packet-stack-editable simple-precise-docx-editor" data-slot={slotId}>
-    <div className="packet-document-toolbar"><div className="docx-proof-source-status simple-docx-source-status"><strong>{label}</strong><span>{paragraphs.length ? `${paragraphs.length} editable paragraphs mapped from DOCX` : 'Mapping DOCX paragraphs'}</span></div><span className={`packet-edit-state ${dirty ? 'changed' : ''}`}>{status}</span><button className="packet-save-button" type="button" disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving…' : dirty ? 'Save DOCX changes' : 'Saved'}</button></div>
+    <div className="packet-document-toolbar"><div className="simple-docx-source-status"><strong>{label}</strong><span>{paragraphs.length ? `${paragraphs.length} editable paragraphs mapped from DOCX` : 'Mapping DOCX paragraphs'}</span></div><span className={`packet-edit-state ${dirty ? 'changed' : ''}`}>{status}</span><button className="packet-save-button" type="button" disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving…' : dirty ? 'Save DOCX changes' : 'Saved'}</button></div>
     <StructuredDocxEditor paragraphs={paragraphs} activeId={activeId} onSelect={setActiveId} onChange={updateParagraph} />
   </article>;
 }
