@@ -2,59 +2,47 @@
 
 import { useEffect, useState } from 'react';
 import { readEditableParagraphs, saveEditedParagraphs, type EditableParagraph } from '../lib/simple-docx-editor';
-import DocxProofDiagnostics from './DocxProofDiagnostics';
-import DocxProofPreview, { type ProofStatus } from './DocxProofPreview';
 import StructuredDocxEditor from './StructuredDocxEditor';
 import type { ReviewOutput } from './OutputReviewWorkspace';
 
 type Props = { label: string; slotId: string; output: ReviewOutput; onSave: (output: ReviewOutput, file: File) => void | Promise<void> };
 function fileName(output: ReviewOutput) { return output.path.split('/').pop() || 'document.docx'; }
-const INITIAL_PROOF: ProofStatus = { mode: 'loading', label: 'Rendering proof PDF', ready: false };
 export default function MeasuredDocxEditorSection({ label, slotId, output, onSave }: Props) {
   const [paragraphs, setParagraphs] = useState<EditableParagraph[]>([]);
   const [activeId, setActiveId] = useState('');
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [sourceStatus, setSourceStatus] = useState('Loading editable DOCX source');
-  const [proofStatus, setProofStatus] = useState<ProofStatus>(INITIAL_PROOF);
-  const [proofRefreshKey, setProofRefreshKey] = useState(0);
+  const [status, setStatus] = useState('Loading DOCX editor');
   useEffect(() => {
     let alive = true;
-    setDirty(false); setSourceStatus('Loading editable DOCX source'); setParagraphs([]); setActiveId(''); setProofStatus(INITIAL_PROOF);
+    setDirty(false); setStatus('Loading DOCX editor'); setParagraphs([]); setActiveId('');
     void readEditableParagraphs(output.blob).then((items) => {
       if (!alive) return;
       setParagraphs(items);
       setActiveId(items[0]?.id || '');
-      setSourceStatus('DOCX source ready');
-    }).catch((error: Error) => { if (alive) setSourceStatus(error.message); });
+      setStatus('DOCX editor ready');
+    }).catch((error: Error) => { if (alive) setStatus(error.message); });
     return () => { alive = false; };
   }, [output.blob]);
   function updateParagraph(id: string, change: Partial<EditableParagraph>) {
     setParagraphs((current) => current.map((paragraph) => paragraph.id === id ? { ...paragraph, ...change, dirty: true } : paragraph));
     setActiveId(id);
     setDirty(true);
-    setSourceStatus('Unsaved DOCX changes');
-  }
-  function regenerateProof() {
-    setProofStatus(INITIAL_PROOF);
-    setProofRefreshKey((value) => value + 1);
+    setStatus('Unsaved DOCX changes');
   }
   async function save() {
-    setSaving(true); setSourceStatus('Saving DOCX and rebuilding proof');
+    setSaving(true); setStatus('Saving DOCX changes');
     try {
       const blob = await saveEditedParagraphs(output.blob, paragraphs);
       await onSave(output, new File([blob], fileName(output), { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
       setDirty(false);
       setParagraphs((current) => current.map((paragraph) => ({ ...paragraph, dirty: false })));
-      setSourceStatus('Saved · proof rebuilding');
-      regenerateProof();
-    } catch (error) { setSourceStatus(error instanceof Error ? error.message : 'Save failed.'); }
+      setStatus('DOCX changes saved');
+    } catch (error) { setStatus(error instanceof Error ? error.message : 'Save failed.'); }
     finally { setSaving(false); }
   }
-  return <article className="packet-focus-section packet-stack-editable docx-proof-editor" data-slot={slotId}>
-    <div className="packet-document-toolbar"><div className="docx-proof-source-status"><strong>DOCX proof-linked editor</strong><span>{paragraphs.length ? `${paragraphs.length} paragraphs mapped from same DOCX` : 'Mapping DOCX paragraphs'}</span></div><span className={`packet-edit-state ${dirty ? 'changed' : proofStatus.mode === 'failed' ? 'blocked' : ''}`}>{dirty ? sourceStatus : proofStatus.label}</span><button className="secondary-button proof-toolbar-button" type="button" onClick={regenerateProof} disabled={proofStatus.mode === 'loading'}>{proofStatus.mode === 'loading' ? 'Rendering…' : 'Regenerate proof'}</button><button className="packet-save-button" type="button" disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving…' : dirty ? 'Save changes and rebuild proof' : 'Saved'}</button></div>
-    <DocxProofPreview output={output} label={label} refreshKey={proofRefreshKey} onStatusChange={setProofStatus} />
-    <DocxProofDiagnostics />
-    <StructuredDocxEditor paragraphs={paragraphs} activeId={activeId} onSelect={setActiveId} onChange={updateParagraph} proofStatus={proofStatus} />
+  return <article className="packet-focus-section packet-stack-editable simple-precise-docx-editor" data-slot={slotId}>
+    <div className="packet-document-toolbar"><div className="docx-proof-source-status simple-docx-source-status"><strong>{label}</strong><span>{paragraphs.length ? `${paragraphs.length} editable paragraphs mapped from DOCX` : 'Mapping DOCX paragraphs'}</span></div><span className={`packet-edit-state ${dirty ? 'changed' : ''}`}>{status}</span><button className="packet-save-button" type="button" disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving…' : dirty ? 'Save DOCX changes' : 'Saved'}</button></div>
+    <StructuredDocxEditor paragraphs={paragraphs} activeId={activeId} onSelect={setActiveId} onChange={updateParagraph} />
   </article>;
 }
