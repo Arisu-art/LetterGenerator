@@ -23,8 +23,10 @@
   width: var(--docx-page-width) !important;
   min-width: var(--docx-page-width) !important;
   max-width: var(--docx-page-width) !important;
+  height: var(--docx-page-height) !important;
   min-height: var(--docx-page-height) !important;
-  margin: 0 auto !important;
+  max-height: var(--docx-page-height) !important;
+  margin: 0 auto 34px !important;
   padding: 0 !important;
   overflow: visible !important;
   box-sizing: border-box !important;
@@ -34,7 +36,9 @@
 .consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page .measured-docx-content {
   position: relative !important;
   width: var(--docx-content-width) !important;
+  height: var(--docx-content-height) !important;
   min-height: var(--docx-content-height) !important;
+  max-height: var(--docx-content-height) !important;
   margin: var(--docx-margin-top) var(--docx-margin-right) var(--docx-margin-bottom) var(--docx-margin-left) !important;
   padding: 0 !important;
   overflow: visible !important;
@@ -88,6 +92,16 @@
   letter-spacing: .04em;
   text-transform: uppercase;
 }
+.consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page::before {
+  content: '';
+  position: absolute;
+  top: var(--docx-margin-top);
+  right: var(--docx-margin-right);
+  bottom: var(--docx-margin-bottom);
+  left: var(--docx-margin-left);
+  border: 1px dashed rgba(100,116,139,.22);
+  pointer-events: none;
+}
 .consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page::after,
 .consolidated-packet-editor .packet-inline-docx-host section.native-docx-proof-page::after {
   content: 'Page ' attr(data-page-number);
@@ -106,6 +120,10 @@
 }
 .consolidated-packet-editor .packet-inline-docx-host section.native-docx-proof-page {
   position: relative !important;
+  width: var(--docx-page-width) !important;
+  min-width: var(--docx-page-width) !important;
+  max-width: var(--docx-page-width) !important;
+  min-height: var(--docx-page-height) !important;
   margin: 0 auto 28px !important;
   overflow: visible !important;
   box-shadow: 0 12px 30px rgba(15,23,37,.16) !important;
