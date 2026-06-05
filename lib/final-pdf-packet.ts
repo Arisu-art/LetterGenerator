@@ -27,9 +27,9 @@ type PacketFonts = { regular: PDFFont; bold: PDFFont };
 
 /**
  * Weak caches release their entries automatically after the corresponding uploaded
- * document blobs are discarded. The same Affidavit, FTC report and static PDFs
- * are reused across bureau packets, so rendering them once prevents repeated
- * browser-side DOCX rasterization and repeated binary reads on large jobs.
+ * document blobs are discarded. The same Affidavit and static PDFs can be reused
+ * across bureau packets, so rendering them once prevents repeated browser-side
+ * DOCX rasterization and repeated binary reads on large jobs.
  */
 const renderedDocxPdfCache = new WeakMap<Blob, Promise<Blob>>();
 const blobBufferCache = new WeakMap<Blob, Promise<ArrayBuffer>>();
@@ -97,7 +97,7 @@ async function renderDocxToPdf(blob: Blob, label: string) {
   ]);
   const target = await PDFDocument.create();
   const host = document.createElement('div');
-  host.className = 'pdf-render-host docx-proof-render-host';
+  host.className = 'pdf-render-host';
   host.setAttribute('aria-hidden', 'true');
   document.body.appendChild(host);
   try {
@@ -133,12 +133,7 @@ function renderedDocxPdf(blob: Blob, label: string) {
   return cached;
 }
 
-/**
- * Proof preview renderer used by Packet Editor. It renders the exact generated
- * DOCX blob to a PDF proof surface instead of asking the editor to rebuild Word
- * pagination with HTML boxes.
- */
-export function renderDocxProofPdf(blob: Blob, label: string) {
+export function renderDocxPacketPdf(blob: Blob, label: string) {
   return renderedDocxPdf(blob, label);
 }
 
