@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { paginateDocxPreview, readDocxPageLayout, type PreviewQuality } from '../lib/docx-preview-pagination';
 import { readEditableParagraphs, saveEditedParagraphs, type EditableParagraph, type ParagraphAlignment } from '../lib/simple-docx-editor';
-import DocxProofPreview from './DocxProofPreview';
 import type { ReviewOutput } from './OutputReviewWorkspace';
 
 type Props = { label: string; slotId: string; output: ReviewOutput; onSave: (output: ReviewOutput, file: File) => void | Promise<void> };
@@ -11,7 +10,7 @@ const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36];
 const LINE_SPACING = [1, 1.15, 1.5, 2];
 function fileName(output: ReviewOutput) { return output.path.split('/').pop() || 'document.docx'; }
 function textOf(node: HTMLElement) { return (node.innerText || '').replace(/\u00a0/g, ' ').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim(); }
-function pageLabel(page: number, total: number) { return total ? `Edit page ${page} of ${total}` : 'Preparing edit surface'; }
+function pageLabel(page: number, total: number) { return total ? `Edit page ${page} of ${total}` : 'Preparing edit canvas'; }
 function applyPreviewFormatting(node: HTMLElement, paragraph: EditableParagraph) {
   const properties: Array<[string, string]> = [['font-weight', paragraph.bold ? '700' : '400'], ['font-style', paragraph.italic ? 'italic' : 'normal'], ['text-decoration', paragraph.underline ? 'underline' : 'none'], ['color', paragraph.color], ['font-size', `${paragraph.fontSize}pt`]];
   node.style.setProperty('text-align', paragraph.alignment, 'important');
@@ -27,7 +26,7 @@ export default function MeasuredDocxEditorSection({ label, slotId, output, onSav
   const [activeId, setActiveId] = useState('');
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState('Loading document');
+  const [status, setStatus] = useState('Loading editable DOCX canvas');
   const [quality, setQuality] = useState<PreviewQuality>('verified-pagination');
   const [qualityNotice, setQualityNotice] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -37,7 +36,7 @@ export default function MeasuredDocxEditorSection({ label, slotId, output, onSav
   function goToPage(value: number) { const page = Math.max(1, Math.min(value, pages.current.length || 1)); pages.current[page - 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' }); setCurrentPage(page); }
   useEffect(() => {
     let live = true; let removeScroll: (() => void) | undefined;
-    setDirty(false); setStatus('Loading edit surface'); setQuality('verified-pagination'); setQualityNotice(''); setCurrentPage(1); setPageCount(0); setOversizedPages([]); nodes.current.clear(); pages.current = [];
+    setDirty(false); setStatus('Loading editable DOCX canvas'); setQuality('verified-pagination'); setQualityNotice(''); setCurrentPage(1); setPageCount(0); setOversizedPages([]); nodes.current.clear(); pages.current = [];
     void Promise.all([readEditableParagraphs(output.blob), readDocxPageLayout(output.blob), import('docx-preview')]).then(async ([items, templateLayout, renderer]) => {
       if (!live || !host.current) return;
       setParagraphs(items); setActiveId(items[0]?.id || ''); host.current.innerHTML = '';
@@ -52,24 +51,23 @@ export default function MeasuredDocxEditorSection({ label, slotId, output, onSav
       }
       const paragraphScope = paginated.quality === 'native-fallback' ? '.packet-inline-docx p, .docx p' : '.measured-docx-content p';
       const renderedParagraphs = Array.from(host.current.querySelectorAll<HTMLElement>(paragraphScope)).filter((element) => Boolean(element.textContent?.trim()));
-      items.forEach((item, index) => { const element = renderedParagraphs[index]; if (!element) return; nodes.current.set(item.id, element); element.contentEditable = 'true'; element.spellcheck = true; element.addEventListener('focus', () => setActiveId(item.id)); element.addEventListener('input', () => { setDirty(true); setStatus('Save to rebuild DOCX proof'); setParagraphs((current) => current.map((entry) => entry.id === item.id ? { ...entry, text: textOf(element), dirty: true } : entry)); }); });
-      setStatus('DOCX proof preview ready');
+      items.forEach((item, index) => { const element = renderedParagraphs[index]; if (!element) return; nodes.current.set(item.id, element); element.contentEditable = 'true'; element.spellcheck = true; element.addEventListener('focus', () => setActiveId(item.id)); element.addEventListener('input', () => { setDirty(true); setStatus('Unsaved DOCX edits'); setParagraphs((current) => current.map((entry) => entry.id === item.id ? { ...entry, text: textOf(element), dirty: true } : entry)); }); });
+      setStatus('Editable DOCX canvas ready');
     }).catch((error: Error) => { if (live) setStatus(error.message); });
     return () => { live = false; removeScroll?.(); };
   }, [output.blob, label]);
-  function format(change: Partial<EditableParagraph>) { if (!selected) return; const updated = { ...selected, ...change, dirty: true }; setParagraphs((current) => current.map((entry) => entry.id === selected.id ? updated : entry)); const node = nodes.current.get(selected.id); if (node) applyPreviewFormatting(node, updated); setDirty(true); setStatus('Save to rebuild DOCX proof'); }
+  function format(change: Partial<EditableParagraph>) { if (!selected) return; const updated = { ...selected, ...change, dirty: true }; setParagraphs((current) => current.map((entry) => entry.id === selected.id ? updated : entry)); const node = nodes.current.get(selected.id); if (node) applyPreviewFormatting(node, updated); setDirty(true); setStatus('Unsaved DOCX edits'); }
   async function save() {
     setSaving(true); setStatus('Saving DOCX');
-    try {
-      const blob = await saveEditedParagraphs(output.blob, paragraphs);
-      await onSave(output, new File([blob], fileName(output), { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
-      setDirty(false); setStatus('Saved · proof rebuilding');
-    } catch (error) { setStatus(error instanceof Error ? error.message : 'Save failed.'); }
+    try { const blob = await saveEditedParagraphs(output.blob, paragraphs); await onSave(output, new File([blob], fileName(output), { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })); setDirty(false); setParagraphs((current) => current.map((paragraph) => ({ ...paragraph, dirty: false }))); setStatus('DOCX saved'); }
+    catch (error) { setStatus(error instanceof Error ? error.message : 'Save failed.'); }
     finally { setSaving(false); }
   }
-  return <article className="packet-focus-section packet-stack-editable docx-proof-editor" data-slot={slotId}>
-    <div className="packet-document-toolbar"><div className="docx-page-navigation" aria-label="Edit surface pages"><button type="button" disabled={currentPage <= 1 || pageCount < 2} onClick={() => goToPage(currentPage - 1)}>Previous edit page</button><strong>{pageLabel(currentPage, pageCount)}</strong><button type="button" disabled={currentPage >= pageCount || pageCount < 2} onClick={() => goToPage(currentPage + 1)}>Next edit page</button></div><span className={`packet-edit-state ${dirty ? 'changed' : ''}`}>{status}</span><button className="packet-save-button" type="button" disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}</button></div>
-    <DocxProofPreview output={output} label={label} />
-    <details className="docx-edit-surface-details"><summary>Open editable HTML text surface</summary><p>The proof preview above is the visual authority. Use this editable surface only to select paragraphs and apply text/format changes, then save to rebuild the proof.</p>{quality === 'native-fallback' && <p className="docx-preview-qa-notice" role="status">{qualityNotice || 'Native DOCX edit surface is shown because measured pagination could not be verified without risking clipped content.'}</p>}<div className="docx-format-toolbar" aria-label="Document formatting toolbar"><div className="docx-format-selection"><span>Selected paragraph</span><strong>{selected ? `Paragraph ${paragraphs.findIndex((item) => item.id === selected.id) + 1}` : 'Select text'}</strong></div><div className="docx-format-group docx-format-toggles"><button type="button" className={selected?.bold ? 'active' : ''} disabled={!selected} onClick={() => format({ bold: !selected?.bold })}><b>B</b></button><button type="button" className={selected?.italic ? 'active' : ''} disabled={!selected} onClick={() => format({ italic: !selected?.italic })}><i>I</i></button><button type="button" className={selected?.underline ? 'active' : ''} disabled={!selected} onClick={() => format({ underline: !selected?.underline })}><u>U</u></button></div><label className="docx-format-field"><span>Size</span><select disabled={!selected} value={selected?.fontSize || 11} onChange={(event) => format({ fontSize: Number(event.target.value) })}>{FONT_SIZES.map((size) => <option key={size} value={size}>{size} pt</option>)}</select></label><label className="docx-format-field color-field"><span>Color</span><input type="color" disabled={!selected} value={selected?.color || '#111827'} onChange={(event) => format({ color: event.target.value })} /></label><label className="docx-format-field"><span>Alignment</span><select disabled={!selected} value={selected?.alignment || 'left'} onChange={(event) => format({ alignment: event.target.value as ParagraphAlignment })}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option></select></label><label className="docx-format-field"><span>Line spacing</span><select disabled={!selected} value={selected?.lineSpacing || 1.15} onChange={(event) => format({ lineSpacing: Number(event.target.value) })}>{LINE_SPACING.map((spacing) => <option key={spacing} value={spacing}>{spacing}</option>)}</select></label></div>{oversizedPages.length > 0 && <p className="docx-page-oversized-alert" role="alert">A protected content block is larger than the printable area on page {oversizedPages.join(', ')}. Review the original template layout or reduce that block before delivery.</p>}<div className="packet-edit-html-scroll"><div ref={host} className="packet-inline-docx-host" aria-label={`${label} editable HTML text surface`} /></div></details>
+  return <article className="packet-focus-section packet-stack-editable docx-canvas-editor" data-slot={slotId}>
+    <div className="packet-document-toolbar"><div className="docx-page-navigation" aria-label="Edit canvas pages"><button type="button" disabled={currentPage <= 1 || pageCount < 2} onClick={() => goToPage(currentPage - 1)}>Previous edit page</button><strong>{pageLabel(currentPage, pageCount)}</strong><button type="button" disabled={currentPage >= pageCount || pageCount < 2} onClick={() => goToPage(currentPage + 1)}>Next edit page</button></div><span className={`packet-edit-state ${dirty ? 'changed' : ''}`}>{status}</span><button className="packet-save-button" type="button" disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving…' : dirty ? 'Save DOCX changes' : 'Saved'}</button></div>
+    {quality === 'native-fallback' && <p className="docx-preview-qa-notice" role="status">{qualityNotice || 'Native DOCX edit canvas is shown because measured pagination could not be verified without risking clipped content.'}</p>}
+    <div className="docx-format-toolbar" aria-label="Document formatting toolbar"><div className="docx-format-selection"><span>Selected paragraph</span><strong>{selected ? `Paragraph ${paragraphs.findIndex((item) => item.id === selected.id) + 1}` : 'Select text'}</strong></div><div className="docx-format-group docx-format-toggles"><button type="button" className={selected?.bold ? 'active' : ''} disabled={!selected} onClick={() => format({ bold: !selected?.bold })}><b>B</b></button><button type="button" className={selected?.italic ? 'active' : ''} disabled={!selected} onClick={() => format({ italic: !selected?.italic })}><i>I</i></button><button type="button" className={selected?.underline ? 'active' : ''} disabled={!selected} onClick={() => format({ underline: !selected?.underline })}><u>U</u></button></div><label className="docx-format-field"><span>Size</span><select disabled={!selected} value={selected?.fontSize || 11} onChange={(event) => format({ fontSize: Number(event.target.value) })}>{FONT_SIZES.map((size) => <option key={size} value={size}>{size} pt</option>)}</select></label><label className="docx-format-field color-field"><span>Color</span><input type="color" disabled={!selected} value={selected?.color || '#111827'} onChange={(event) => format({ color: event.target.value })} /></label><label className="docx-format-field"><span>Alignment</span><select disabled={!selected} value={selected?.alignment || 'left'} onChange={(event) => format({ alignment: event.target.value as ParagraphAlignment })}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option></select></label><label className="docx-format-field"><span>Line spacing</span><select disabled={!selected} value={selected?.lineSpacing || 1.15} onChange={(event) => format({ lineSpacing: Number(event.target.value) })}>{LINE_SPACING.map((spacing) => <option key={spacing} value={spacing}>{spacing}</option>)}</select></label></div>
+    {oversizedPages.length > 0 && <p className="docx-page-oversized-alert" role="alert">A protected content block is larger than the printable area on page {oversizedPages.join(', ')}. Review the original template layout or reduce that block before delivery.</p>}
+    <div className="packet-edit-html-scroll"><div ref={host} className="packet-inline-docx-host" aria-label={`${label} editable DOCX canvas`} /></div>
   </article>;
 }
