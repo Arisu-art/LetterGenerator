@@ -78,3 +78,100 @@ function inferredFtcCandidates(parsed: ParsedSource) {
   }));
   return candidates;
 }
+function emptyParsed(): ParsedSource {
+  return { name: '', firstName: '', middleName: '', lastName: '', address: [], country: '', dob: '', ssn: '', phone: '', email: '', affidavitState: '', affidavitCounty: '', ftcReportNumber: '', ftcReportDate: '', ftcAccounts: [], templateFields: {}, dispute: itemMap(), inquiry: itemMap(), late: itemMap(), preserved: [], diagnostics: [] };
+}
+function setHeader(parsed: ParsedSource, line: string) {
+  const value = (pattern: RegExp) => headerField([line], pattern);
+  const name = value(/^(?:NAME|CLIENT|CONSUMER(?:\s+NAME)?)\s*:/i);
+  if (name) { parsed.name = name; Object.assign(parsed, splitName(name)); return true; }
+  const first = value(/^FIRST\s+NAME\s*:/i); if (first) { parsed.firstName = first; return true; }
+  const middle = value(/^MIDDLE\s+NAME\s*:/i); if (middle) { parsed.middleName = middle; return true; }
+  const last = value(/^LAST\s+NAME\s*:/i); if (last) { parsed.lastName = last; return true; }
+  const address = value(/^ADDRESS\s*:/i); if (address) { parsed.address.push(address); return true; }
+  const country = value(/^COUNTRY\s*:/i); if (country) { parsed.country = country; return true; }
+  const dob = value(/^DOB\s*:/i); if (dob) { parsed.dob = dob; return true; }
+  const ssn = value(/^SSN\s*:/i); if (ssn) { parsed.ssn = ssn; return true; }
+  const phone = value(PHONE_FIELD); if (phone) { parsed.phone = phone; return true; }
+  const email = value(/^(?:EMAIL|E-?MAIL)\s*:/i); if (email) { parsed.email = email; return true; }
+  const state = value(/^AFFIDAVIT\s+STATE\s*:/i); if (state) { parsed.affidavitState = state; return true; }
+  const county = value(/^AFFIDAVIT\s+COUNTY\s*:/i); if (county) { parsed.affidavitCounty = county; return true; }
+  const reportNumber = value(/^FTC\s+REPORT\s+NUMBER\s*:/i); if (reportNumber) { parsed.ftcReportNumber = reportNumber; return true; }
+  const reportDate = value(/^FTC\s+REPORT\s+DATE\s*:/i); if (reportDate) { parsed.ftcReportDate = reportDate; return true; }
+  const template = line.match(TEMPLATE_FIELD); if (template) { parsed.templateFields[template[1]] = safeLine(template[2]); return true; }
+  return false;
+}
+function flushRecord(parsed: ParsedSource, section: Section, bureau: Bureau | '', buffer: string[]) {
+  if (!buffer.length) return;
+  if (section === 'ftc') appendUniqueFtc(parsed.ftcAccounts, createFtcAccount(buffer), parsed.diagnostics);
+  if (bureau && section === 'dispute') appendUnique(parsed.dispute[bureau], createItem('DISPUTE_ACCOUNT', buffer), parsed.diagnostics, bureau);
+  if (bureau && section === 'inquiry') appendUnique(parsed.inquiry[bureau], createItem('HARD_INQUIRY', buffer), parsed.diagnostics, bureau);
+  if (bureau && section === 'late') appendUnique(parsed.late[bureau], createItem('LATE_PAYMENT', buffer), parsed.diagnostics, bureau);
+}
+export function parseSource(text: string): ParsedSource {
+  const parsed = emptyParsed();
+  const lines = text.split(/\r?\n/);
+  let section: Section = 'header';
+  let bureau: Bureau | '' = '';
+  let buffer: string[] = [];
+  lines.forEach((raw, index) => {
+    const line = safeLine(raw);
+    if (!line) { flushRecord(parsed, section, bureau, buffer); buffer = []; return; }
+    const nextSection = sectionOf(line);
+    const nextBureau = bureauIn(line);
+    if (KNOWN_HEADER.test(line)) {
+      flushRecord(parsed, section, bureau, buffer); buffer = [];
+      if (!setHeader(parsed, line) && !RESERVED_HEADER.test(line)) pushPreserved(parsed, index + 1, line, 'unhandled header field');
+      return;
+    }
+    if (nextSection && isSectionHeading(line, nextSection)) { flushRecord(parsed, section, bureau, buffer); buffer = []; section = nextSection; return; }
+    if (nextBureau && isBureauHeading(line)) { flushRecord(parsed, section, bureau, buffer); buffer = []; bureau = nextBureau; return; }
+    if (section === 'header') { if (!setHeader(parsed, line)) { if (parsed.address.length && !looksLikeRecord(line)) parsed.address.push(line); else pushPreserved(parsed, index + 1, line, 'unmapped header text'); } return; }
+    if (section === 'ignore') { pushPreserved(parsed, index + 1, line, 'ignored source section'); return; }
+    if (looksLikeRecord(line) && buffer.some((item) => ACCOUNT_NAME.test(item)) && ACCOUNT_NAME.test(line)) { flushRecord(parsed, section, bureau, buffer); buffer = []; }
+    buffer.push(line);
+  });
+  flushRecord(parsed, section, bureau, buffer);
+  if (!parsed.name && (parsed.firstName || parsed.lastName)) { parsed.name = [parsed.firstName, parsed.middleName, parsed.lastName].filter(Boolean).join(' '); }
+  if (!parsed.ftcReportDate) parsed.ftcReportDate = automatedFtcReportDate();
+  parsed.ftcAccounts = parsed.ftcAccounts.length ? parsed.ftcAccounts : inferredFtcCandidates(parsed);
+  if (!parsed.name) parsed.diagnostics.push({ level: 'warning', message: 'Client name was not detected.' });
+  if (!parsed.address.length) parsed.diagnostics.push({ level: 'warning', message: 'Client address was not detected.' });
+  if (!parsed.dob) parsed.diagnostics.push({ level: 'warning', message: 'DOB was not detected.' });
+  if (!parsed.ssn) parsed.diagnostics.push({ level: 'warning', message: 'SSN was not detected.' });
+  return parsed;
+}
+export function detectRoutes(parsed: ParsedSource): LetterRoute[] {
+  const routes: LetterRoute[] = [];
+  bureaus.forEach((bureau) => {
+    const disputeItems = [...parsed.dispute[bureau], ...parsed.inquiry[bureau]];
+    if (disputeItems.length) routes.push({ bureau, type: 'DISPUTE', items: disputeItems, reason: `${parsed.dispute[bureau].length} dispute · ${parsed.inquiry[bureau].length} inquiry` });
+    if (parsed.late[bureau].length) routes.push({ bureau, type: 'LATE_PAYMENT', items: parsed.late[bureau], reason: `${parsed.late[bureau].length} late payment` });
+  });
+  return routes;
+}
+export const recommendedSourceFormat = [
+  'NAME:',
+  'ADDRESS:',
+  'DOB:',
+  'SSN:',
+  '',
+  'DISPUTE ACCOUNTS',
+  'TRANSUNION',
+  'Account Name:',
+  'Account Number:',
+  '',
+  'EQUIFAX',
+  'Account Name:',
+  'Account Number:',
+  '',
+  'EXPERIAN',
+  'Account Name:',
+  'Account Number:'
+].join('\n');
+export function createNormalizedSourceCopy(text: string): NormalizedSourceCopy {
+  const parsed = parseSource(text);
+  const usedFields = ['name', 'address', 'dob', 'ssn'].filter((field) => field === 'name' ? parsed.name : field === 'address' ? parsed.address.length : field === 'dob' ? parsed.dob : parsed.ssn);
+  const reservedFields = ['phone', 'email', 'country'].filter((field) => field === 'phone' ? parsed.phone : field === 'email' ? parsed.email : parsed.country);
+  return { text, usedFields, reservedFields, preservedLines: parsed.preserved };
+}
