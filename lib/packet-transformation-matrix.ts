@@ -50,3 +50,4 @@ export function validateSourceAgainstMatrix(parsed: ParsedSource, routes: Letter
 }
 
 export function matrixIssueSummary(result: MatrixResult<unknown>) { return result.ok ? [] : result.issues.map((item) => `[${item.layer}:${item.code}] ${item.message}`); }
+export function matrixTraceSummary(result: MatrixResult<unknown>) { return result.trace.map((item) => `[${item.layer}:${item.field}] ${item.source} -> ${item.transform} -> ${item.output}`); }
