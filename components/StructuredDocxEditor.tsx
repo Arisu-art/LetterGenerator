@@ -1,12 +1,10 @@
 'use client';
 
 import type { EditableParagraph, ParagraphAlignment } from '../lib/simple-docx-editor';
-import type { ProofStatus } from './DocxProofPreview';
 
 type Props = {
   paragraphs: EditableParagraph[];
   activeId: string;
-  proofStatus: ProofStatus;
   onSelect: (id: string) => void;
   onChange: (id: string, change: Partial<EditableParagraph>) => void;
 };
@@ -54,13 +52,13 @@ function buildSections(paragraphs: EditableParagraph[]) {
   paragraphs.forEach((paragraph, index) => push(classify(paragraph.text, index), { paragraph, index }));
   return sections;
 }
-export default function StructuredDocxEditor({ paragraphs, activeId, proofStatus, onSelect, onChange }: Props) {
+export default function StructuredDocxEditor({ paragraphs, activeId, onSelect, onChange }: Props) {
   const active = paragraphs.find((paragraph) => paragraph.id === activeId) || paragraphs[0];
   const sections = buildSections(paragraphs);
   const activeSection = sections.find((section) => section.items.some((item) => item.paragraph.id === active?.id));
-  return <section className="structured-docx-editor" aria-label="Structured DOCX content editor">
-    <header><div><p className="eyebrow">Editable source</p><h3>DOCX Content Editor</h3><p>This editor modifies the same generated DOCX used for the proof PDF above. Save changes to rebuild the proof from the updated DOCX.</p></div><div className="structured-proof-link"><strong>{paragraphs.length} paragraphs</strong><span>{proofStatus.label}</span></div></header>
-    <div className="docx-proof-link-banner"><b>Same-document wiring</b><span>Proof PDF is read-only. Edits happen here against the DOCX source, then the proof is regenerated from that same DOCX.</span></div>
+  return <section className="structured-docx-editor simple-structured-docx-editor" aria-label="Simple DOCX content editor">
+    <header><div><p className="eyebrow">Simple editor</p><h3>DOCX Content Editor</h3><p>Edit mapped DOCX paragraphs while preserving the document's original template layout, styles, margins, and section settings.</p></div><div className="structured-proof-link simple-editor-count"><strong>{paragraphs.length} paragraphs</strong><span>{sections.length} sections</span></div></header>
+    <div className="docx-proof-link-banner simple-editor-banner"><b>Template-controlled layout</b><span>This editor changes content and paragraph formatting only. Page size, margins, and template geometry stay controlled by the original DOCX template.</span></div>
     <div className="structured-editor-layout">
       <aside className="structured-paragraph-list" aria-label="Document sections and paragraphs">
         {sections.map((section) => <section key={section.id} className={`structured-section-group ${section.kind === activeSection?.kind ? 'current' : ''}`}><h4>{section.label}</h4>{section.items.map(({ paragraph, index }) => <button type="button" key={paragraph.id} className={paragraph.id === active?.id ? 'active' : ''} onClick={() => onSelect(paragraph.id)}><b>{String(index + 1).padStart(2, '0')}</b><span>{titleFor(paragraph.text, index)}</span></button>)}</section>)}
