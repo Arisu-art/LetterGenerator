@@ -16,6 +16,7 @@ export default function MeasuredDocxEditorSection({ label, slotId, output, onSav
   const [saving, setSaving] = useState(false);
   const [sourceStatus, setSourceStatus] = useState('Loading editable DOCX source');
   const [proofStatus, setProofStatus] = useState<ProofStatus>(INITIAL_PROOF);
+  const [proofRefreshKey, setProofRefreshKey] = useState(0);
   useEffect(() => {
     let alive = true;
     setDirty(false); setSourceStatus('Loading editable DOCX source'); setParagraphs([]); setActiveId(''); setProofStatus(INITIAL_PROOF);
@@ -33,6 +34,10 @@ export default function MeasuredDocxEditorSection({ label, slotId, output, onSav
     setDirty(true);
     setSourceStatus('Unsaved DOCX changes');
   }
+  function regenerateProof() {
+    setProofStatus(INITIAL_PROOF);
+    setProofRefreshKey((value) => value + 1);
+  }
   async function save() {
     setSaving(true); setSourceStatus('Saving DOCX and rebuilding proof');
     try {
@@ -41,13 +46,13 @@ export default function MeasuredDocxEditorSection({ label, slotId, output, onSav
       setDirty(false);
       setParagraphs((current) => current.map((paragraph) => ({ ...paragraph, dirty: false })));
       setSourceStatus('Saved · proof rebuilding');
-      setProofStatus(INITIAL_PROOF);
+      regenerateProof();
     } catch (error) { setSourceStatus(error instanceof Error ? error.message : 'Save failed.'); }
     finally { setSaving(false); }
   }
   return <article className="packet-focus-section packet-stack-editable docx-proof-editor" data-slot={slotId}>
-    <div className="packet-document-toolbar"><div className="docx-proof-source-status"><strong>DOCX proof-linked editor</strong><span>{paragraphs.length ? `${paragraphs.length} paragraphs mapped from same DOCX` : 'Mapping DOCX paragraphs'}</span></div><span className={`packet-edit-state ${dirty ? 'changed' : proofStatus.mode === 'failed' ? 'blocked' : ''}`}>{dirty ? sourceStatus : proofStatus.label}</span><button className="packet-save-button" type="button" disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving…' : dirty ? 'Save changes and rebuild proof' : 'Saved'}</button></div>
-    <DocxProofPreview output={output} label={label} onStatusChange={setProofStatus} />
+    <div className="packet-document-toolbar"><div className="docx-proof-source-status"><strong>DOCX proof-linked editor</strong><span>{paragraphs.length ? `${paragraphs.length} paragraphs mapped from same DOCX` : 'Mapping DOCX paragraphs'}</span></div><span className={`packet-edit-state ${dirty ? 'changed' : proofStatus.mode === 'failed' ? 'blocked' : ''}`}>{dirty ? sourceStatus : proofStatus.label}</span><button className="secondary-button proof-toolbar-button" type="button" onClick={regenerateProof} disabled={proofStatus.mode === 'loading'}>{proofStatus.mode === 'loading' ? 'Rendering…' : 'Regenerate proof'}</button><button className="packet-save-button" type="button" disabled={!dirty || saving} onClick={() => void save()}>{saving ? 'Saving…' : dirty ? 'Save changes and rebuild proof' : 'Saved'}</button></div>
+    <DocxProofPreview output={output} label={label} refreshKey={proofRefreshKey} onStatusChange={setProofStatus} />
     <StructuredDocxEditor paragraphs={paragraphs} activeId={activeId} onSelect={setActiveId} onChange={updateParagraph} proofStatus={proofStatus} />
   </article>;
 }
