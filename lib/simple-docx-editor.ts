@@ -12,6 +12,7 @@ export type EditableParagraph = {
   originalIndex: number | null;
   templateIndex: number | null;
   text: string;
+  isSpacer: boolean;
   bold: boolean;
   italic: boolean;
   underline: boolean;
@@ -20,6 +21,7 @@ export type EditableParagraph = {
   fontFamily: string;
   alignment: ParagraphAlignment;
   lineSpacing: number;
+  lineRule: 'auto' | 'exact' | 'atLeast';
   spacingBefore: number;
   spacingAfter: number;
   leftIndent: number;
@@ -37,11 +39,16 @@ function firstRun(paragraph: Element) { return firstByName(paragraph, 'r'); }
 function normalizedColor(value: string) { return /^[0-9a-f]{6}$/i.test(value) ? `#${value}` : '#000000'; }
 function twipsToPt(value: string, fallback = 0) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed / 20 : fallback; }
 function halfPt(value: string, fallback = 8) { const parsed = Number(value); return Number.isFinite(parsed) && parsed > 0 ? parsed / 2 : fallback; }
+function hasRenderedOrExplicitPageBreak(paragraph: Element) {
+  return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 'lastRenderedPageBreak')).length > 0 || Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 'br')).some((br) => attribute(br, 'type') === 'page');
+}
 function paragraphText(paragraph: Element) {
   const read = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
     if (node instanceof Element && node.namespaceURI === WORD_NS) {
-      if (node.localName === 'br' || node.localName === 'cr') return '\n';
+      if (node.localName === 'lastRenderedPageBreak') return '';
+      if (node.localName === 'br') return attribute(node, 'type') === 'page' ? '' : '\n';
+      if (node.localName === 'cr') return '\n';
       if (node.localName === 'tab') return '\t';
     }
     return Array.from(node.childNodes).map(read).join('');
@@ -64,21 +71,9 @@ function readStyleContext(zip: PizZip): StyleContext {
   });
   return { defaultPPr, defaultRPr, styles };
 }
-function styleChain(context: StyleContext, id: string) {
-  const chain: StyleInfo[] = [];
-  const seen = new Set<string>();
-  let current = id;
-  while (current && !seen.has(current)) {
-    seen.add(current);
-    const style = context.styles.get(current);
-    if (!style) break;
-    chain.push(style);
-    current = style.basedOn;
-  }
-  return chain;
-}
+function styleChain(context: StyleContext, id: string) { const chain: StyleInfo[] = []; const seen = new Set<string>(); let current = id; while (current && !seen.has(current)) { seen.add(current); const style = context.styles.get(current); if (!style) break; chain.push(style); current = style.basedOn; } return chain; }
 function firstSetting(sources: Array<Element | null>, localName: string) { return sources.map((source) => firstByName(source, localName)).find(Boolean) || null; }
-function readFormatting(paragraph: Element, context: StyleContext) {
+function readFormatting(paragraph: Element, context: StyleContext, forcePageBreakBefore = false) {
   const pPr = firstByName(paragraph, 'pPr');
   const pStyleId = attribute(firstByName(pPr, 'pStyle'), 'val');
   const paragraphStyles = styleChain(context, pStyleId);
@@ -92,6 +87,8 @@ function readFormatting(paragraph: Element, context: StyleContext) {
   const alignment: ParagraphAlignment = alignValue === 'center' || alignValue === 'right' || alignValue === 'both' ? (alignValue === 'both' ? 'justify' : alignValue) : 'left';
   const spacing = firstSetting(pSources, 'spacing');
   const line = Number(attribute(spacing, 'line'));
+  const lineRuleRaw = attribute(spacing, 'lineRule');
+  const lineRule: 'auto' | 'exact' | 'atLeast' = lineRuleRaw === 'exact' || lineRuleRaw === 'atLeast' ? lineRuleRaw : 'auto';
   const before = twipsToPt(attribute(spacing, 'before'), 0);
   const after = twipsToPt(attribute(spacing, 'after'), 0);
   const ind = firstSetting(pSources, 'ind');
@@ -106,13 +103,14 @@ function readFormatting(paragraph: Element, context: StyleContext) {
     fontSize: Math.max(4, Math.min(72, size)),
     fontFamily: asciiFont,
     alignment,
-    lineSpacing: line ? Math.max(0.75, Number((line / 240).toFixed(3))) : 1,
+    lineSpacing: line ? (lineRule === 'auto' ? Math.max(0.75, Number((line / 240).toFixed(3))) : Math.max(1, Number((line / Math.max(size * 20, 1)).toFixed(3)))) : 1,
+    lineRule,
     spacingBefore: before,
     spacingAfter: after,
     leftIndent: twipsToPt(attribute(ind, 'left'), 0),
     rightIndent: twipsToPt(attribute(ind, 'right'), 0),
     firstLineIndent: twipsToPt(attribute(ind, 'firstLine') || attribute(ind, 'hanging'), 0) * (attribute(ind, 'hanging') ? -1 : 1),
-    pageBreakBefore: Boolean(firstSetting(pSources, 'pageBreakBefore'))
+    pageBreakBefore: forcePageBreakBefore || Boolean(firstSetting(pSources, 'pageBreakBefore'))
   };
 }
 function parseDocument(blob: Blob) {
@@ -129,8 +127,14 @@ function parseDocument(blob: Blob) {
 }
 export async function readEditableParagraphs(blob: Blob): Promise<EditableParagraph[]> {
   const { body, context } = await parseDocument(blob);
-  const blocks = documentParagraphs(body).map((paragraph, index) => ({ paragraph, index })).filter(({ paragraph }) => paragraphText(paragraph).length > 0);
-  return blocks.map(({ paragraph, index }) => ({ id: `paragraph-${index}`, originalIndex: index, templateIndex: index, text: paragraphText(paragraph), ...readFormatting(paragraph, context), dirty: false }));
+  let forceNextPage = false;
+  return documentParagraphs(body).map((paragraph, index) => {
+    const text = paragraphText(paragraph);
+    const selfPageBreak = hasRenderedOrExplicitPageBreak(paragraph);
+    const formatting = readFormatting(paragraph, context, forceNextPage);
+    forceNextPage = selfPageBreak;
+    return { id: `paragraph-${index}`, originalIndex: index, templateIndex: index, text, isSpacer: text.length === 0, ...formatting, dirty: false };
+  });
 }
 function removeChildren(parent: Element, localName: string) { childrenByName(parent, localName).forEach((child) => parent.removeChild(child)); }
 function requireChild(parent: Element, localName: string, first = false) { const existing = firstByName(parent, localName); if (existing) return existing; const child = parent.ownerDocument.createElementNS(WORD_NS, `w:${localName}`); if (first && parent.firstChild) parent.insertBefore(child, parent.firstChild); else parent.appendChild(child); return child; }
@@ -142,7 +146,7 @@ function writeFormattedParagraph(paragraph: Element, block: EditableParagraph) {
   const pPr = requireChild(paragraph, 'pPr', true);
   setPageBreakBefore(pPr, Boolean(block.pageBreakBefore));
   removeChildren(pPr, 'jc'); const alignment = doc.createElementNS(WORD_NS, 'w:jc'); setVal(alignment, block.alignment === 'justify' ? 'both' : block.alignment); pPr.appendChild(alignment);
-  removeChildren(pPr, 'spacing'); const spacing = doc.createElementNS(WORD_NS, 'w:spacing'); spacing.setAttributeNS(WORD_NS, 'w:line', String(Math.round(block.lineSpacing * 240))); spacing.setAttributeNS(WORD_NS, 'w:lineRule', 'auto'); spacing.setAttributeNS(WORD_NS, 'w:before', String(Math.round((block.spacingBefore || 0) * 20))); spacing.setAttributeNS(WORD_NS, 'w:after', String(Math.round(block.spacingAfter * 20))); pPr.appendChild(spacing);
+  removeChildren(pPr, 'spacing'); const spacing = doc.createElementNS(WORD_NS, 'w:spacing'); spacing.setAttributeNS(WORD_NS, 'w:line', block.lineRule === 'auto' ? String(Math.round(block.lineSpacing * 240)) : String(Math.round(block.lineSpacing * block.fontSize * 20))); spacing.setAttributeNS(WORD_NS, 'w:lineRule', block.lineRule || 'auto'); spacing.setAttributeNS(WORD_NS, 'w:before', String(Math.round((block.spacingBefore || 0) * 20))); spacing.setAttributeNS(WORD_NS, 'w:after', String(Math.round(block.spacingAfter * 20))); pPr.appendChild(spacing);
   removeChildren(pPr, 'ind'); const ind = doc.createElementNS(WORD_NS, 'w:ind'); ind.setAttributeNS(WORD_NS, 'w:left', String(Math.round((block.leftIndent || 0) * 20))); ind.setAttributeNS(WORD_NS, 'w:right', String(Math.round((block.rightIndent || 0) * 20))); if (block.firstLineIndent) ind.setAttributeNS(WORD_NS, block.firstLineIndent < 0 ? 'w:hanging' : 'w:firstLine', String(Math.round(Math.abs(block.firstLineIndent) * 20))); pPr.appendChild(ind);
   const sourceRun = firstRun(paragraph); const run = sourceRun ? sourceRun.cloneNode(true) as Element : doc.createElementNS(WORD_NS, 'w:r');
   Array.from(run.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'rPr')) run.removeChild(node); });
@@ -153,13 +157,15 @@ function writeFormattedParagraph(paragraph: Element, block: EditableParagraph) {
   removeChildren(rPr, 'sz'); const size = doc.createElementNS(WORD_NS, 'w:sz'); setVal(size, String(Math.round(block.fontSize * 2))); rPr.appendChild(size);
   removeChildren(rPr, 'szCs'); const complexSize = doc.createElementNS(WORD_NS, 'w:szCs'); setVal(complexSize, String(Math.round(block.fontSize * 2))); rPr.appendChild(complexSize);
   Array.from(paragraph.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'pPr')) paragraph.removeChild(node); });
-  block.text.replace(/\r/g, '').split('\n').forEach((line, index) => { const nextRun = run.cloneNode(true) as Element; if (index) nextRun.appendChild(doc.createElementNS(WORD_NS, 'w:br')); const text = doc.createElementNS(WORD_NS, 'w:t'); if (/^\s|\s$/.test(line)) text.setAttributeNS(XML_NS, 'xml:space', 'preserve'); text.textContent = line; nextRun.appendChild(text); paragraph.appendChild(nextRun); });
+  const lines = block.text.replace(/\r/g, '').split('\n');
+  if (block.isSpacer || !block.text.trim()) lines.splice(0, lines.length, '');
+  lines.forEach((line, index) => { const nextRun = run.cloneNode(true) as Element; if (index) nextRun.appendChild(doc.createElementNS(WORD_NS, 'w:br')); const text = doc.createElementNS(WORD_NS, 'w:t'); if (/^\s|\s$/.test(line)) text.setAttributeNS(XML_NS, 'xml:space', 'preserve'); text.textContent = line; nextRun.appendChild(text); paragraph.appendChild(nextRun); });
 }
 export async function saveEditedParagraphs(original: Blob, blocks: EditableParagraph[]) {
   const { zip, xml, body } = await parseDocument(original);
   const originals = documentParagraphs(body);
   const retained = new Set(blocks.filter((block) => block.originalIndex !== null).map((block) => block.originalIndex as number));
-  originals.forEach((paragraph, index) => { if (paragraphText(paragraph) && !retained.has(index)) paragraph.parentNode?.removeChild(paragraph); });
+  originals.forEach((paragraph, index) => { if (!retained.has(index)) paragraph.parentNode?.removeChild(paragraph); });
   let anchor: Element | null = null;
   blocks.forEach((block) => {
     let paragraph = block.originalIndex === null ? null : originals[block.originalIndex];
