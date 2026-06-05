@@ -1,6 +1,6 @@
 /* DOCX Proof Preview Framework
    Visual proof uses a PDF rendered from the generated DOCX blob.
-   Structured source editing updates the DOCX, then rebuilds the proof. */
+   Structured source editing updates the same DOCX, then rebuilds the proof. */
 .docx-proof-editor {
   background: #f8fafc !important;
 }
@@ -134,7 +134,13 @@
   font-size: 11px;
   line-height: 1.45;
 }
-.structured-docx-editor > header strong {
+.structured-proof-link {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+}
+.structured-proof-link strong,
+.structured-proof-link span {
   padding: 8px 11px;
   border: 1px solid #dbe4ee;
   border-radius: 999px;
@@ -143,6 +149,33 @@
   font-size: 10px;
   font-weight: 760;
   white-space: nowrap;
+}
+.structured-proof-link span {
+  color: #19713c;
+  border-color: #d6eade;
+  background: #ecf8f0;
+}
+.docx-proof-link-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #dbe4ee;
+  border-radius: 14px;
+  color: #344054;
+  background: #f8fafc;
+}
+.docx-proof-link-banner b {
+  color: #111827;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  white-space: nowrap;
+}
+.docx-proof-link-banner span {
+  font-size: 12px;
+  line-height: 1.45;
 }
 .structured-editor-layout {
   display: grid;
@@ -286,6 +319,12 @@
   }
   .docx-proof-preview header,
   .structured-docx-editor > header {
+    display: grid;
+  }
+  .structured-proof-link {
+    justify-items: start;
+  }
+  .docx-proof-link-banner {
     display: grid;
   }
   .structured-editor-layout {
