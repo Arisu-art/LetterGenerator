@@ -8,18 +8,40 @@ import type { ReviewOutput } from './OutputReviewWorkspace';
 type Props = { label: string; slotId: string; output: ReviewOutput; onSave: (output: ReviewOutput, file: File) => void | Promise<void> };
 const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36];
 const LINE_SPACING = [1, 1.15, 1.5, 2];
+const CANVAS_FONT_PT = 7.35;
+const CANVAS_RED_FONT_PT = 7.1;
+const CANVAS_LINE_HEIGHT = 1.05;
+const CANVAS_SPACING_PT = 3.25;
 function fileName(output: ReviewOutput) { return output.path.split('/').pop() || 'document.docx'; }
 function textOf(node: HTMLElement) { return (node.innerText || '').replace(/\u00a0/g, ' ').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim(); }
 function pageLabel(page: number, total: number) { return total ? `Edit page ${page} of ${total}` : 'Preparing edit canvas'; }
 function layoutLabel(layout: DocxPageLayout | null) { return layout ? `${layout.name} ${layout.orientation} · ${layout.widthIn}×${layout.heightIn}in · margins ${layout.marginTopIn}/${layout.marginRightIn}/${layout.marginBottomIn}/${layout.marginLeftIn}in` : 'Reading template page setup'; }
+function isRedParagraph(paragraph: EditableParagraph) { return paragraph.color.toLowerCase() === '#ff0000' || /Pursuant to 15 USC|tradeline is the direct result/i.test(paragraph.text); }
 function applyPreviewFormatting(node: HTMLElement, paragraph: EditableParagraph) {
-  const properties: Array<[string, string]> = [['font-weight', paragraph.bold ? '700' : '400'], ['font-style', paragraph.italic ? 'italic' : 'normal'], ['text-decoration', paragraph.underline ? 'underline' : 'none'], ['color', paragraph.color], ['font-size', `${paragraph.fontSize}pt`]];
+  const red = isRedParagraph(paragraph);
+  const fontSize = red ? CANVAS_RED_FONT_PT : CANVAS_FONT_PT;
+  const spacing = red ? CANVAS_SPACING_PT + 0.75 : CANVAS_SPACING_PT;
+  const color = red ? '#ff0000' : paragraph.color;
+  node.style.setProperty('font-family', 'Arial, Helvetica, sans-serif', 'important');
+  node.style.setProperty('font-size', `${fontSize}pt`, 'important');
+  node.style.setProperty('line-height', String(CANVAS_LINE_HEIGHT), 'important');
+  node.style.setProperty('margin-top', '0', 'important');
+  node.style.setProperty('margin-bottom', `${spacing}pt`, 'important');
+  node.style.setProperty('padding-top', '0', 'important');
+  node.style.setProperty('padding-bottom', '0', 'important');
   node.style.setProperty('text-align', paragraph.alignment, 'important');
-  node.style.setProperty('line-height', String(paragraph.lineSpacing), 'important');
-  node.style.setProperty('margin-bottom', `${paragraph.spacingAfter}pt`, 'important');
+  node.style.setProperty('font-weight', paragraph.bold ? '700' : '400', 'important');
+  node.style.setProperty('font-style', paragraph.italic ? 'italic' : 'normal', 'important');
+  node.style.setProperty('text-decoration', paragraph.underline ? 'underline' : 'none', 'important');
+  node.style.setProperty('color', color, 'important');
   node.style.setProperty('break-before', paragraph.pageBreakBefore ? 'page' : 'auto', 'important');
   if (paragraph.pageBreakBefore) node.classList.add('docx-edit-page-break-before'); else node.classList.remove('docx-edit-page-break-before');
-  [node, ...Array.from(node.querySelectorAll<HTMLElement>('span'))].forEach((element) => properties.forEach(([name, value]) => element.style.setProperty(name, value, 'important')));
+  [node, ...Array.from(node.querySelectorAll<HTMLElement>('span'))].forEach((element) => {
+    element.style.setProperty('font-family', 'Arial, Helvetica, sans-serif', 'important');
+    element.style.setProperty('font-size', `${fontSize}pt`, 'important');
+    element.style.setProperty('line-height', String(CANVAS_LINE_HEIGHT), 'important');
+    element.style.setProperty('color', color, 'important');
+  });
 }
 export default function MeasuredDocxEditorSection({ label, slotId, output, onSave }: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -44,6 +66,7 @@ export default function MeasuredDocxEditorSection({ label, slotId, output, onSav
     void Promise.all([readEditableParagraphs(output.blob), readDocxPageLayout(output.blob), import('docx-preview')]).then(async ([items, templateLayout, renderer]) => {
       if (!live || !host.current) return;
       setLayout(templateLayout); setParagraphs(items); setActiveId(items[0]?.id || ''); host.current.innerHTML = '';
+      host.current.dataset.docxCanvasMode = 'compact-template';
       await renderer.renderAsync(await output.blob.arrayBuffer(), host.current, undefined, { className: 'packet-inline-docx', inWrapper: true, ignoreWidth: false, ignoreHeight: false, breakPages: true, renderHeaders: false, renderFooters: false });
       if (!live || !host.current) return;
       const paginated = paginateDocxPreview(host.current, templateLayout);
