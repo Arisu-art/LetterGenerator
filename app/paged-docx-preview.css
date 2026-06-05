@@ -51,6 +51,43 @@
   margin: 0;
   padding: 0;
 }
+.consolidated-packet-editor .docx-edit-page-break-before {
+  break-before: page !important;
+  page-break-before: always !important;
+  position: relative;
+}
+.consolidated-packet-editor .docx-edit-page-break-before::before {
+  content: 'NEW PAGE';
+  display: block;
+  margin: 0 0 8px;
+  padding: 4px 8px;
+  border: 1px dashed #94a3b8;
+  border-radius: 999px;
+  color: #475467;
+  background: #f8fafc;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.docx-template-geometry-status,
+.docx-page-break-state {
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid #dbe4ee;
+  color: #475467;
+  background: #f8fafc;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.docx-template-geometry-status strong,
+.docx-page-break-state strong {
+  margin-right: 8px;
+  color: #111827;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
 .consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page::after,
 .consolidated-packet-editor .packet-inline-docx-host section.native-docx-proof-page::after {
   content: 'Page ' attr(data-page-number);
@@ -80,7 +117,8 @@
   gap: 8px;
   flex-wrap: wrap;
 }
-.consolidated-packet-editor .packet-document-toolbar .docx-page-navigation button {
+.consolidated-packet-editor .packet-document-toolbar .docx-page-navigation button,
+.consolidated-packet-editor .docx-format-toolbar button {
   min-height: 34px;
   padding: 0 11px;
   border: 1px solid var(--ui-gray-200);
@@ -90,11 +128,17 @@
   font-size: 10px;
   font-weight: 700;
 }
-.consolidated-packet-editor .packet-document-toolbar .docx-page-navigation button:not(:disabled):hover {
+.consolidated-packet-editor .docx-format-toolbar button.active {
+  border-color: #64748b;
+  background: #e2e8f0;
+}
+.consolidated-packet-editor .packet-document-toolbar .docx-page-navigation button:not(:disabled):hover,
+.consolidated-packet-editor .docx-format-toolbar button:not(:disabled):hover {
   border-color: var(--ui-gray-primary-line);
   background: var(--ui-gray-100);
 }
-.consolidated-packet-editor .packet-document-toolbar .docx-page-navigation button:disabled {
+.consolidated-packet-editor .packet-document-toolbar .docx-page-navigation button:disabled,
+.consolidated-packet-editor .docx-format-toolbar button:disabled {
   color: var(--ui-muted);
   border-color: var(--ui-gray-200);
   background: var(--ui-gray-100);
