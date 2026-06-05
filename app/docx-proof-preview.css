@@ -21,6 +21,22 @@
   text-transform: uppercase;
   letter-spacing: .05em;
 }
+.consolidated-packet-editor .packet-document-toolbar .proof-toolbar-button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #cfd8e3;
+  border-radius: 10px;
+  color: #111827;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 760;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.consolidated-packet-editor .packet-document-toolbar .proof-toolbar-button:disabled {
+  opacity: .55;
+  cursor: wait;
+}
 .docx-proof-preview {
   display: grid;
   gap: 12px;
@@ -104,6 +120,79 @@
   max-width: 560px;
   font-size: 12px;
   line-height: 1.5;
+}
+.docx-proof-diagnostics {
+  padding: 0 16px 16px;
+  background: #eef3f8;
+}
+.docx-proof-diagnostics > button,
+.docx-proof-diagnostics-panel header button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid #cfd8e3;
+  border-radius: 10px;
+  color: #111827;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 760;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.docx-proof-diagnostics-panel {
+  margin-top: 10px;
+  display: grid;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid #dbe4ee;
+  border-radius: 14px;
+  background: #fff;
+}
+.docx-proof-diagnostics-panel.ready {
+  border-color: #d6eade;
+  background: #f7fcf8;
+}
+.docx-proof-diagnostics-panel.blocked {
+  border-color: #ecd0cc;
+  background: #fff8f6;
+}
+.docx-proof-diagnostics-panel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.docx-proof-diagnostics-panel header strong {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 780;
+}
+.docx-proof-diagnostics-panel dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 8px;
+}
+.docx-proof-diagnostics-panel div {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+.docx-proof-diagnostics-panel dt {
+  color: #667085;
+  font-size: 9px;
+  font-weight: 780;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+.docx-proof-diagnostics-panel dd {
+  margin: 0;
+  color: #111827;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 .structured-docx-editor {
   display: grid;
@@ -360,7 +449,8 @@
     min-height: 520px;
   }
   .docx-proof-preview header,
-  .structured-docx-editor > header {
+  .structured-docx-editor > header,
+  .docx-proof-diagnostics-panel header {
     display: grid;
   }
   .structured-proof-link {
@@ -369,7 +459,8 @@
   .docx-proof-link-banner {
     display: grid;
   }
-  .structured-editor-layout {
+  .structured-editor-layout,
+  .docx-proof-diagnostics-panel dl {
     grid-template-columns: 1fr;
   }
   .structured-paragraph-list {
