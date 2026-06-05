@@ -1,8 +1,25 @@
 /* DOCX Proof Preview Framework
    Visual proof uses a PDF rendered from the generated DOCX blob.
-   The HTML text surface is retained only as an editable control surface. */
+   Structured source editing updates the DOCX, then rebuilds the proof. */
 .docx-proof-editor {
   background: #f8fafc !important;
+}
+.docx-proof-source-status {
+  margin-right: auto;
+  display: grid;
+  gap: 2px;
+}
+.docx-proof-source-status strong {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 780;
+}
+.docx-proof-source-status span {
+  color: #667085;
+  font-size: 10px;
+  font-weight: 680;
+  text-transform: uppercase;
+  letter-spacing: .05em;
 }
 .docx-proof-preview {
   display: grid;
@@ -88,39 +105,170 @@
   font-size: 12px;
   line-height: 1.5;
 }
-.docx-edit-surface-details {
+.structured-docx-editor {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
   border-top: 1px solid #dbe4ee;
   background: #fff;
 }
-.docx-edit-surface-details > summary {
-  cursor: pointer;
-  padding: 13px 16px;
-  color: #111827;
-  font-size: 12px;
-  font-weight: 760;
-  letter-spacing: .02em;
-  text-transform: uppercase;
-  list-style-position: inside;
+.structured-docx-editor > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 14px 16px;
+  border: 1px solid #dbe4ee;
+  border-radius: 16px;
+  background: #f8fafc;
 }
-.docx-edit-surface-details > p {
+.structured-docx-editor > header h3 {
+  margin: 4px 0;
+  color: #111827;
+  font-size: 17px;
+  letter-spacing: -.03em;
+}
+.structured-docx-editor > header p:not(.eyebrow) {
   margin: 0;
-  padding: 0 16px 12px;
   color: #667085;
   font-size: 11px;
-  line-height: 1.5;
+  line-height: 1.45;
 }
-.docx-edit-surface-details:not([open]) {
-  border-bottom-left-radius: 22px;
-  border-bottom-right-radius: 22px;
+.structured-docx-editor > header strong {
+  padding: 8px 11px;
+  border: 1px solid #dbe4ee;
+  border-radius: 999px;
+  color: #475467;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 760;
+  white-space: nowrap;
 }
-.packet-edit-html-scroll {
-  max-height: 70vh;
+.structured-editor-layout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 14px;
+  min-height: 560px;
+}
+.structured-paragraph-list {
+  max-height: 68vh;
   overflow: auto;
-  border-top: 1px solid #dbe4ee;
-  background: #e6ebf1;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid #dbe4ee;
+  border-radius: 16px;
+  background: #f8fafc;
 }
-.docx-proof-editor .packet-inline-docx-host {
-  border-radius: 0 !important;
+.structured-paragraph-list button {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 42px;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  color: #111827;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+.structured-paragraph-list button.active {
+  border-color: #94a3b8;
+  background: #eef3f8;
+  box-shadow: inset 3px 0 0 #64748b;
+}
+.structured-paragraph-list b {
+  color: #667085;
+  font-size: 10px;
+}
+.structured-paragraph-list span {
+  overflow: hidden;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.structured-editor-main {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+.structured-text-field {
+  display: grid;
+  gap: 8px;
+}
+.structured-text-field > span,
+.structured-format-grid label > span {
+  color: #667085;
+  font-size: 9px;
+  font-weight: 760;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.structured-text-field textarea {
+  width: 100%;
+  min-height: 320px;
+  padding: 14px;
+  border: 1px solid #cfd8e3;
+  border-radius: 16px;
+  color: #111827;
+  background: #fff;
+  font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  resize: vertical;
+}
+.structured-format-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid #dbe4ee;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+.structured-format-grid label {
+  display: grid;
+  gap: 5px;
+  min-width: 130px;
+}
+.structured-format-grid select,
+.structured-format-grid input[type='color'] {
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #cfd8e3;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 650;
+}
+.structured-toggle-row {
+  display: inline-flex;
+  gap: 6px;
+}
+.structured-toggle-row button {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #cfd8e3;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+  font-size: 16px;
+}
+.structured-toggle-row button.active {
+  border-color: #94a3b8;
+  background: #e2e8f0;
+}
+.structured-empty {
+  padding: 22px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  color: #667085;
+  background: #f8fafc;
 }
 .docx-proof-render-host {
   position: fixed;
@@ -136,7 +284,14 @@
     height: 72vh;
     min-height: 520px;
   }
-  .docx-proof-preview header {
+  .docx-proof-preview header,
+  .structured-docx-editor > header {
     display: grid;
+  }
+  .structured-editor-layout {
+    grid-template-columns: 1fr;
+  }
+  .structured-paragraph-list {
+    max-height: 280px;
   }
 }
