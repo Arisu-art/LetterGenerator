@@ -18,6 +18,7 @@ export type EditableParagraph = {
   alignment: ParagraphAlignment;
   lineSpacing: number;
   spacingAfter: number;
+  pageBreakBefore: boolean;
   dirty: boolean;
 };
 
@@ -60,7 +61,8 @@ function readFormatting(paragraph: Element) {
     fontSize: halfPoints ? Math.max(6, Math.min(72, halfPoints / 2)) : 11,
     alignment,
     lineSpacing: line ? Math.max(1, Number((line / 240).toFixed(2))) : 1.15,
-    spacingAfter: after ? Math.round(after / 20) : 8
+    spacingAfter: after ? Math.round(after / 20) : 8,
+    pageBreakBefore: Boolean(firstByName(pPr, 'pageBreakBefore'))
   };
 }
 function parseDocument(blob: Blob) {
@@ -84,9 +86,14 @@ function removeChildren(parent: Element, localName: string) { childrenByName(par
 function requireChild(parent: Element, localName: string, first = false) { const existing = firstByName(parent, localName); if (existing) return existing; const child = parent.ownerDocument.createElementNS(WORD_NS, `w:${localName}`); if (first && parent.firstChild) parent.insertBefore(child, parent.firstChild); else parent.appendChild(child); return child; }
 function setVal(element: Element, value: string) { element.setAttributeNS(WORD_NS, 'w:val', value); }
 function setToggle(parent: Element, localName: string, enabled: boolean) { removeChildren(parent, localName); if (enabled) parent.appendChild(parent.ownerDocument.createElementNS(WORD_NS, `w:${localName}`)); }
+function setPageBreakBefore(parent: Element, enabled: boolean) {
+  removeChildren(parent, 'pageBreakBefore');
+  if (enabled) parent.appendChild(parent.ownerDocument.createElementNS(WORD_NS, 'w:pageBreakBefore'));
+}
 function writeFormattedParagraph(paragraph: Element, block: EditableParagraph) {
   const doc = paragraph.ownerDocument;
   const pPr = requireChild(paragraph, 'pPr', true);
+  setPageBreakBefore(pPr, Boolean(block.pageBreakBefore));
   removeChildren(pPr, 'jc'); const alignment = doc.createElementNS(WORD_NS, 'w:jc'); setVal(alignment, block.alignment === 'justify' ? 'both' : block.alignment); pPr.appendChild(alignment);
   removeChildren(pPr, 'spacing'); const spacing = doc.createElementNS(WORD_NS, 'w:spacing'); spacing.setAttributeNS(WORD_NS, 'w:line', String(Math.round(block.lineSpacing * 240))); spacing.setAttributeNS(WORD_NS, 'w:lineRule', 'auto'); spacing.setAttributeNS(WORD_NS, 'w:after', String(Math.round(block.spacingAfter * 20))); pPr.appendChild(spacing);
   const sourceRun = firstRun(paragraph); const run = sourceRun ? sourceRun.cloneNode(true) as Element : doc.createElementNS(WORD_NS, 'w:r');
