@@ -183,9 +183,8 @@ export default function LetterGeneratorWorkspaceV2() {
   }
   async function makeZip(items: ReviewOutput[], notes: string[], date: string) {
     const zip = new JSZip();
-    items.forEach((item) => zip.file(item.path, item.blob));
     await addOrderedPacketFolders(zip, items, round, evidenceKey, parsed.name, routes.map((route) => ({ type: route.type, bureau: route.bureau })));
-    zip.file('Package Manifest.txt', ['COMPLETE ORDERED COMPONENT PACKAGE', `Client: ${parsed.name}`, `Round: ${round}`, `Date: ${date}`, 'Delivery format: ordered bureau folders containing DOCX and PDF components.', 'Dispute order: 01 Dispute Letter.docx; 02 Supporting Documents.pdf; 03 FCRA Legal Exhibit.pdf; 04 Affidavit.docx; 05 Attachment.pdf.', 'FTC Identity Theft Report generation is disabled and excluded.', ...items.map((item) => `- Editable source: ${item.path}`), ...notes.map((item) => `- ${item}`)].join('\n'));
+    zip.file('Package Manifest.txt', ['COMPLETE ORDERED COMPONENT PACKAGE', `Client: ${parsed.name}`, `Round: ${round}`, `Date: ${date}`, 'Delivery format: ordered bureau folders only.', 'Dispute order: 01 Dispute Letter.docx; 02 Supporting Documents.pdf; 03 FCRA Legal Exhibit.pdf; 04 Affidavit.docx; 05 Attachment.pdf.', 'FTC Identity Theft Report generation is disabled and excluded.', ...notes.map((item) => `- ${item}`)].join('\n'));
     return zip.generateAsync({ type: 'blob' });
   }
   async function generate() {
