@@ -1,5 +1,6 @@
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
+import { applyLetterFlowRules } from './docx-flow';
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -130,6 +131,7 @@ async function finalizeRenderedDisputeTemplate(blob: Blob, values: ReferenceDisp
   const header = findPopulatedHeaderParagraphs(body, values);
   if (header) compactSsnDateBoundary(body, header.ssnParagraph, header.dateParagraph);
   removeHardInquiryLabels(body);
+  applyLetterFlowRules(body);
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
   return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
@@ -247,6 +249,7 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
     const signature = renderedParagraphs.slice(renderedParagraphs.indexOf(close) + 1).find((paragraph) => content(paragraph));
     if (signature) writeLines(signature, [values.consumerName]);
   }
+  applyLetterFlowRules(body);
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
   return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }

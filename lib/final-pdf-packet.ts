@@ -27,9 +27,9 @@ type PacketFonts = { regular: PDFFont; bold: PDFFont };
 
 /**
  * Weak caches release their entries automatically after the corresponding uploaded
- * document blobs are discarded. The same Affidavit, FTC report and static PDFs
- * are reused across bureau packets, so rendering them once prevents repeated
- * browser-side DOCX rasterization and repeated binary reads on large jobs.
+ * document blobs are discarded. The same Affidavit and static PDFs can be reused
+ * across bureau packets, so rendering them once prevents repeated browser-side
+ * DOCX rasterization and repeated binary reads on large jobs.
  */
 const renderedDocxPdfCache = new WeakMap<Blob, Promise<Blob>>();
 const blobBufferCache = new WeakMap<Blob, Promise<ArrayBuffer>>();
@@ -131,6 +131,10 @@ function renderedDocxPdf(blob: Blob, label: string) {
     renderedDocxPdfCache.set(blob, cached);
   }
   return cached;
+}
+
+export function renderDocxPacketPdf(blob: Blob, label: string) {
+  return renderedDocxPdf(blob, label);
 }
 
 async function addStaticPdf(target: PDFDocument, blob: Blob, label: string, requireAllParts: boolean) {
