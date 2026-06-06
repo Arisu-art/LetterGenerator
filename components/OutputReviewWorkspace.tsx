@@ -8,4 +8,8 @@ import { PDFDocument } from 'pdf-lib';
 import SimpleDocxEditor from './SimpleDocxEditor';
 import type { PacketAssets } from '../lib/packet-assets';
 import type { LetterRoute, LetterType } from '../lib/letter-engine';
-import { packet
+import { packetOrderText } from '../lib/workflow-framework';
+
+export type DocumentRole = 'LETTER' | 'AFFIDAVIT' | 'FTC';
+
+export
