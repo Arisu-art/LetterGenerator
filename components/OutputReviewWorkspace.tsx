@@ -17,3 +17,9 @@ export type ReviewOutput = {
   blob: Blob;
   packetSteps?: string[];
 };
+
+type Props = {
+  round: string;
+  outputs: ReviewOutput[];
+  expectedRoutes?: LetterRoute[];
+ 
