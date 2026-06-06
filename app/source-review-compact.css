@@ -1,4 +1,4 @@
-/* Compact source-review hierarchy: primary action in header; FTC report number is dominant input. */
+/* Compact source-review hierarchy: persistent workspace alerts are reserved for blocking failures. */
 .workspace-operation-status {
   width: min(1320px, 100%);
   min-height: 44px;
@@ -13,10 +13,9 @@
   font-size: 12px;
   line-height: 1.5;
 }
-.workspace-operation-status.success {
-  border-color: var(--ui-green-line);
-  color: var(--ui-green);
-  background: var(--ui-green-soft);
+/* Informational and success state is expressed by the active screen itself, not a duplicate banner. */
+.workspace-operation-status:not(.error) {
+  display: none;
 }
 .workspace-operation-status.error {
   border-color: #ead4d4;
@@ -93,7 +92,7 @@
   }
 }
 @media (max-width: 720px) {
-  .workspace-operation-status {
+  .workspace-operation-status.error {
     margin-bottom: 10px;
     padding: 11px 13px;
   }
