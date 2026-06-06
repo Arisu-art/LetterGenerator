@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import SimpleDocxEditor from './SimpleDocxEditor';
 import type { PacketAssets } from '../lib/packet-assets';
-import type { LetterType } from '../lib/letter-engine';
+import type { LetterRoute, LetterType } from '../lib/letter-engine';
+import { packetOrderText } from '../lib/workflow-framework';
 
 export type DocumentRole = 'LETTER' | 'AFFIDAVIT' | 'FTC';
 
@@ -19,3 +20,8 @@ export type ReviewOutput = {
   blob: Blob;
   packetSteps?: string[];
 };
+
+type Props = {
+  round: string;
+  outputs: ReviewOutput[];
+  expected
