@@ -69,6 +69,33 @@ function headerField(lines: string[], label: RegExp) { const line = lines.find((
 function looksLikeRecord(line: string) { return ACCOUNT_NAME.test(line) || ACCOUNT_NUMBER.test(line) || FRAUD_BEGAN.test(line) || DATE_DISCOVERED.test(line) || FRAUD_AMOUNT.test(line) || DATE_PATTERN.test(line) || MONTH_YEAR_PATTERN.test(line); }
 function pushPreserved(parsed: ParsedSource, line: number, text: string, reason: string) { if (!parsed.preserved.some((item) => item.line === line && item.text === text)) parsed.preserved.push({ line, text, reason }); }
 function splitName(name: string) { const parts = safeLine(name).split(' ').filter(Boolean); return { firstName: parts[0] || '', middleName: parts.length > 2 ? parts.slice(1, -1).join(' ') : '', lastName: parts.length > 1 ? parts[parts.length - 1] : '' }; }
+function looksLikeClientName(line: string) {
+  const value = safeLine(line);
+  return Boolean(value && !KNOWN_HEADER.test(value) && !sectionOf(value) && !bureauIn(value) && !looksLikeRecord(value) && !/\d|:|@/.test(value) && /^[A-Z][A-Z'.\- ]{3,}$/i.test(value) && value.split(/\s+/).length >= 2 && value.length <= 80);
+}
+function looksLikeAddressLine(line: string) {
+  const value = safeLine(line);
+  return Boolean(value && !KNOWN_HEADER.test(value) && !sectionOf(value) && !bureauIn(value) && !looksLikeRecord(value) && (/^\d+\s+/.test(value) || /\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b/i.test(value) || /\b(?:AVE|AVENUE|ST|STREET|RD|ROAD|DR|DRIVE|BLVD|LANE|LN|CT|COURT|WAY|CIR|CIRCLE|PKWY|PL|PLACE|APT|UNIT|SUITE)\b/i.test(value)));
+}
+function inferHeaderLine(parsed: ParsedSource, line: string) {
+  if (!parsed.name && looksLikeClientName(line)) { parsed.name = safeLine(line); Object.assign(parsed, splitName(parsed.name)); return true; }
+  if (parsed.name && looksLikeAddressLine(line)) { parsed.address.push(safeLine(line)); return true; }
+  return false;
+}
+function autoLabelHeaderLines(text: string) {
+  const lines = text.split(/\r?\n/);
+  const parsed = emptyParsed();
+  let inHeader = true;
+  return lines.map((raw) => {
+    const line = safeLine(raw);
+    if (!line) return raw;
+    if (KNOWN_HEADER.test(line) || sectionOf(line) || bureauIn(line)) { if (sectionOf(line) || bureauIn(line)) inHeader = false; return raw; }
+    if (!inHeader) return raw;
+    if (!parsed.name && looksLikeClientName(line)) { parsed.name = line; Object.assign(parsed, splitName(line)); return `NAME: ${line}`; }
+    if (parsed.name && looksLikeAddressLine(line)) { parsed.address.push(line); return `ADDRESS: ${line}`; }
+    return raw;
+  }).join('\n');
+}
 function inferredFtcCandidates(parsed: ParsedSource) {
   const candidates: FtcAffectedAccount[] = []; const seen = new Set<string>();
   bureaus.forEach((bureau) => parsed.dispute[bureau].forEach((item) => {
@@ -126,7 +153,7 @@ export function parseSource(text: string): ParsedSource {
     }
     if (nextSection && isSectionHeading(line, nextSection)) { flushRecord(parsed, section, bureau, buffer); buffer = []; section = nextSection; return; }
     if (nextBureau && isBureauHeading(line)) { flushRecord(parsed, section, bureau, buffer); buffer = []; bureau = nextBureau; return; }
-    if (section === 'header') { if (!setHeader(parsed, line)) { if (parsed.address.length && !looksLikeRecord(line)) parsed.address.push(line); else pushPreserved(parsed, index + 1, line, 'unmapped header text'); } return; }
+    if (section === 'header') { if (!setHeader(parsed, line) && !inferHeaderLine(parsed, line)) { if (parsed.address.length && !looksLikeRecord(line)) parsed.address.push(line); else pushPreserved(parsed, index + 1, line, 'unmapped header text'); } return; }
     if (section === 'ignore') { pushPreserved(parsed, index + 1, line, 'ignored source section'); return; }
     if (looksLikeRecord(line) && buffer.some((item) => ACCOUNT_NAME.test(item)) && ACCOUNT_NAME.test(line)) { flushRecord(parsed, section, bureau, buffer); buffer = []; }
     buffer.push(line);
@@ -170,8 +197,9 @@ export const recommendedSourceFormat = [
   'Account Number:'
 ].join('\n');
 export function createNormalizedSourceCopy(text: string): NormalizedSourceCopy {
-  const parsed = parseSource(text);
+  const labeled = autoLabelHeaderLines(text);
+  const parsed = parseSource(labeled);
   const usedFields = ['name', 'address', 'dob', 'ssn'].filter((field) => field === 'name' ? parsed.name : field === 'address' ? parsed.address.length : field === 'dob' ? parsed.dob : parsed.ssn);
   const reservedFields = ['phone', 'email', 'country'].filter((field) => field === 'phone' ? parsed.phone : field === 'email' ? parsed.email : parsed.country);
-  return { text, usedFields, reservedFields, preservedLines: parsed.preserved };
+  return { text: labeled, usedFields, reservedFields, preservedLines: parsed.preserved };
 }
