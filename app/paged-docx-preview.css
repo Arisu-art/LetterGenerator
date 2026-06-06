@@ -1,0 +1,209 @@
+/* Template-native print-layout DOCX preview.
+   Word section geometry defines each sheet and printable content area.
+   Strict rule: content is rendered inside an absolute printable frame that matches template margins. */
+.consolidated-packet-editor .packet-inline-docx-host {
+  padding: 22px 18px 42px !important;
+  background: #e6ebf1 !important;
+}
+.consolidated-packet-editor .packet-inline-docx-host .docx-wrapper,
+.consolidated-packet-editor .packet-inline-docx-host .packet-inline-docx-wrapper {
+  width: 100% !important;
+  min-width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 34px !important;
+  padding: 4px 0 24px !important;
+  overflow: visible !important;
+  background: transparent !important;
+}
+.consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page {
+  position: relative !important;
+  flex: 0 0 auto !important;
+  width: var(--docx-page-width) !important;
+  min-width: var(--docx-page-width) !important;
+  max-width: var(--docx-page-width) !important;
+  height: var(--docx-page-height) !important;
+  min-height: var(--docx-page-height) !important;
+  max-height: var(--docx-page-height) !important;
+  margin: 0 auto 34px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  background: #fff !important;
+  box-shadow: 0 12px 30px rgba(15,23,37,.16) !important;
+  contain: layout paint !important;
+}
+.consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page .measured-docx-content {
+  position: absolute !important;
+  top: var(--docx-margin-top) !important;
+  right: var(--docx-margin-right) !important;
+  bottom: var(--docx-margin-bottom) !important;
+  left: var(--docx-margin-left) !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page .measured-docx-content > * {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.consolidated-packet-editor .docx-atomic-group {
+  display: contents !important;
+  break-inside: auto !important;
+  page-break-inside: auto !important;
+}
+.consolidated-packet-editor .account-flow-group {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.consolidated-packet-editor .docx-edit-page-break-before {
+  break-before: page !important;
+  page-break-before: always !important;
+  position: relative;
+}
+.consolidated-packet-editor .docx-edit-page-break-before::before {
+  content: 'NEW PAGE';
+  display: block;
+  margin: 0 0 8px;
+  padding: 4px 8px;
+  border: 1px dashed #94a3b8;
+  border-radius: 999px;
+  color: #475467;
+  background: #f8fafc;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.docx-template-geometry-status,
+.docx-page-break-state {
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid #dbe4ee;
+  color: #475467;
+  background: #f8fafc;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.docx-template-geometry-status strong,
+.docx-page-break-state strong {
+  margin-right: 8px;
+  color: #111827;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page::before {
+  content: '';
+  position: absolute;
+  top: var(--docx-margin-top);
+  right: var(--docx-margin-right);
+  bottom: var(--docx-margin-bottom);
+  left: var(--docx-margin-left);
+  border: 1px dashed rgba(100,116,139,.28);
+  pointer-events: none;
+  z-index: 2;
+}
+.consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page::after,
+.consolidated-packet-editor .packet-inline-docx-host section.native-docx-proof-page::after {
+  content: 'Page ' attr(data-page-number);
+  position: absolute;
+  right: 0;
+  bottom: 4px;
+  color: #667085;
+  font-size: 10px;
+  font-weight: 680;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  z-index: 3;
+}
+.consolidated-packet-editor .packet-inline-docx-host section.measured-docx-page.docx-page-oversized {
+  outline: 2px solid #d24b45;
+  outline-offset: 2px;
+}
+.consolidated-packet-editor .packet-inline-docx-host section.native-docx-proof-page {
+  position: relative !important;
+  width: var(--docx-page-width) !important;
+  min-width: var(--docx-page-width) !important;
+  max-width: var(--docx-page-width) !important;
+  height: var(--docx-page-height) !important;
+  min-height: var(--docx-page-height) !important;
+  max-height: var(--docx-page-height) !important;
+  margin: 0 auto 34px !important;
+  overflow: hidden !important;
+  box-shadow: 0 12px 30px rgba(15,23,37,.16) !important;
+  background: #fff !important;
+  contain: layout paint !important;
+}
+.docx-page-navigation {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.consolidated-packet-editor .packet-document-toolbar .docx-page-navigation button,
+.consolidated-packet-editor .docx-format-toolbar button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--ui-gray-200);
+  border-radius: 9px;
+  color: var(--ui-charcoal);
+  background: var(--ui-white);
+  font-size: 10px;
+  font-weight: 700;
+}
+.consolidated-packet-editor .docx-format-toolbar button.active {
+  border-color: #64748b;
+  background: #e2e8f0;
+}
+.consolidated-packet-editor .packet-document-toolbar .docx-page-navigation button:not(:disabled):hover,
+.consolidated-packet-editor .docx-format-toolbar button:not(:disabled):hover {
+  border-color: var(--ui-gray-primary-line);
+  background: var(--ui-gray-100);
+}
+.consolidated-packet-editor .packet-document-toolbar .docx-page-navigation button:disabled,
+.consolidated-packet-editor .docx-format-toolbar button:disabled {
+  color: var(--ui-muted);
+  border-color: var(--ui-gray-200);
+  background: var(--ui-gray-100);
+  opacity: .6;
+}
+.docx-page-navigation strong {
+  min-width: 82px;
+  color: var(--ui-charcoal);
+  font-size: 11px;
+  font-weight: 730;
+  text-align: center;
+}
+.docx-preview-qa-notice,
+.docx-page-oversized-alert {
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid #ecd0cc;
+  color: #934039;
+  background: #fff6f5;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.docx-preview-qa-notice {
+  border-bottom-color: #dbe4ee;
+  color: #475467;
+  background: #f8fafc;
+}
+@media(max-width: 980px) {
+  .docx-page-navigation {
+    width: 100%;
+    order: 2;
+  }
+}

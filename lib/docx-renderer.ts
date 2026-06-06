@@ -1,26 +1,12 @@
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
+import { hasTemplateInjectionTags } from './template-injection';
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const XML_NS = 'http://www.w3.org/XML/1998/namespace';
-const STATEMENT_PREFIX = ['Pursuant to ', '15 USC'].join('');
-const DISPUTE_EXCLUDED_ADDRESS_FIELD = /^(?:PHONE(?:\s+NO\.?)?|TELEPHONE|MOBILE|EMAIL|E-?MAIL|COUNTRY|DOB|SSN)\s*:/i;
-const ACCOUNT_SECTION_PATTERNS = [
-  /^DISPUTE(?:D)?\s+ACCOUNTS?$/i,
-  /^ACCOUNTS?\s+(?:IN\s+DISPUTE|TO\s+BE\s+DISPUTED)$/i,
-  /^(?:INACCURATE|UNVERIFIED|NEGATIVE)\s+ACCOUNTS?$/i,
-  /^FRAUDULENT\s+ACCOUNTS(?:\s+FOR\s+IMMEDIATE\s+BLOCKING\s+AND\s+DELETION)?$/i
-];
-const HARD_INQUIRY_LABEL = /^HARD\s+(?:CREDIT\s+)?INQUIR(?:Y|IES)(?:\s*[:\-]\s*(.*))?$/i;
-const LEGAL_BOUNDARY_PATTERNS = [
-  /^LEGAL\s+DEMAND(?:\s+AND\s+NOTICE\s+OF\s+DUTY)?$/i,
-  /^REQUEST(?:ED)?\s+ACTION$/i,
-  /^NOTICE\s+OF\s+DUTY$/i,
-  /^CONCLUSION$/i,
-  /^CLOSING$/i
-];
-const SIGNATURE_PATTERN = /^(?:Sincerely|Respectfully(?:\s+submitted)?|Best\s+regards|Regards|Yours\s+(?:truly|sincerely)|Very\s+truly\s+yours|Thank\s+you),?$/i;
+const DISPUTE_EXCLUDED_ADDRESS_FIELD = /^(?:PHONE(?:\s+NO\.?)?|TELEPHONE|MOBILE|EMAIL|E-?MAIL|COUNTRY)\s*:/i;
+const TOKEN = /\{\{\s*[#\/^]?\s*[\w.-]+\s*\}\}/g;
 
 export type TemplateValue = string | number | boolean | Array<Record<string, string>>;
 export type PlaceholderValues = Record<string, TemplateValue>;
@@ -33,7 +19,6 @@ export type ReferenceDisputeValues = {
   bureauName: string;
   bureauAddressLines: string[];
   disputeItems?: string[];
-  /** Rendered as inquiry rows only; no HARD INQUIRIES label is emitted. */
   hardInquiryItems?: string[];
   fraudItems?: string[];
 };
@@ -44,102 +29,18 @@ export async function renderDocxTemplate(template: File, values: PlaceholderValu
   document.render(values);
   return document.getZip().generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
 }
-function paragraphs(body: Element) { return Array.from(body.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'p') as Element[]; }
-function content(paragraph: Element) { return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't')).map((node) => node.textContent || '').join('').trim(); }
-function findParagraph(all: Element[], patterns: RegExp[]) { return all.find((paragraph) => patterns.some((pattern) => pattern.test(content(paragraph)))); }
-function styleOf(paragraph: Element) {
-  const runs = Array.from(paragraph.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'r');
-  return (runs.find((run) => content(run)) || runs[0] || paragraph.ownerDocument.createElementNS(WORD_NS, 'w:r')).cloneNode(true) as Element;
+
+function visibleXmlText(xml: string) {
+  return xml.replace(/<w:tab\b[^>]*\/>/gi, '\t').replace(/<w:(?:br|cr)\b[^>]*\/>/gi, '\n').replace(/<\/w:p>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 }
-function blankRun(source: Element) {
-  const run = source.cloneNode(true) as Element;
-  Array.from(run.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'rPr')) run.removeChild(node); });
-  return run;
-}
-/** Replace mapped text within an existing template paragraph while retaining that paragraph's native formatting and spacing properties. */
-function writeLines(paragraph: Element, lines: string[]) {
-  const doc = paragraph.ownerDocument;
-  const style = styleOf(paragraph);
-  Array.from(paragraph.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'pPr')) paragraph.removeChild(node); });
-  lines.forEach((line, index) => {
-    if (index) { const run = blankRun(style); run.appendChild(doc.createElementNS(WORD_NS, 'w:br')); paragraph.appendChild(run); }
-    const run = blankRun(style);
-    const value = doc.createElementNS(WORD_NS, 'w:t');
-    if (/^\s|\s$/.test(line)) value.setAttributeNS(XML_NS, 'xml:space', 'preserve');
-    value.textContent = line;
-    run.appendChild(value);
-    paragraph.appendChild(run);
-  });
-}
-function cloneWithText(source: Element, lines: string[]) {
-  const paragraph = source.cloneNode(true) as Element;
-  writeLines(paragraph, lines);
-  return paragraph;
-}
-function paragraphProperties(paragraph: Element) {
-  const existing = Array.from(paragraph.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'pPr') as Element | undefined;
-  if (existing) return existing;
-  const properties = paragraph.ownerDocument.createElementNS(WORD_NS, 'w:pPr');
-  paragraph.insertBefore(properties, paragraph.firstChild);
-  return properties;
-}
-function setSpacing(paragraph: Element, position: 'before' | 'after') {
-  const properties = paragraphProperties(paragraph);
-  let spacing = Array.from(properties.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'spacing') as Element | undefined;
-  if (!spacing) {
-    spacing = paragraph.ownerDocument.createElementNS(WORD_NS, 'w:spacing');
-    properties.appendChild(spacing);
-  }
-  spacing.setAttributeNS(WORD_NS, `w:${position}`, '0');
-}
-/** Compacts only the identity-header boundary; all body and exhibit layout remains template-controlled. */
-function compactSsnDateBoundary(body: Element, ssnParagraph: Element, dateParagraph: Element) {
-  const all = paragraphs(body);
-  const ssnIndex = all.indexOf(ssnParagraph);
-  const dateIndex = all.indexOf(dateParagraph);
-  if (ssnIndex < 0 || dateIndex <= ssnIndex) return;
-  all.slice(ssnIndex + 1, dateIndex).filter((paragraph) => !content(paragraph)).forEach((paragraph) => body.removeChild(paragraph));
-  setSpacing(ssnParagraph, 'after');
-  setSpacing(dateParagraph, 'before');
-}
-function findPopulatedHeaderParagraphs(body: Element, values: ReferenceDisputeValues) {
-  const all = paragraphs(body);
-  const ssnParagraph = all.find((paragraph) => /\bSSN\s*:/i.test(content(paragraph)) && content(paragraph).includes(values.ssn));
-  if (!ssnParagraph) return null;
-  const index = all.indexOf(ssnParagraph);
-  const dateParagraph = all.slice(index + 1).find((paragraph) => content(paragraph).includes(values.letterDate));
-  return dateParagraph ? { ssnParagraph, dateParagraph } : null;
-}
-/** Suppresses only the inquiry heading; inquiry rows remain in the generated dispute document. */
-function removeHardInquiryLabels(body: Element) {
-  paragraphs(body).forEach((paragraph) => {
-    const match = content(paragraph).match(HARD_INQUIRY_LABEL);
-    if (!match) return;
-    const inlineRecord = match[1]?.trim();
-    if (inlineRecord) writeLines(paragraph, [inlineRecord]);
-    else body.removeChild(paragraph);
-  });
-}
-async function finalizeRenderedDisputeTemplate(blob: Blob, values: ReferenceDisputeValues) {
-  const zip = new PizZip(await blob.arrayBuffer());
-  const file = zip.file('word/document.xml');
-  if (!file) return blob;
-  const xml = new DOMParser().parseFromString(file.asText(), 'application/xml');
-  const body = xml.getElementsByTagNameNS(WORD_NS, 'body')[0];
-  if (!body) return blob;
-  const header = findPopulatedHeaderParagraphs(body, values);
-  if (header) compactSsnDateBoundary(body, header.ssnParagraph, header.dateParagraph);
-  removeHardInquiryLabels(body);
-  zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
-  return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
-}
+function canonical(value: string) { return value.toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 function resolved(values: ReferenceDisputeValues) {
   if (values.disputeItems || values.hardInquiryItems) return { accounts: values.disputeItems || [], inquiries: values.hardInquiryItems || [] };
   const combined = values.fraudItems || [];
-  return {
-    accounts: combined.filter((entry) => /^(Account|Creditor)\s+Name\s*:/i.test(entry.trim())),
-    inquiries: combined.filter((entry) => !/^(Account|Creditor)\s+Name\s*:/i.test(entry.trim()))
-  };
+  return { accounts: combined.filter((entry) => /^(Account|Creditor)\s+Name\s*:/i.test(entry.trim())), inquiries: combined.filter((entry) => !/^(Account|Creditor)\s+Name\s*:/i.test(entry.trim())) };
+}
+function consumerIdentityLines(values: ReferenceDisputeValues) {
+  return [values.consumerName, ...values.addressLines.map((line) => line.trim()).filter(Boolean).filter((line) => !DISPUTE_EXCLUDED_ADDRESS_FIELD.test(line))].filter(Boolean);
 }
 function disputeAddressLines(values: ReferenceDisputeValues) {
   return values.addressLines.map((line) => line.trim()).filter(Boolean).filter((line) => !DISPUTE_EXCLUDED_ADDRESS_FIELD.test(line));
@@ -180,43 +81,81 @@ function disputePlaceholderValues(values: ReferenceDisputeValues): PlaceholderVa
     hard_inquiry_lines: source.inquiries.join('\n')
   };
 }
-function terminalBodyBoundary(body: Element) {
-  return Array.from(body.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'sectPr') || null;
+function parseXml(xml: string) { return new DOMParser().parseFromString(xml, 'application/xml'); }
+function childByName(parent: Element | null, localName: string) { return parent ? Array.from(parent.children).find((node) => node.namespaceURI === WORD_NS && node.localName === localName) as Element | undefined : undefined; }
+function paragraphText(paragraph: Element) { return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't')).map((node) => node.textContent || '').join('').replace(/\s+/g, ' ').trim(); }
+function allParagraphs(xml: Document) { return Array.from(xml.getElementsByTagNameNS(WORD_NS, 'p')) as Element[]; }
+function clearParagraphRuns(paragraph: Element) { Array.from(paragraph.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'pPr')) paragraph.removeChild(node); }); }
+function firstRun(paragraph: Element) { return childByName(paragraph, 'r'); }
+function makeRun(doc: Document, source: Element | undefined, text: string) {
+  const run = source ? source.cloneNode(true) as Element : doc.createElementNS(WORD_NS, 'w:r');
+  Array.from(run.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'rPr')) run.removeChild(node); });
+  const t = doc.createElementNS(WORD_NS, 'w:t');
+  if (/^\s|\s$/.test(text)) t.setAttributeNS(XML_NS, 'xml:space', 'preserve');
+  t.textContent = text;
+  run.appendChild(t);
+  return run;
 }
-function insertMappedDisputeItems(body: Element, source: { accounts: string[]; inquiries: string[] }) {
-  if (!source.accounts.length && !source.inquiries.length) throw new Error('No matching account or inquiry records were found.');
-  const all = paragraphs(body);
-  const accountHeading = findParagraph(all, ACCOUNT_SECTION_PATTERNS);
-  const legalBoundary = findParagraph(all, LEGAL_BOUNDARY_PATTERNS);
-  const signatureBoundary = all.find((paragraph) => SIGNATURE_PATTERN.test(content(paragraph)));
-  const terminalBoundary = terminalBodyBoundary(body);
-  const standardBoundary = legalBoundary || signatureBoundary;
-  const accountHeadingIndex = accountHeading ? all.indexOf(accountHeading) : -1;
-  const standardBoundaryIndex = standardBoundary ? all.indexOf(standardBoundary) : -1;
-  const reusableRegion = accountHeading && standardBoundary && standardBoundaryIndex > accountHeadingIndex
-    ? all.slice(accountHeadingIndex + 1, standardBoundaryIndex)
-    : [];
-  const itemStyle = reusableRegion.find((paragraph) => content(paragraph) && !content(paragraph).startsWith(STATEMENT_PREFIX))
-    || accountHeading
-    || standardBoundary
-    || all.find((paragraph) => content(paragraph))!;
-  const statementStyle = reusableRegion.find((paragraph) => content(paragraph).startsWith(STATEMENT_PREFIX));
-  const spacer = reusableRegion.find((paragraph) => !content(paragraph));
-  if (reusableRegion.length) reusableRegion.forEach((paragraph) => body.removeChild(paragraph));
-  const boundary = standardBoundary || (accountHeading ? accountHeading.nextSibling : terminalBoundary);
-  const insert = (node: Node) => boundary ? body.insertBefore(node, boundary) : body.appendChild(node);
-  const addSpace = () => { if (spacer) insert(spacer.cloneNode(true)); };
-  if (!accountHeading) insert(cloneWithText(itemStyle, ['DISPUTED ACCOUNTS']));
-  addSpace();
-  source.accounts.forEach((account) => {
-    insert(cloneWithText(itemStyle, account.split('\n')));
-    if (statementStyle) insert(statementStyle.cloneNode(true));
-    addSpace();
+function setParagraphText(paragraph: Element, text: string) {
+  const doc = paragraph.ownerDocument;
+  const sourceRun = firstRun(paragraph);
+  clearParagraphRuns(paragraph);
+  const lines = text.split('\n');
+  lines.forEach((line, index) => {
+    const run = makeRun(doc, sourceRun, line);
+    if (index) run.insertBefore(doc.createElementNS(WORD_NS, 'w:br'), Array.from(run.children).find((node) => node.localName === 't') || null);
+    paragraph.appendChild(run);
   });
-  if (source.inquiries.length) {
-    insert(cloneWithText(itemStyle, source.inquiries));
-    addSpace();
-  }
+}
+function cloneWithText(source: Element, text: string) { const clone = source.cloneNode(true) as Element; setParagraphText(clone, text); return clone; }
+function insertAfter(reference: Element, node: Element) { reference.parentNode?.insertBefore(node, reference.nextSibling); }
+function removeRange(paragraphs: Element[], startExclusive: number, endExclusive: number) { for (let i = endExclusive - 1; i > startExclusive; i -= 1) paragraphs[i]?.parentNode?.removeChild(paragraphs[i]); }
+function isDateText(text: string) { return /^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}$/i.test(text) || /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(text); }
+function looksLikeBureau(text: string) { return /\b(?:Equifax|Experian|TransUnion|Transunion|Information Services|PO Box|P\.O\. Box)\b/i.test(text); }
+function looksLikeAccount(text: string) { return /^(?:Account|Creditor)\s+Name\s*:|^Account\s+Number\s*:|^Pursuant\s+to\s+15\s+USC/i.test(text); }
+function accountLines(items: string[]) { return items.flatMap((item) => item.split('\n').map((line) => line.trim()).filter(Boolean)); }
+function fallbackRenderDisputeDocx(reference: File, values: ReferenceDisputeValues, documentXml: string) {
+  return reference.arrayBuffer().then((buffer) => {
+    const zip = new PizZip(buffer);
+    const xml = parseXml(documentXml);
+    const paragraphs = allParagraphs(xml);
+    const nonEmpty = paragraphs.map((p, i) => ({ p, i, text: paragraphText(p) })).filter((item) => item.text);
+    const identity = consumerIdentityLines(values);
+    const firstTextIndex = nonEmpty[0]?.i ?? 0;
+    identity.slice(0, Math.min(identity.length, 6)).forEach((line, offset) => { if (paragraphs[firstTextIndex + offset]) setParagraphText(paragraphs[firstTextIndex + offset], line); });
+    const dateCandidate = nonEmpty.find((item) => isDateText(item.text)) || nonEmpty.find((item) => item.i > firstTextIndex && item.i < firstTextIndex + 12);
+    if (dateCandidate) setParagraphText(dateCandidate.p, values.letterDate);
+    const bureauStart = nonEmpty.find((item) => looksLikeBureau(item.text));
+    if (bureauStart) setParagraphText(bureauStart.p, [values.bureauName, ...values.bureauAddressLines].filter(Boolean).join('\n'));
+    const heading = nonEmpty.find((item) => /FRAUDULENT\s+ACCOUNTS|IMMEDIATE\s+BLOCKING|DELETION/i.test(item.text));
+    if (heading) {
+      const liveParagraphs = allParagraphs(xml);
+      const start = liveParagraphs.indexOf(heading.p);
+      const end = liveParagraphs.findIndex((p, index) => index > start && /REQUIRED\s+ACTIONS|NO\s+FCRA|NOTICE|SUPPORTING\s+DOCUMENTS/i.test(paragraphText(p)));
+      const nextBoundary = end > start ? end : Math.min(liveParagraphs.length, start + 30);
+      const zone = liveParagraphs.slice(start + 1, nextBoundary);
+      const accountTemplate = zone.find((p) => /^Account\s+Name\s*:/i.test(paragraphText(p))) || zone.find((p) => looksLikeAccount(paragraphText(p))) || heading.p;
+      const redTemplate = zone.find((p) => /^Pursuant\s+to\s+15\s+USC/i.test(paragraphText(p))) || accountTemplate;
+      removeRange(liveParagraphs, start, nextBoundary);
+      let anchor = heading.p;
+      accountLines(resolved(values).accounts).forEach((line) => {
+        const paragraph = cloneWithText(/^Pursuant\s+to\s+15\s+USC/i.test(line) ? redTemplate : accountTemplate, line);
+        insertAfter(anchor, paragraph);
+        anchor = paragraph;
+      });
+    }
+    zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
+    return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
+  });
+}
+async function validateStrictDisputeOutput(blob: Blob, values: ReferenceDisputeValues) {
+  const xml = new PizZip(await blob.arrayBuffer()).file('word/document.xml')?.asText() || '';
+  const output = visibleXmlText(xml);
+  if (TOKEN.test(output)) throw new Error('Dispute output contains unresolved template placeholders. Check mapped tags/zones in the uploaded DOCX.');
+  if (!canonical(output).includes(canonical(values.consumerName))) throw new Error(`Dispute output consumer integrity check failed: expected ${values.consumerName}.`);
+  if (!canonical(output).includes(canonical(values.bureauName))) throw new Error(`Dispute output bureau integrity check failed: expected ${values.bureauName}.`);
+  if (!canonical(output).includes(canonical(values.letterDate))) throw new Error(`Dispute output document-date integrity check failed: expected ${values.letterDate}.`);
+  return blob;
 }
 
 export async function renderReferenceDisputeDocx(reference: File, values: ReferenceDisputeValues): Promise<Blob> {
@@ -224,30 +163,7 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   const file = zip.file('word/document.xml');
   if (!file) throw new Error('DOCX document XML is unavailable.');
   const documentXml = file.asText();
-  if (/\{\{\s*[#\/^]?[\w.-]+\s*\}\}/.test(documentXml)) {
-    return finalizeRenderedDisputeTemplate(await renderDocxTemplate(reference, disputePlaceholderValues(values)), values);
-  }
-  const xml = new DOMParser().parseFromString(documentXml, 'application/xml');
-  if (xml.getElementsByTagName('parsererror').length) throw new Error('DOCX content could not be read.');
-  const body = xml.getElementsByTagNameNS(WORD_NS, 'body')[0];
-  if (!body) throw new Error('DOCX body is unavailable.');
-  const source = resolved(values);
-  const all = paragraphs(body);
-  const nonEmpty = all.filter((paragraph) => content(paragraph));
-  if (nonEmpty.length < 3) throw new Error('Reference header layout is incomplete.');
-  writeLines(nonEmpty[0], [values.consumerName, ...disputeAddressLines(values), `DOB: ${values.dob}`, `SSN: ${values.ssn}`]);
-  writeLines(nonEmpty[1], [values.letterDate]);
-  writeLines(nonEmpty[2], [values.bureauName, ...values.bureauAddressLines]);
-  compactSsnDateBoundary(body, nonEmpty[0], nonEmpty[1]);
-  removeHardInquiryLabels(body);
-  insertMappedDisputeItems(body, source);
-  const renderedParagraphs = paragraphs(body);
-  const close = renderedParagraphs.find((paragraph) => SIGNATURE_PATTERN.test(content(paragraph)));
-  if (close) {
-    const signature = renderedParagraphs.slice(renderedParagraphs.indexOf(close) + 1).find((paragraph) => content(paragraph));
-    if (signature) writeLines(signature, [values.consumerName]);
-  }
-  zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
-  return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
+  const rendered = hasTemplateInjectionTags(documentXml) ? await renderDocxTemplate(reference, disputePlaceholderValues(values)) : await fallbackRenderDisputeDocx(reference, values, documentXml);
+  return validateStrictDisputeOutput(rendered, values);
 }
 export function isDocx(filename: string) { return /\.docx$/i.test(filename); }

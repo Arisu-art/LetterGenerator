@@ -1,0 +1,108 @@
+/* Strict DOCX canvas frame override.
+   This must load after paged-docx-preview.css.
+   Every measured page becomes a fixed sheet; every content body becomes the template printable frame. */
+.packet-inline-docx-host section.measured-docx-page {
+  position: relative !important;
+  width: var(--docx-page-width) !important;
+  min-width: var(--docx-page-width) !important;
+  max-width: var(--docx-page-width) !important;
+  height: var(--docx-page-height) !important;
+  min-height: var(--docx-page-height) !important;
+  max-height: var(--docx-page-height) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  background: #fff !important;
+  contain: layout paint !important;
+}
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content {
+  position: absolute !important;
+  top: var(--docx-margin-top) !important;
+  right: var(--docx-margin-right) !important;
+  bottom: var(--docx-margin-bottom) !important;
+  left: var(--docx-margin-left) !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  contain: layout paint !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-size: 7.35pt !important;
+  line-height: 1.08 !important;
+  color: #000 !important;
+}
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content > * {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content p,
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content div,
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content li {
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-size: 7.35pt !important;
+  line-height: 1.08 !important;
+  margin-top: 0 !important;
+  margin-bottom: 4.25pt !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content p:empty,
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content div:empty {
+  min-height: 4.25pt !important;
+  margin-bottom: 2.5pt !important;
+}
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content span,
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content strong,
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content b,
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content em,
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content i {
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content [style*="color: red"],
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content [style*="color:#ff0000"],
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content [style*="color: #ff0000"],
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content .red,
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content font[color="red"] {
+  color: #ff0000 !important;
+  font-size: 7.1pt !important;
+  line-height: 1.05 !important;
+  margin-bottom: 5pt !important;
+}
+.packet-inline-docx-host section.measured-docx-page::before {
+  content: '';
+  position: absolute;
+  top: var(--docx-margin-top);
+  right: var(--docx-margin-right);
+  bottom: var(--docx-margin-bottom);
+  left: var(--docx-margin-left);
+  border: 1px dashed rgba(100,116,139,.32);
+  pointer-events: none;
+  z-index: 10;
+}
+.packet-inline-docx-host .docx-atomic-group,
+.packet-inline-docx-host .account-flow-group {
+  display: contents !important;
+  break-inside: auto !important;
+  page-break-inside: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content table {
+  width: 100% !important;
+  max-width: 100% !important;
+  border-collapse: collapse !important;
+  font-size: 7.35pt !important;
+  line-height: 1.08 !important;
+}
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content td,
+.packet-inline-docx-host section.measured-docx-page > .measured-docx-content th {
+  padding: 0 !important;
+  font-size: 7.35pt !important;
+  line-height: 1.08 !important;
+}

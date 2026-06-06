@@ -97,7 +97,7 @@ async function renderDocxToPdf(blob: Blob, label: string) {
   ]);
   const target = await PDFDocument.create();
   const host = document.createElement('div');
-  host.className = 'pdf-render-host';
+  host.className = 'pdf-render-host docx-proof-render-host';
   host.setAttribute('aria-hidden', 'true');
   document.body.appendChild(host);
   try {
@@ -131,6 +131,15 @@ function renderedDocxPdf(blob: Blob, label: string) {
     renderedDocxPdfCache.set(blob, cached);
   }
   return cached;
+}
+
+/**
+ * Proof preview renderer used by Packet Editor. It renders the exact generated
+ * DOCX blob to a PDF proof surface instead of asking the editor to rebuild Word
+ * pagination with HTML boxes.
+ */
+export function renderDocxProofPdf(blob: Blob, label: string) {
+  return renderedDocxPdf(blob, label);
 }
 
 async function addStaticPdf(target: PDFDocument, blob: Blob, label: string, requireAllParts: boolean) {
