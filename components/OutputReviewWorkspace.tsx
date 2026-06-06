@@ -1,10 +1,21 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import JSZip from 'jszip';
-import { renderAsync } from 'docx-preview';
-import html2canvas from 'html2canvas';
-import { PDFDocument } from 'pdf-lib';
 import SimpleDocxEditor from './SimpleDocxEditor';
 import type { PacketAssets } from '../lib/packet-assets';
-import type { LetterRoute, LetterType } from '../lib/letter-engine';
+import type { LetterType } from '../lib/letter-engine';
+
+export type DocumentRole = 'LETTER' | 'AFFIDAVIT' | 'FTC';
+
+export type ReviewOutput = {
+  id?: string;
+  path: string;
+  type: LetterType;
+  role?: DocumentRole;
+  sequence?: number;
+  bureau: string;
+  count: number;
+  detail: string;
+  blob: Blob;
+  packetSteps?: string[];
+};
