@@ -46,6 +46,8 @@ import './inactive-packet-position.css';
 import './platform-quality-canvas.css';
 import './execution-integrity.css';
 import './complete-package-delivery.css';
+import './paged-docx-preview.css';
+import './docx-proof-preview.css';
 
 export const metadata = {
   title: 'LetterGenerator',
