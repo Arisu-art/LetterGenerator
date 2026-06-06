@@ -185,7 +185,7 @@ export default function LetterGeneratorWorkspaceV2() {
   async function makeZip(items: ReviewOutput[], notes: string[], date: string) {
     const zip = new JSZip();
     await addOrderedPacketFolders(zip, items, round, evidenceKey, parsed.name, routes.map((route) => ({ type: route.type, bureau: route.bureau })));
-    zip.file('Package Manifest.txt', ['COMPLETE ORDERED COMPONENT PACKAGE', `Client: ${parsed.name}`, `Round: ${round}`, `Date: ${date}`, 'Delivery format: ordered bureau folders only.', 'Dispute order: 01 Dispute Letter.docx; 02 Supporting Documents.pdf; 03 FCRA Legal Exhibit.pdf; 04 FTC Identity Theft Report.docx; 05 Affidavit.docx; 06 Attachment.pdf.', ...notes.map((item) => `- ${item}`)].join('\n'));
+    zip.file('Package Manifest.txt', ['COMPLETE ORDERED COMPONENT PACKAGE', `Client: ${parsed.name}`, `Round: ${round}`, `Date: ${date}`, 'Delivery format: ordered bureau folders only.', 'Dispute order: 01 Dispute Letter.docx; 02 Supporting Documents.pdf; 03 FCRA Legal Exhibit.pdf; 04 Affidavit.docx; 05 Attachment.pdf; 06 FTC Identity Theft Report.docx.', ...notes.map((item) => `- ${item}`)].join('\n'));
     return zip.generateAsync({ type: 'blob' });
   }
   async function generate() {
@@ -222,7 +222,7 @@ export default function LetterGeneratorWorkspaceV2() {
         if (!ftcAccounts.length) notes.push('FTC Identity Theft Report: no affected accounts were detected; generated with an empty review section.');
         const ftcSource = { ...parsed, ftcAccounts };
         const ftcFile = await withTimeout('Generating FTC Identity Theft Report', () => renderFtcIdentityTheftReportDocx(ftcSource, date));
-        output.push({ id: 'CLIENT-FTC-IDENTITY-THEFT-REPORT', path: `Editable Documents/${clean(parsed.name)} 04 FTC Identity Theft Report.docx`, type: 'DISPUTE', role: 'FTC', sequence: 4, bureau: 'CLIENT', count: ftcAccounts.length, detail: `${ftcAccounts.length} affected FTC item(s)`, blob: ftcFile, packetSteps: order('DISPUTE') });
+        output.push({ id: 'CLIENT-FTC-IDENTITY-THEFT-REPORT', path: `Editable Documents/${clean(parsed.name)} 06 FTC Identity Theft Report.docx`, type: 'DISPUTE', role: 'FTC', sequence: 6, bureau: 'CLIENT', count: ftcAccounts.length, detail: `${ftcAccounts.length} affected FTC item(s)`, blob: ftcFile, packetSteps: order('DISPUTE') });
         report('Generating client Affidavit…');
         const file = await withTimeout('Generating Affidavit', () => affidavit(context.bureau, date));
         if (!file) throw new Error('Required component missing: 04 Affidavit.docx could not be generated.');

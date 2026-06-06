@@ -47,7 +47,7 @@ export async function addOrderedPacketFolders(
   const fcra = disputePresent ? await readTemplateExhibit(round, 'FCRA') : null;
   const attachment = disputePresent ? await readTemplateExhibit(round, 'ATTACHMENT') : null;
   if (disputePresent && !fcra) throw new Error('Required component missing: 03 FCRA Legal Exhibit.pdf is not configured.');
-  if (disputePresent && !attachment) throw new Error('Required component missing: 06 Attachment.pdf is not configured.');
+  if (disputePresent && !attachment) throw new Error('Required component missing: 05 Attachment.pdf is not configured.');
 
   for (const route of routes) {
     const root = route.type === 'DISPUTE' ? 'DISPUTE PACKETS' : 'LATE PAYMENT PACKETS';
@@ -62,12 +62,12 @@ export async function addOrderedPacketFolders(
     if (route.type === 'DISPUTE') {
       zip.file(`${folder}03 FCRA Legal Exhibit.pdf`, fcra!);
       const ftc = findDocument(docs, route, 'FTC');
-      if (!ftc) throw new Error('Required component missing: 04 FTC Identity Theft Report.docx was not generated.');
-      zip.file(`${folder}04 FTC Identity Theft Report.docx`, await assertGeneratedDocx(ftc.blob, 'FTC Identity Theft Report', [clientName]));
+      if (!ftc) throw new Error('Required component missing: 06 FTC Identity Theft Report.docx was not generated.');
+      zip.file(`${folder}06 FTC Identity Theft Report.docx`, await assertGeneratedDocx(ftc.blob, 'FTC Identity Theft Report', [clientName]));
       const affidavit = findDocument(docs, route, 'AFFIDAVIT');
-      if (!affidavit) throw new Error('Required component missing: 05 Affidavit.docx was not generated.');
-      zip.file(`${folder}05 Affidavit.docx`, await assertGeneratedDocx(affidavit.blob, 'Affidavit', [clientName]));
-      zip.file(`${folder}06 Attachment.pdf`, attachment!);
+      if (!affidavit) throw new Error('Required component missing: 04 Affidavit.docx was not generated.');
+      zip.file(`${folder}04 Affidavit.docx`, await assertGeneratedDocx(affidavit.blob, 'Affidavit', [clientName]));
+      zip.file(`${folder}05 Attachment.pdf`, attachment!);
     }
   }
 }
