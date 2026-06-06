@@ -54,7 +54,7 @@ function packetDocuments(anchor: ReviewOutput, allOutputs: ReviewOutput[]) {
     .filter((item) => {
       if (item.role === 'FTC') return false;
       if (item.bureau === anchor.bureau && item.type === anchor.type) return true;
-      return anchor.type === 'DISPUTE' && item.role === 'AFFIDAVIT' && item.bureau === 'CLIENT';
+      return anchor.type === 'DISPUTE' && (item.role === 'FTC' || item.role === 'AFFIDAVIT') && item.bureau === 'CLIENT';
     })
     .sort((a, b) => (a.sequence || 1) - (b.sequence || 1));
 }
@@ -71,8 +71,9 @@ function packageRows(output: ReviewOutput, supportingCount: number) {
     { id: '01', label: 'Dispute Letter', detail: 'Editable DOCX' },
     { id: '02', label: 'Supporting Documents', detail: `${supportingCount} evidence file${supportingCount === 1 ? '' : 's'}` },
     { id: '03', label: 'FCRA Legal Exhibit', detail: 'Configured PDF insert' },
-    { id: '04', label: 'Affidavit', detail: 'Editable DOCX' },
-    { id: '05', label: 'Attachment', detail: 'Configured PDF insert' }
+    { id: '04', label: 'FTC Identity Theft Report', detail: 'Editable DOCX' },
+    { id: '05', label: 'Affidavit', detail: 'Editable DOCX' },
+    { id: '06', label: 'Attachment', detail: 'Configured PDF insert' }
   ];
 }
 

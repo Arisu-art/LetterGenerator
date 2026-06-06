@@ -1,7 +1,7 @@
 import type { LetterType } from './letter-engine';
 import type { ExhibitKind } from './template-exhibits';
 
-export type ActivePacketPosition = 'LETTER' | 'SUPPORTING' | 'FCRA' | 'AFFIDAVIT' | 'ATTACHMENT';
+export type ActivePacketPosition = 'LETTER' | 'SUPPORTING' | 'FCRA' | 'FTC' | 'AFFIDAVIT' | 'ATTACHMENT';
 export type PacketPosition = {
   id: ActivePacketPosition;
   number: number;
@@ -14,8 +14,9 @@ const DISPUTE_PACKET: readonly PacketPosition[] = [
   { id: 'LETTER', number: 1, label: 'Dispute Letter', format: 'DOCX', generated: true },
   { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', format: 'EVIDENCE', generated: true },
   { id: 'FCRA', number: 3, label: 'FCRA Legal Exhibit', format: 'PDF', generated: false },
-  { id: 'AFFIDAVIT', number: 4, label: 'Affidavit', format: 'DOCX', generated: true },
-  { id: 'ATTACHMENT', number: 5, label: 'Attachment', format: 'PDF', generated: false }
+  { id: 'FTC', number: 4, label: 'FTC Identity Theft Report', format: 'DOCX', generated: true },
+  { id: 'AFFIDAVIT', number: 5, label: 'Affidavit', format: 'DOCX', generated: true },
+  { id: 'ATTACHMENT', number: 6, label: 'Attachment', format: 'PDF', generated: false }
 ];
 const LATE_PAYMENT_PACKET: readonly PacketPosition[] = [
   { id: 'LETTER', number: 1, label: 'Late Payment Letter', format: 'DOCX', generated: true },
@@ -32,8 +33,8 @@ export const workflowFramework = {
   productName: 'LetterGenerator',
   disabledCapabilities: {
     FTC: {
-      enabled: false,
-      reason: 'FTC generation is retired pending a replacement document strategy.'
+      enabled: true,
+      reason: 'FTC Identity Theft Report generation is enabled through the V3 generated-document strategy.'
     }
   },
   activeDisputeExhibits: ['FCRA', 'AFFIDAVIT', 'ATTACHMENT'] as readonly ExhibitKind[]

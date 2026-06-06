@@ -15,7 +15,7 @@ function safe(value: string) {
   return value.replace(/[\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
 }
 
-function findDocument(docs: ReviewOutput[], route: PacketRoute, role: 'LETTER' | 'AFFIDAVIT') {
+function findDocument(docs: ReviewOutput[], route: PacketRoute, role: 'LETTER' | 'AFFIDAVIT' | 'FTC') {
   return docs.find((doc) => doc.type === route.type && (
     role === 'LETTER'
       ? doc.bureau === route.bureau && (!doc.role || doc.role === 'LETTER')
@@ -26,7 +26,7 @@ function findDocument(docs: ReviewOutput[], route: PacketRoute, role: 'LETTER' |
 /**
  * Writes the complete ordered component package for each generated route.
  * DOCX files remain editable; PDFs are inserted unchanged in filing position.
- * FTC is intentionally excluded from the active packet contract.
+ * FTC Identity Theft Report is generated from source data and inserted into dispute packets.
  */
 export async function addOrderedPacketFolders(
   zip: JSZip,
@@ -47,7 +47,7 @@ export async function addOrderedPacketFolders(
   const fcra = disputePresent ? await readTemplateExhibit(round, 'FCRA') : null;
   const attachment = disputePresent ? await readTemplateExhibit(round, 'ATTACHMENT') : null;
   if (disputePresent && !fcra) throw new Error('Required component missing: 03 FCRA Legal Exhibit.pdf is not configured.');
-  if (disputePresent && !attachment) throw new Error('Required component missing: 05 Attachment.pdf is not configured.');
+  if (disputePresent && !attachment) throw new Error('Required component missing: 06 Attachment.pdf is not configured.');
 
   for (const route of routes) {
     const root = route.type === 'DISPUTE' ? 'DISPUTE PACKETS' : 'LATE PAYMENT PACKETS';
@@ -61,10 +61,13 @@ export async function addOrderedPacketFolders(
     zip.file(`${folder}02 Supporting Documents.pdf`, supporting);
     if (route.type === 'DISPUTE') {
       zip.file(`${folder}03 FCRA Legal Exhibit.pdf`, fcra!);
+      const ftc = findDocument(docs, route, 'FTC');
+      if (!ftc) throw new Error('Required component missing: 04 FTC Identity Theft Report.docx was not generated.');
+      zip.file(`${folder}04 FTC Identity Theft Report.docx`, await assertGeneratedDocx(ftc.blob, 'FTC Identity Theft Report', [clientName]));
       const affidavit = findDocument(docs, route, 'AFFIDAVIT');
-      if (!affidavit) throw new Error('Required component missing: 04 Affidavit.docx was not generated.');
-      zip.file(`${folder}04 Affidavit.docx`, await assertGeneratedDocx(affidavit.blob, 'Affidavit', [clientName]));
-      zip.file(`${folder}05 Attachment.pdf`, attachment!);
+      if (!affidavit) throw new Error('Required component missing: 05 Affidavit.docx was not generated.');
+      zip.file(`${folder}05 Affidavit.docx`, await assertGeneratedDocx(affidavit.blob, 'Affidavit', [clientName]));
+      zip.file(`${folder}06 Attachment.pdf`, attachment!);
     }
   }
 }
