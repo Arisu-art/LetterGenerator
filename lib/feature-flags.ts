@@ -16,7 +16,7 @@ interface FeatureFlag {
 const FEATURE_FLAGS: Record<FeatureFlagName, FeatureFlag> = {
   FTC_IDENTITY_THEFT_REPORT: {
     name: 'FTC_IDENTITY_THEFT_REPORT',
-    enabled: false,
+    enabled: true,
     reason: 'FTC Identity Theft Report generation is not yet available. This feature is planned for a future release.'
   }
 };
@@ -71,5 +71,5 @@ export function setFeatureEnabled(name: FeatureFlagName, enabled: boolean): void
  * Reset all feature flags to defaults
  */
 export function resetFeatureFlags(): void {
-  FEATURE_FLAGS['FTC_IDENTITY_THEFT_REPORT'].enabled = false;
+  FEATURE_FLAGS['FTC_IDENTITY_THEFT_REPORT'].enabled = true;
 }

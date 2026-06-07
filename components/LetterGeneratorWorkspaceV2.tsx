@@ -13,7 +13,7 @@ import { addOrderedPacketFolders } from '../lib/ordered-packet-archive';
 import { isDocx, renderReferenceDisputeDocx } from '../lib/docx-renderer';
 import { highlightTextInDocx } from '../lib/docx-review-marker';
 import { renderLatePaymentReference } from '../lib/late-reference-renderer';
-import { buildFtcAffectedAccounts, renderFtcIdentityTheftReportDocx } from '../lib/ftc-report-renderer';
+import { buildFtcAffectedAccounts } from '../lib/ftc-report-renderer';
 import { resolveAffidavitJurisdiction } from '../lib/affidavit-jurisdiction';
 import { bureauInfo, bureaus, createNormalizedSourceCopy, detectRoutes, parseSource, type Bureau, type LetterRoute, type LetterType } from '../lib/letter-engine';
 import { loadPacketAssets, type PacketAssets } from '../lib/packet-assets';
@@ -31,7 +31,7 @@ type StatusTone = 'info' | 'success' | 'error';
 
 const panels: Panel[] = ['Dashboard', 'Templates', 'Source Data', 'Outputs', 'Filing Tracker', 'Settings'];
 const labels: Record<LetterType, string> = { DISPUTE: 'Dispute Letter', LATE_PAYMENT: 'Late Payment Letter' };
-const requirements: ExhibitKind[] = ['FCRA', 'AFFIDAVIT', 'ATTACHMENT'];
+const requirements: ExhibitKind[] = ['FCRA', 'AFFIDAVIT', 'ATTACHMENT', 'FTC'];
 const emptyEvidence = (): PacketAssets => ({ supporting: [], legalPdf: null });
 const emptyTemplates = (): TemplateExhibits => ({ FCRA: null, AFFIDAVIT: null, ATTACHMENT: null, FTC: null });
 const dateNow = () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }).format(new Date());
@@ -110,7 +110,7 @@ export default function LetterGeneratorWorkspaceV2() {
   const affidavitSource = useMemo(() => ({ ...parsed, address: parsed.address.length ? parsed.address : ['N/A'], affidavitState: affidavitJurisdiction.state, affidavitCounty: affidavitJurisdiction.county }), [parsed, affidavitJurisdiction]);
   const sourceWarnings = [...activeWorkflowDiagnostics(parsed.diagnostics.filter((item) => item.level === 'warning')), ...(affidavitRequired && affidavitJurisdiction.reviewRequired ? [{ message: affidavitJurisdiction.explanation }] : [])];
   const affidavitReady = !affidavitRequired || Boolean(affidavitSource.affidavitState.trim() && affidavitSource.affidavitCounty.trim());
-  const activeTemplateContracts = [templates.FCRA, templates.AFFIDAVIT, templates.ATTACHMENT].map((item) => item?.contract);
+  const activeTemplateContracts = [templates.FCRA, templates.AFFIDAVIT, templates.ATTACHMENT, templates.FTC].map((item) => item?.contract);
   const customFields = unresolvedCustomTemplateFields([...refs.map((item) => item.contract), ...activeTemplateContracts]);
   const customReady = customFields.every((item) => !item.required || Boolean(parsed.templateFields[item.key]?.trim()));
   const missingNodes = dispute ? requirements.filter((kind) => !templates[kind]) : [];
@@ -182,6 +182,23 @@ export default function LetterGeneratorWorkspaceV2() {
     const output = await renderMappedAppendix(file, { kind: 'AFFIDAVIT', bureau, documentDate: date, recipientName: recipient.name, recipientAddressLines: recipient.address.split('\n'), source: affidavitSource });
     return affidavitJurisdiction.reviewRequired ? highlightTextInDocx(output, 'N/A') : output;
   }
+  async function ftcReport(bureau: Bureau, date: string) {
+    const file = await readTemplateExhibit(round, 'FTC');
+    if (!file) return null;
+    const recipient = bureauInfo[bureau];
+    const ftcAccounts = buildFtcAffectedAccounts(parsed);
+    const ftcSource = {
+      ...parsed,
+      address: parsed.address.length ? parsed.address : ['N/A'],
+      country: parsed.country || 'USA',
+      phone: parsed.phone || 'N/A',
+      ftcReportNumber: parsed.ftcReportNumber || '202084447',
+      ftcReportDate: parsed.ftcReportDate || date,
+      ftcAccounts
+    };
+    const blob = await renderMappedAppendix(file, { kind: 'FTC', bureau, documentDate: date, recipientName: recipient.name, recipientAddressLines: recipient.address.split('\n'), source: ftcSource });
+    return { blob, count: ftcAccounts.length };
+  }
   async function makeZip(items: ReviewOutput[], notes: string[], date: string) {
     const zip = new JSZip();
     await addOrderedPacketFolders(zip, items, round, evidenceKey, parsed.name, routes.map((route) => ({ type: route.type, bureau: route.bureau })));
@@ -217,19 +234,17 @@ export default function LetterGeneratorWorkspaceV2() {
       }
       const context = routes.find((route) => route.type === 'DISPUTE');
       if (context) {
-        // Generate FTC Identity Theft Report only if the feature is enabled
         if (isFtcEnabled()) {
           report('Generating FTC Identity Theft Report…');
-          const ftcAccounts = buildFtcAffectedAccounts(parsed);
-          if (!ftcAccounts.length) notes.push('FTC Identity Theft Report: no affected accounts were detected; generated with an empty review section.');
-          const ftcSource = { ...parsed, ftcAccounts };
-          const ftcFile = await withTimeout('Generating FTC Identity Theft Report', () => renderFtcIdentityTheftReportDocx(ftcSource, date));
-          output.push({ id: 'CLIENT-FTC-IDENTITY-THEFT-REPORT', path: `Editable Documents/${clean(parsed.name)} 06 FTC Identity Theft Report.docx`, type: 'DISPUTE', role: 'FTC', sequence: 6, bureau: 'CLIENT', count: ftcAccounts.length, detail: `${ftcAccounts.length} affected FTC item(s)`, blob: ftcFile, packetSteps: order('DISPUTE') });
+          const ftc = await withTimeout('Generating FTC Identity Theft Report', () => ftcReport(context.bureau, date));
+          if (!ftc) throw new Error('Required component missing: 06 FTC Identity Theft Report.docx template is not configured.');
+          if (!ftc.count) notes.push('FTC Identity Theft Report: no affected accounts were detected; review the generated FTC document before filing.');
+          output.push({ id: 'CLIENT-FTC-IDENTITY-THEFT-REPORT', path: `Editable Documents/${clean(parsed.name)} 06 FTC Identity Theft Report.docx`, type: 'DISPUTE', role: 'FTC', sequence: 6, bureau: 'CLIENT', count: ftc.count, detail: `${ftc.count} affected FTC item(s)`, blob: ftc.blob, packetSteps: order('DISPUTE') });
         }
         report('Generating client Affidavit…');
         const file = await withTimeout('Generating Affidavit', () => affidavit(context.bureau, date));
         if (!file) throw new Error('Required component missing: 04 Affidavit.docx could not be generated.');
-        output.push({ id: 'CLIENT-AFFIDAVIT', path: `Editable Documents/${clean(parsed.name)} 05 ${exhibitTitles.AFFIDAVIT}.docx`, type: 'DISPUTE', role: 'AFFIDAVIT', sequence: 5, bureau: 'CLIENT', count: 1, detail: 'Shared client affidavit', blob: file, packetSteps: order('DISPUTE') });
+        output.push({ id: 'CLIENT-AFFIDAVIT', path: `Editable Documents/${clean(parsed.name)} 04 ${exhibitTitles.AFFIDAVIT}.docx`, type: 'DISPUTE', role: 'AFFIDAVIT', sequence: 5, bureau: 'CLIENT', count: 1, detail: 'Shared client affidavit', blob: file, packetSteps: order('DISPUTE') });
       }
       report('Preparing complete ordered component package…');
       const zip = await withTimeout('Preparing ordered package ZIP', () => makeZip(output, notes, date), ARCHIVE_TIMEOUT_MS);
