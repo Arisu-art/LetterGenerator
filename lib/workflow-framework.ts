@@ -14,8 +14,4 @@ export type PacketPosition = {
 export type PacketWorkflow = {
   type: LetterType;
   label: string;
-  positions: PacketPosition[];
-};
-
-export const latePaymentPacketPositions: PacketPosition[] = [
-  { id: 'LETTER', number: 1, label: 'Late Payment Letter', format: 'DOCX', generated
+  positions: Packet
