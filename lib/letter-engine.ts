@@ -80,10 +80,23 @@ function inferredFtcCandidates(parsed: ParsedSource) {
 }
 function seedFtcFromDisputes(parsed: ParsedSource) {
   if (parsed.ftcAccounts.length) return;
+
   const candidates = inferredFtcCandidates(parsed);
-  if (candidates.length > MAX_FTC_ACCOUNTS) { parsed.diagnostics.push({ level: 'warning', message: `FTC selection requires review: ${candidates.length} source accounts contain fraud amount/date data, exceeding the ${MAX_FTC_ACCOUNTS}-item FTC limit. Add an explicit FTC AFFECTED ACCOUNTS section with the exact selected items and order.` }); return; }
-  candidates.forEach((candidate) => appendUniqueFtc(parsed.ftcAccounts, candidate, parsed.diagnostics));
-  if (parsed.ftcAccounts.length) parsed.diagnostics.push({ level: 'info', message: 'FTC affected items were inferred from compact dispute details because the source supplied no explicit FTC AFFECTED ACCOUNTS section.' });
+  const selected = candidates.slice(0, MAX_FTC_ACCOUNTS);
+
+  selected.forEach((candidate) => appendUniqueFtc(parsed.ftcAccounts, candidate, parsed.diagnostics));
+
+  if (candidates.length > MAX_FTC_ACCOUNTS) {
+    parsed.diagnostics.push({
+      level: 'warning',
+      message: `FTC affected accounts were auto-selected from the first ${MAX_FTC_ACCOUNTS} source accounts with fraud amount/date data. Add an explicit FTC AFFECTED ACCOUNTS section only if you want a different order or selection.`
+    });
+  } else if (parsed.ftcAccounts.length) {
+    parsed.diagnostics.push({
+      level: 'info',
+      message: 'FTC affected items were inferred from compact dispute details because the source supplied no explicit FTC AFFECTED ACCOUNTS section.'
+    });
+  }
 }
 
 export function parseSource(text: string): ParsedSource {
