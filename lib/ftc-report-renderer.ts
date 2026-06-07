@@ -276,21 +276,25 @@ function patchTemplateDocumentXml(documentXml: string, model: FtcModel) {
   });
 }
 
-async function loadTemplateZip() {
+async function loadTemplateZip(templateFile?: File) {
+  if (templateFile) {
+    return JSZip.loadAsync(await templateFile.arrayBuffer());
+  }
+
   if (typeof fetch !== 'function') {
     throw new Error('FTC template loading requires browser fetch.');
   }
 
-  const response = await fetch('/templates/ftc-standard.docx');
+  const response = await fetch(FTC_TEMPLATE_URL);
   if (!response.ok) {
-    throw new Error('FTC standard template missing. Add public/templates/ftc-standard.docx.');
+    throw new Error('FTC DOCX template missing. Upload the FTC Identity Theft Report template in Templates, or add public/templates/ftc-standard.docx.');
   }
 
   return JSZip.loadAsync(await response.arrayBuffer());
 }
 
-async function renderFromTemplate(source: ParsedSource, documentDate: string) {
-  const zip = await loadTemplateZip();
+async function renderFromTemplate(source: ParsedSource, documentDate: string, templateFile?: File) {
+  const zip = await loadTemplateZip(templateFile);
   if (!zip) return null;
 
   const document = zip.file('word/document.xml');
@@ -345,8 +349,8 @@ async function renderFallback(source: ParsedSource, documentDate: string) {
   return zip.generateAsync({ type: 'blob', mimeType: DOCX_MIME });
 }
 
-export async function renderFtcIdentityTheftReportDocx(source: ParsedSource, documentDate: string) {
-  const templated = await renderFromTemplate(source, documentDate);
+export async function renderFtcIdentityTheftReportDocx(source: ParsedSource, documentDate: string, templateFile?: File) {
+  const templated = await renderFromTemplate(source, documentDate, templateFile);
 
   if (!templated) {
     throw new Error('FTC output blocked: the official FTC standard template was not loaded. The app will not generate a simplified fallback FTC document.');
