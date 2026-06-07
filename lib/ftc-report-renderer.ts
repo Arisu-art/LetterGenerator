@@ -1,4 +1,5 @@
-import { renderDocxTemplate, type PlaceholderValues } from './docx-renderer';
+import JSZip from 'jszip';
+import { renderDocxTemplate, type PlaceholderValues, type TemplateValue } from './docx-renderer';
 import type { ParsedSource } from './letter-engine';
 
 export type FtcAffectedAccount = {
@@ -10,13 +11,17 @@ export type FtcAffectedAccount = {
 };
 
 const MAX_FTC_ACCOUNTS = 5;
-const DEFAULT_REPORT_NUMBER = 'PENDING';
-
-const DEFAULT_FTC_STATEMENT =
-  'I am a victim of identity theft and request that all fraudulent accounts, inquiries, and information resulting from identity theft be blocked and removed from my credit file.';
 
 function clean(value: unknown) {
   return String(value ?? '').trim();
+}
+
+function normalizeKey(value: string) {
+  return clean(value)
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[\s.-]+/g, '_')
+    .replace(/[^\w]/g, '')
+    .toLowerCase();
 }
 
 function normalizePhone(value: unknown) {
@@ -34,16 +39,6 @@ function normalizeAmount(value: unknown) {
   return clean(value).replace(/^\$/, '').replace(/,/g, '');
 }
 
-function splitName(name: string) {
-  const parts = clean(name).split(/\s+/).filter(Boolean);
-
-  return {
-    firstName: parts[0] || '',
-    middleName: parts.length > 2 ? parts.slice(1, -1).join(' ') : '',
-    lastName: parts.length > 1 ? parts[parts.length - 1] : ''
-  };
-}
-
 function normalizeMonthYear(value: unknown) {
   const raw = clean(value);
   if (!raw) return '';
@@ -57,26 +52,79 @@ function normalizeMonthYear(value: unknown) {
   return `${month}/${year}`;
 }
 
+function splitName(name: string) {
+  const parts = clean(name).split(/\s+/).filter(Boolean);
+
+  return {
+    firstName: parts[0] || '',
+    middleName: parts.length > 2 ? parts.slice(1, -1).join(' ') : '',
+    lastName: parts.length > 1 ? parts[parts.length - 1] : ''
+  };
+}
+
 function sourceAddress(source: ParsedSource) {
   const sourceAny = source as any;
-  return Array.isArray(sourceAny.address) ? sourceAny.address.filter(Boolean).map(clean) : [];
+  return Array.isArray(sourceAny.address)
+    ? sourceAny.address.map(clean).filter(Boolean)
+    : [];
 }
 
-function sourceReportDate(source: ParsedSource, documentDate: string) {
+function safeStringValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return clean(value);
+  if (Array.isArray(value)) return value.map(safeStringValue).filter(Boolean).join('\n');
+  return '';
+}
+
+function flattenSourceValues(source: ParsedSource) {
   const sourceAny = source as any;
-  return clean(sourceAny.ftcReportDate) || documentDate;
+  const values: Record<string, string> = {};
+
+  function visit(prefix: string, value: unknown) {
+    if (value === null || value === undefined) return;
+
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      values[normalizeKey(prefix)] = safeStringValue(value);
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      values[normalizeKey(prefix)] = value.map(safeStringValue).filter(Boolean).join('\n');
+      return;
+    }
+
+    if (typeof value === 'object') {
+      Object.entries(value as Record<string, unknown>).forEach(([key, child]) => {
+        visit(prefix ? `${prefix}_${key}` : key, child);
+      });
+    }
+  }
+
+  Object.entries(sourceAny).forEach(([key, value]) => visit(key, value));
+  return values;
 }
 
-function sourceReportNumber(source: ParsedSource) {
-  const sourceAny = source as any;
-  return clean(sourceAny.ftcReportNumber) || DEFAULT_REPORT_NUMBER;
+function extractTemplateTags(templateFile: File): Promise<string[]> {
+  return templateFile.arrayBuffer().then(async (buffer) => {
+    const zip = await JSZip.loadAsync(buffer);
+    const xmlFiles = Object.keys(zip.files).filter((name) => /^word\/(?:document|header\d+|footer\d+)\.xml$/i.test(name));
+    const tags = new Set<string>();
+
+    for (const fileName of xmlFiles) {
+      const file = zip.file(fileName);
+      if (!file) continue;
+
+      const xml = await file.async('string');
+      Array.from(xml.matchAll(/\{\{\s*[#\/^]?([\w.-]+)\s*\}\}/g)).forEach((match) => {
+        tags.add(match[1]);
+      });
+    }
+
+    return Array.from(tags);
+  });
 }
 
-function fallbackFraudDate(source: ParsedSource, documentDate: string) {
-  return normalizeMonthYear(sourceReportDate(source, documentDate)) || documentDate;
-}
-
-function deriveDisputeAccount(displayText: string, fallbackDate: string): FtcAffectedAccount | null {
+function deriveDisputeAccount(displayText: string): FtcAffectedAccount | null {
   const lines = clean(displayText).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 
   const accountName = clean(
@@ -94,13 +142,13 @@ function deriveDisputeAccount(displayText: string, fallbackDate: string): FtcAff
   return {
     accountName,
     accountNumber,
-    fraudBegan: fallbackDate,
-    dateDiscovered: compact?.[2] ? normalizeMonthYear(compact[2]) : fallbackDate,
+    fraudBegan: '',
+    dateDiscovered: compact?.[2] ? normalizeMonthYear(compact[2]) : '',
     fraudulentAmount: normalizeAmount(compact?.[1] || '')
   };
 }
 
-function deriveInquiryAccount(displayText: string, fallbackDate: string): FtcAffectedAccount | null {
+function deriveInquiryAccount(displayText: string): FtcAffectedAccount | null {
   const normalized = clean(displayText).replace(/\s*[–—]\s*/g, ' - ');
   const match = normalized.match(/^(.+?)\s+-\s+(\d{1,2}\/\d{1,2}\/\d{2,4})$/);
 
@@ -109,7 +157,7 @@ function deriveInquiryAccount(displayText: string, fallbackDate: string): FtcAff
   return {
     accountName: clean(match[1]),
     accountNumber: '',
-    fraudBegan: fallbackDate,
+    fraudBegan: '',
     dateDiscovered: normalizeMonthYear(match[2]),
     fraudulentAmount: ''
   };
@@ -117,14 +165,13 @@ function deriveInquiryAccount(displayText: string, fallbackDate: string): FtcAff
 
 export function buildFtcAffectedAccounts(source: ParsedSource): FtcAffectedAccount[] {
   const sourceAny = source as any;
-  const fallbackDate = fallbackFraudDate(source, sourceAny.documentDate || new Date().toLocaleDateString('en-US'));
 
   const explicit = Array.isArray(sourceAny.ftcAccounts)
     ? sourceAny.ftcAccounts.map((item: any) => ({
         accountName: clean(item.accountName),
         accountNumber: clean(item.accountNumber),
-        fraudBegan: clean(item.fraudBegan) || fallbackDate,
-        dateDiscovered: clean(item.dateDiscovered) || fallbackDate,
+        fraudBegan: clean(item.fraudBegan),
+        dateDiscovered: clean(item.dateDiscovered),
         fraudulentAmount: normalizeAmount(item.fraudulentAmount)
       }))
     : [];
@@ -132,11 +179,12 @@ export function buildFtcAffectedAccounts(source: ParsedSource): FtcAffectedAccou
   const disputeItems = Object.values(sourceAny.dispute || {})
     .flat()
     .map((item: any) => {
-      const base = deriveDisputeAccount(item?.displayText || '', fallbackDate);
+      const base = deriveDisputeAccount(item?.displayText || '');
       if (!base) return null;
 
       return {
         ...base,
+        fraudBegan: normalizeMonthYear(item?.ftcDerived?.fraudBegan) || base.fraudBegan,
         dateDiscovered: normalizeMonthYear(item?.ftcDerived?.dateDiscovered) || base.dateDiscovered,
         fraudulentAmount: normalizeAmount(item?.ftcDerived?.fraudulentAmount || base.fraudulentAmount)
       };
@@ -145,7 +193,7 @@ export function buildFtcAffectedAccounts(source: ParsedSource): FtcAffectedAccou
 
   const inquiryItems = Object.values(sourceAny.inquiry || {})
     .flat()
-    .map((item: any) => deriveInquiryAccount(item?.displayText || '', fallbackDate))
+    .map((item: any) => deriveInquiryAccount(item?.displayText || ''))
     .filter(Boolean) as FtcAffectedAccount[];
 
   const seen = new Set<string>();
@@ -161,13 +209,12 @@ export function buildFtcAffectedAccounts(source: ParsedSource): FtcAffectedAccou
     .slice(0, MAX_FTC_ACCOUNTS);
 }
 
-function ftcTemplateValues(source: ParsedSource, documentDate: string): PlaceholderValues {
+async function ftcTemplateValues(source: ParsedSource, documentDate: string, templateFile: File): Promise<PlaceholderValues> {
   const sourceAny = source as any;
+  const sourceFlat = flattenSourceValues(source);
   const fullName = clean(sourceAny.name);
   const nameParts = splitName(fullName);
   const addressLines = sourceAddress(source);
-  const reportDate = sourceReportDate(source, documentDate);
-  const reportNumber = sourceReportNumber(source);
   const accounts = buildFtcAffectedAccounts(source);
 
   const accountRows = accounts.map((account, index) => ({
@@ -200,22 +247,23 @@ function ftcTemplateValues(source: ParsedSource, documentDate: string): Placehol
     address_line_1: addressLines[0] || '',
     address_line_2: addressLines.slice(1).join(' '),
     city_state_zip: addressLines.slice(1).join(' '),
-    country: 'USA',
 
     phone: normalizePhone(sourceAny.phone),
     email: clean(sourceAny.email),
     ssn: clean(sourceAny.ssn),
+    ssn_masked: clean(sourceAny.ssn),
     dob: clean(sourceAny.dob),
 
     date: documentDate,
     document_date: documentDate,
-    ftc_report_date: reportDate,
-    report_date: reportDate,
-    ftc_report_number: reportNumber,
-    report_number: reportNumber,
+    letter_date: documentDate,
 
-    ftc_statement: clean(sourceAny.ftcStatement) || DEFAULT_FTC_STATEMENT,
-    statement: clean(sourceAny.ftcStatement) || DEFAULT_FTC_STATEMENT,
+    ftc_report_number: clean(sourceAny.ftcReportNumber),
+    report_number: clean(sourceAny.ftcReportNumber),
+    ftc_report_date: clean(sourceAny.ftcReportDate),
+    report_date: clean(sourceAny.ftcReportDate),
+    ftc_statement: clean(sourceAny.ftcStatement),
+    statement: clean(sourceAny.ftcStatement),
 
     ftc_accounts: accountRows,
     accounts: accountRows,
@@ -235,6 +283,17 @@ function ftcTemplateValues(source: ParsedSource, documentDate: string): Placehol
     values[`account_${n}_fraud_amount`] = account?.fraudulentAmount || '';
   }
 
+  const templateTags = await extractTemplateTags(templateFile);
+
+  templateTags.forEach((tag) => {
+    if (values[tag] !== undefined) return;
+
+    const normalized = normalizeKey(tag);
+    const direct = sourceFlat[normalized];
+
+    values[tag] = direct ?? '';
+  });
+
   return values;
 }
 
@@ -247,5 +306,5 @@ export async function renderFtcIdentityTheftReportDocx(
     throw new Error('Required component missing: upload the FTC Identity Theft Report DOCX template before generation.');
   }
 
-  return renderDocxTemplate(templateFile, ftcTemplateValues(source, documentDate));
+  return renderDocxTemplate(templateFile, await ftcTemplateValues(source, documentDate, templateFile));
 }
