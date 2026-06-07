@@ -14,4 +14,15 @@ export type PacketPosition = {
 export type PacketWorkflow = {
   type: LetterType;
   label: string;
-  positions: Packet
+  positions: PacketPosition[];
+};
+
+export type WorkflowFramework = {
+  version: string;
+  ftcEnabled: boolean;
+  workflows: Record<LetterType, PacketWorkflow>;
+};
+
+export const latePaymentPacketPositions: PacketPosition[] = [
+  { id: 'LETTER', number: 1, label: 'Late Payment Letter', format: 'DOCX', generated: true },
+  { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', format: 'EVIDENCE', generated: false }
