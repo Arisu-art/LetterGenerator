@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { readEditableParagraphs, saveEditedParagraphs, type EditableParagraph, type ParagraphAlignment } from '../lib/simple-docx-editor';
 import { loadTemplateExhibits } from '../lib/template-exhibits';
+import { isFtcEnabled } from '../lib/workflow-framework';
 import type { PacketAssets } from '../lib/packet-assets';
 import PacketInsertViewer from './PacketInsertViewer';
 import type { ReviewOutput } from './OutputReviewWorkspace';
@@ -20,7 +21,7 @@ type Props = {
   onClose: () => void;
   onSave: (output: ReviewOutput, file: File) => void | Promise<void>;
 };
-type SlotId = 'LETTER' | 'SUPPORTING' | 'FCRA' | 'AFFIDAVIT' | 'ATTACHMENT';
+type SlotId = 'LETTER' | 'SUPPORTING' | 'FCRA' | 'AFFIDAVIT' | 'ATTACHMENT' | 'FTC';
 type Slot = { id: SlotId; number: number; label: string; document?: ReviewOutput; configured?: boolean; message: string };
 const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36];
 const LINE_SPACING = [1, 1.15, 1.5, 2];
@@ -29,10 +30,16 @@ function roleOf(output: ReviewOutput) { return output.role || 'LETTER'; }
 function textOf(node: HTMLElement) { return (node.innerText || '').replace(/\u00a0/g, ' ').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim(); }
 function stateOf(slot: Slot) { return slot.document ? 'Editable DOCX' : slot.id === 'SUPPORTING' ? 'Evidence layout' : slot.configured ? 'Configured' : 'Not generated'; }
 function slotForDocument(path: string | undefined, documents: ReviewOutput[]): SlotId {
-  return documents.find((document) => document.path === path)?.role === 'AFFIDAVIT' ? 'AFFIDAVIT' : 'LETTER';
+  const role = documents.find((document) => document.path === path)?.role;
+
+  if (role === 'AFFIDAVIT') return 'AFFIDAVIT';
+  if (role === 'FTC') return 'FTC';
+
+  return 'LETTER';
 }
 function missingReason(slot: Slot, warnings: string[]) {
   if (slot.id === 'AFFIDAVIT') return warnings.find((message) => /^Affidavit\s*:/i.test(message)) || 'Affidavit document was not generated. Review the Affidavit template mapping and source data, then regenerate documents.';
+  if (slot.id === 'FTC') return warnings.find((message) => /^FTC\s*:/i.test(message)) || 'FTC Identity Theft Report was not generated. Confirm the FTC template is uploaded and source data contains FTC-compatible fields, then regenerate documents.';
   return slot.message || 'No generated document for this packet position.';
 }
 function applyPreviewFormatting(node: HTMLElement, block: EditableParagraph) {
@@ -81,9 +88,34 @@ export default function SimpleDocxEditor({ round, output, documents, initialDocu
   const exhibits = useMemo(() => loadTemplateExhibits(round), [round]);
   const letter = documents.find((document) => roleOf(document) === 'LETTER') || output;
   const affidavit = documents.find((document) => roleOf(document) === 'AFFIDAVIT');
-  const slots: Slot[] = output.type === 'DISPUTE' ? [
-    { id: 'LETTER', number: 1, label: 'Dispute Letter', document: letter, message: 'Editable DOCX component' }, { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', configured: Boolean(evidence?.supporting.length), message: 'One-page evidence layout' }, { id: 'FCRA', number: 3, label: 'FCRA', configured: Boolean(exhibits.FCRA), message: exhibits.FCRA ? 'Configured insert' : 'Not configured' }, { id: 'AFFIDAVIT', number: 4, label: 'Affidavit', document: affidavit, configured: Boolean(affidavit), message: affidavit ? 'Editable DOCX component' : 'Not generated' }, { id: 'ATTACHMENT', number: 5, label: 'Attachment', configured: Boolean(exhibits.ATTACHMENT), message: exhibits.ATTACHMENT ? 'Configured insert' : 'Not configured' }
-  ] : [{ id: 'LETTER', number: 1, label: 'Late Payment Letter', document: letter, message: 'Editable DOCX component' }, { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', configured: Boolean(evidence?.supporting.length), message: 'One-page evidence layout' }];
+  const ftc = documents.find((document) => roleOf(document) === 'FTC');
+
+  const disputeSlots: Slot[] = [
+    { id: 'LETTER', number: 1, label: 'Dispute Letter', document: letter, message: 'Editable DOCX component' },
+    { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', configured: Boolean(evidence?.supporting.length), message: 'One-page evidence layout' },
+    { id: 'FCRA', number: 3, label: 'FCRA', configured: Boolean(exhibits.FCRA), message: exhibits.FCRA ? 'Configured insert' : 'Not configured' },
+    { id: 'AFFIDAVIT', number: 4, label: 'Affidavit', document: affidavit, configured: Boolean(affidavit || exhibits.AFFIDAVIT), message: affidavit ? 'Editable DOCX component' : exhibits.AFFIDAVIT ? 'Configured template; regenerate packet to create editable Affidavit DOCX' : 'Not configured' },
+    { id: 'ATTACHMENT', number: 5, label: 'Attachment', configured: Boolean(exhibits.ATTACHMENT), message: exhibits.ATTACHMENT ? 'Configured insert' : 'Not configured' }
+  ];
+
+  if (isFtcEnabled() || ftc || exhibits.FTC) {
+    disputeSlots.push({
+      id: 'FTC',
+      number: 6,
+      label: 'FTC Identity Theft Report',
+      document: ftc,
+      configured: Boolean(ftc || exhibits.FTC),
+      message: ftc ? 'Editable DOCX component' : exhibits.FTC ? 'Configured template; regenerate packet to create editable FTC DOCX' : 'Not configured'
+    });
+  }
+
+  const latePaymentSlots: Slot[] = [
+    { id: 'LETTER', number: 1, label: 'Late Payment Letter', document: letter, message: 'Editable DOCX component' },
+    { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', configured: Boolean(evidence?.supporting.length), message: 'One-page evidence layout' }
+  ];
+
+  const slots: Slot[] = output.type === 'DISPUTE' ? disputeSlots : latePaymentSlots;
+
   useEffect(() => { setActive(slotForDocument(initialDocumentPath, documents)); }, [initialDocumentPath, output.path, documents]);
   const activeIndex = Math.max(0, slots.findIndex((slot) => slot.id === active)); const selected = slots[activeIndex]; const previous = activeIndex > 0 ? slots[activeIndex - 1] : null; const next = activeIndex < slots.length - 1 ? slots[activeIndex + 1] : null; const evidenceToolsId = `packet-evidence-tools-${output.bureau.replace(/[^A-Za-z0-9]/g, '').toLowerCase()}`;
   return <div className="simple-editor-backdrop"><section className="simple-editor-modal ordered-packet-modal premium-document-editor focused-packet-editor consolidated-packet-editor" role="dialog" aria-modal="true" aria-label={`${output.bureau} ordered packet editor`}><header className="simple-editor-header editor-command-header"><div className="editor-command-identity"><div className="editor-packet-name"><p className="eyebrow">Packet editor</p><h2>{output.bureau} {output.type === 'DISPUTE' ? 'Dispute Packet' : 'Late Payment Packet'}</h2><div className="editor-context-tags"><span>{round}</span><span>{slots.length} positions</span></div></div><span className="editor-command-separator" aria-hidden="true" /><div className="editor-active-document"><p className="eyebrow">Current document</p><strong><b>{String(selected.number).padStart(2, '0')}</b>{selected.label}</strong><small>{stateOf(selected)}</small></div></div>{selected.id === 'SUPPORTING' && evidence?.supporting.length ? <div className="packet-header-evidence-slot" id={evidenceToolsId} aria-label="Evidence image tools" /> : null}<div className="editor-command-actions"><div className="packet-focus-controls"><button type="button" className="secondary-button" disabled={!previous} onClick={() => previous && setActive(previous.id)}>Previous</button><button type="button" className="secondary-button" disabled={!next} onClick={() => next && setActive(next.id)}>Next</button></div><button type="button" className="close-editor" onClick={onClose} aria-label="Close editor">×</button></div></header><div className="ordered-packet-body"><aside className="editor-packet-map document-rail"><header><p className="eyebrow">Packet order</p><h3>Documents</h3></header><ol>{slots.map((slot) => <li className={active === slot.id ? 'current editable' : 'editable'} key={slot.id}><button type="button" onClick={() => setActive(slot.id)}><b>{String(slot.number).padStart(2, '0')}</b><div><strong>{slot.label}</strong><small>{stateOf(slot)}</small></div></button></li>)}</ol></aside><main className="packet-focus-workspace"><div className="packet-focus-scroll">{selected.document ? <EditablePacketSection key={`${output.path}-${selected.id}`} slot={selected} onSave={onSave} /> : <PacketInsertSection key={`${output.path}-${selected.id}`} slot={selected} round={round} evidenceKey={evidenceKey} evidence={evidence} warnings={warnings} toolbarTargetId={evidenceToolsId} onEvidenceChanged={onEvidenceChanged} onMessage={onMessage} />}</div></main></div></section></div>;
