@@ -83,3 +83,27 @@ export const workflowFramework: WorkflowFramework = {
   ftcEnabled: isFtcEnabled(),
   workflows: packetWorkflows
 };
+
+export function packetOrderLabels(type: LetterType): string[] {
+  return getPacketPositions(type).map((position) => `${String(position.number).padStart(2, '0')} ${position.label}`);
+}
+
+export function packetOrderText(type: LetterType): string {
+  return packetOrderLabels(type).join(' → ');
+}
+
+export function packetPositionCount(type: LetterType): number {
+  return getPacketPositions(type).length;
+}
+
+export function exhibitKindsForPacket(type: LetterType): ExhibitKind[] {
+  const kinds: ExhibitKind[] = [];
+
+  for (const position of getPacketPositions(type)) {
+    if (position.exhibitKind) {
+      kinds.push(position.exhibitKind);
+    }
+  }
+
+  return kinds;
+}
