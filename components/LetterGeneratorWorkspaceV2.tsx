@@ -13,7 +13,7 @@ import { addOrderedPacketFolders } from '../lib/ordered-packet-archive';
 import { isDocx, renderReferenceDisputeDocx } from '../lib/docx-renderer';
 import { highlightTextInDocx } from '../lib/docx-review-marker';
 import { renderLatePaymentReference } from '../lib/late-reference-renderer';
-import { buildFtcAffectedAccounts } from '../lib/ftc-report-renderer';
+import { buildFtcAffectedAccounts, renderFtcIdentityTheftReportDocx } from '../lib/ftc-report-renderer';
 import { resolveAffidavitJurisdiction } from '../lib/affidavit-jurisdiction';
 import { bureauInfo, bureaus, createNormalizedSourceCopy, detectRoutes, parseSource, type Bureau, type LetterRoute, type LetterType } from '../lib/letter-engine';
 import { loadPacketAssets, type PacketAssets } from '../lib/packet-assets';
@@ -225,15 +225,7 @@ export default function LetterGeneratorWorkspaceV2() {
           const ftcSource = { ...parsed, ftcAccounts };
           const ftcTemplate = await withTimeout('Reading FTC Identity Theft Report template', () => readTemplateExhibit(round, 'FTC'), 30_000);
           if (!ftcTemplate) throw new Error('Required component missing: 06 FTC Identity Theft Report DOCX template is not uploaded.');
-          const ftcRecipient = bureauInfo[context.bureau];
-          const ftcFile = await withTimeout('Generating FTC Identity Theft Report', () => renderMappedAppendix(ftcTemplate, {
-            kind: 'FTC',
-            bureau: context.bureau,
-            documentDate: date,
-            recipientName: ftcRecipient.name,
-            recipientAddressLines: ftcRecipient.address.split('\n'),
-            source: ftcSource
-          }));
+          const ftcFile = await withTimeout('Generating FTC Identity Theft Report', () => renderFtcIdentityTheftReportDocx(ftcSource, date, ftcTemplate), 45_000);
           output.push({ id: 'CLIENT-FTC-IDENTITY-THEFT-REPORT', path: `Editable Documents/${clean(parsed.name)} 06 FTC Identity Theft Report.docx`, type: 'DISPUTE', role: 'FTC', sequence: 6, bureau: 'CLIENT', count: ftcAccounts.length, detail: `${ftcAccounts.length} affected FTC item(s)`, blob: ftcFile, packetSteps: order('DISPUTE') });
         }
         report('Generating client Affidavit…');
