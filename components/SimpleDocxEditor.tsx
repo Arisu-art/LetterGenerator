@@ -81,6 +81,29 @@ function missingReason(slot: Slot, warnings: string[]) {
   return slot.message || 'No generated document for this packet position.';
 }
 
+function ensureFtcEditorSlot(slots: Slot[], ftc?: ReviewOutput, ftcConfigured?: boolean): Slot[] {
+  const normalized = [...slots];
+
+  if (normalized.some((slot) => slot.id === 'FTC')) {
+    return normalized.sort((a, b) => a.number - b.number);
+  }
+
+  normalized.push({
+    id: 'FTC',
+    number: 6,
+    label: 'FTC Identity Theft Report',
+    document: ftc,
+    configured: Boolean(ftc || ftcConfigured),
+    message: ftc
+      ? 'Editable DOCX component'
+      : ftcConfigured
+        ? 'Configured template; regenerate packet to create editable FTC DOCX'
+        : 'Not configured'
+  });
+
+  return normalized.sort((a, b) => a.number - b.number);
+}
+
 function applyPreviewFormatting(node: HTMLElement, block: EditableParagraph) {
   const values: Array<[string, string]> = [
     ['font-weight', block.bold ? '700' : '400'],
@@ -369,7 +392,7 @@ export default function SimpleDocxEditor({
     const positions = getPacketPositions(output.type)
       .filter((position) => position.id !== 'FTC' || isFtcEnabled() || ftc || exhibits.FTC);
 
-    return positions.map((position) => {
+    const workflowSlots = positions.map((position) => {
       const id = position.id as SlotId;
 
       return {
@@ -381,6 +404,12 @@ export default function SimpleDocxEditor({
         message: messages[id]
       };
     });
+
+    if (output.type === 'DISPUTE' && (isFtcEnabled() || ftc || exhibits.FTC)) {
+      return ensureFtcEditorSlot(workflowSlots, ftc, Boolean(exhibits.FTC));
+    }
+
+    return workflowSlots.sort((a, b) => a.number - b.number);
   }, [output.type, letter, affidavit, ftc, evidence?.supporting.length, exhibits]);
 
   useEffect(() => {
@@ -403,7 +432,7 @@ export default function SimpleDocxEditor({
 
   return (
     <div className="simple-editor-backdrop">
-      <section className="simple-editor-modal ordered-packet-modal premium-document-editor focused-packet-editor consolidated-packet-editor" role="dialog" aria-modal="true" aria-label={`${output.bureau} ordered packet editor`}>
+      <section className="simple-editor-modal ordered-packet-modal premium-document-editor focused-packet-editor consolidated-packet-editor" role="dialog" aria-modal="true" aria-label={`${output.bureau} ordered packet editor`} data-ftc-editor-slots={slots.map((slot) => slot.id).join('|')}>
         <header className="simple-editor-header editor-command-header">
           <div className="editor-command-identity">
             <div className="editor-packet-name">
@@ -439,7 +468,7 @@ export default function SimpleDocxEditor({
         </header>
 
         <div className="ordered-packet-body">
-          <aside className="editor-packet-map document-rail">
+          <aside className="editor-packet-map document-rail" data-ftc-rail-count={slots.length}>
             <header>
               <p className="eyebrow">Packet order</p>
               <h3>Documents</h3>
