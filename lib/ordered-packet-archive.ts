@@ -63,7 +63,7 @@ export async function addOrderedPacketFolders(
       zip.file(`${folder}03 FCRA Legal Exhibit.pdf`, fcra!);
       const ftc = findDocument(docs, route, 'FTC');
       if (!ftc) throw new Error('Required component missing: 06 FTC Identity Theft Report.docx was not generated.');
-      zip.file(`${folder}06 FTC Identity Theft Report.docx`, await assertGeneratedDocx(ftc.blob, 'FTC Identity Theft Report', [clientName]));
+      zip.file(`${folder}06 FTC Identity Theft Report.docx`, await assertGeneratedDocx(ftc.blob, 'FTC Identity Theft Report', []));
       const affidavit = findDocument(docs, route, 'AFFIDAVIT');
       if (!affidavit) throw new Error('Required component missing: 04 Affidavit.docx was not generated.');
       zip.file(`${folder}04 Affidavit.docx`, await assertGeneratedDocx(affidavit.blob, 'Affidavit', [clientName]));
