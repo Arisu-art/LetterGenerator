@@ -5,7 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "ai:code": "node scripts/ai-coding-assistant.js",
+    "ai:code:interactive": "node scripts/ai-coding-assistant.js --interactive",
+    "ai:code:help": "node scripts/ai-coding-assistant.js --help",
+    "ai:process": "node scripts/ai-code-processor.js",
+    "ai:apply": "node scripts/apply-changes.js"
   },
   "dependencies": {
     "docx-preview": "^0.3.6",

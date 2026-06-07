@@ -1,0 +1,130 @@
+name: AI Code Generator
+
+on:
+  issue_comment:
+    types: [created, edited]
+  pull_request_review_comment:
+    types: [created, edited]
+  workflow_dispatch:
+    inputs:
+      instruction:
+        description: 'Coding instruction or task'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  process-instructions:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.comment.user.type != 'Bot' &&
+       (contains(github.event.comment.body, '/code:') || 
+        contains(github.event.comment.body, '@code-ai') ||
+        contains(github.event.comment.body, '[AI-CODE]')))
+    
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+        continue-on-error: true
+
+      - name: Extract instruction
+        id: extract
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            INSTRUCTION="${{ github.event.inputs.instruction }}"
+          else
+            INSTRUCTION="${{ github.event.comment.body }}"
+          fi
+          
+          # Clean instruction
+          INSTRUCTION=$(echo "$INSTRUCTION" | sed 's/^.*\/code: *//;s/^.*@code-ai *//;s/\[AI-CODE\] *//')
+          
+          # Save to file for processing
+          echo "$INSTRUCTION" > /tmp/instruction.txt
+          echo "instruction=$(cat /tmp/instruction.txt | head -c 500)" >> $GITHUB_OUTPUT
+
+      - name: Process with CLI tool
+        id: process
+        run: |
+          node scripts/ai-code-processor.js "/tmp/instruction.txt" > /tmp/result.json 2>&1
+          cat /tmp/result.json
+
+      - name: Apply generated changes
+        id: apply
+        run: |
+          node scripts/apply-changes.js "/tmp/result.json"
+          
+          # Check git diff
+          if git diff --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes generated"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            git diff --stat
+          fi
+
+      - name: Commit and push
+        if: steps.apply.outputs.changed == 'true'
+        run: |
+          git config --local user.email "ai-code@github.com"
+          git config --local user.name "AI Code Generator"
+          
+          INSTRUCTION_TITLE=$(head -c 50 /tmp/instruction.txt)
+          git add -A
+          git commit -m "AI: $INSTRUCTION_TITLE
+          
+          Generated from ChatGPT instruction via AI Code Generator
+          Triggered by: ${{ github.actor }}"
+          
+          git push origin ${{ github.ref }}
+
+      - name: Comment on success
+        if: success() && steps.apply.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ AI Code Generator processed your instruction and committed changes.\n\n**Last commit:** ' + '${{ github.sha }}'.substring(0, 7)
+            })
+
+      - name: Comment on no changes
+        if: success() && steps.apply.outputs.changed == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ No changes generated. The instruction may be unclear or the code may already be up-to-date.'
+            })
+
+      - name: Comment on error
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '❌ AI Code Generator encountered an error. Check the action logs for details.'
+            })

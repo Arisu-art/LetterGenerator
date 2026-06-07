@@ -1,0 +1,70 @@
+name: "🤖 AI-Coded Feature"
+description: "Automatically generate code from AI instructions"
+title: "[AI-CODE] "
+labels: ["ai-generated", "automation"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # AI-Powered Code Generation
+
+        Post your ChatGPT instruction below and the AI Code Generator will automatically:
+        1. Parse your instruction
+        2. Generate TypeScript code
+        3. Create a commit with the changes
+
+        **Use any of these triggers in your comment:**
+        - `/code: your instruction here`
+        - `@code-ai your instruction here`
+        - `[AI-CODE] your instruction here`
+
+  - type: textarea
+    id: instruction
+    attributes:
+      label: "Coding Instruction"
+      description: "Paste your ChatGPT instruction or conversation here"
+      placeholder: "e.g., Create a feature flag system for managing disabled features"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: instruction-clarity
+    attributes:
+      label: "Instruction Quality"
+      options:
+        - label: "Instruction is clear and specific"
+          required: true
+        - label: "Instruction includes file names or component names"
+        - label: "Instruction describes expected behavior"
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: "Code Category"
+      description: "What type of code should be generated?"
+      options:
+        - Feature Flag
+        - Utility Function
+        - React Component
+        - TypeScript Type
+        - File Modification
+        - Bug Fix
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: "Additional Context"
+      description: "Any additional information for the AI"
+      placeholder: "Related issues, files, or context"
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **Note:** The AI Code Generator will respond with ✅ or ❌ when processing is complete.
+        You can review the generated code before it's merged.

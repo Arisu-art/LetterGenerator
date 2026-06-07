@@ -1,0 +1,88 @@
+{
+  "name": "AI Code Generator Configuration",
+  "version": "1.0.0",
+  "description": "Configuration for AI-powered code generation in LetterGenerator",
+  
+  "enablement": {
+    "enabled": true,
+    "autoCommit": true,
+    "autoReview": false,
+    "requireManualReview": false
+  },
+
+  "triggers": {
+    "issue_comments": {
+      "enabled": true,
+      "patterns": ["/code:", "@code-ai", "[AI-CODE]"]
+    },
+    "pull_request_comments": {
+      "enabled": true,
+      "patterns": ["/code:", "@code-ai"]
+    },
+    "workflow_dispatch": {
+      "enabled": true
+    }
+  },
+
+  "codeGeneration": {
+    "supportedLanguages": ["typescript", "tsx", "javascript"],
+    "componentLibrary": "react",
+    "typeSystem": "typescript",
+    "codeStyle": "prettier",
+    
+    "templates": {
+      "react_component": "components/",
+      "utility_function": "lib/",
+      "type_definition": "lib/types/",
+      "hook": "lib/hooks/"
+    },
+
+    "conventions": {
+      "naming": "camelCase",
+      "fileNaming": "kebab-case",
+      "componentNaming": "PascalCase",
+      "typeNaming": "PascalCase",
+      "imports": "named"
+    }
+  },
+
+  "gitBehavior": {
+    "branch": "main",
+    "commitTemplate": "AI: {instruction}",
+    "requireTests": false,
+    "runLinter": true,
+    "runTypeCheck": false
+  },
+
+  "projectStructure": {
+    "lib": ["feature-flags", "workflows", "renderers", "utilities", "types", "hooks"],
+    "components": [
+      "Workspaces",
+      "Views",
+      "Forms",
+      "Panels",
+      "Controls"
+    ],
+    "app": ["stylesheets", "page"],
+    "scripts": ["automation", "builders"]
+  },
+
+  "limitations": {
+    "maxFilesPerCommit": 10,
+    "maxLinesPerFile": 500,
+    "autoApplyRules": {
+      "newFiles": true,
+      "modifications": true,
+      "deletions": false
+    }
+  },
+
+  "documentation": {
+    "url": "docs/ai-code-generator.md",
+    "examples": [
+      "Create a feature flag for FTC",
+      "Generate a React component for user input",
+      "Add a TypeScript utility function"
+    ]
+  }
+}
