@@ -119,7 +119,7 @@ export default function LetterGeneratorWorkspace() {
         const prefix = `${clean(parsed.name)} ${route.bureau}`;
         docs.push({ id: `${route.type}-${route.bureau}-LETTER`, path: `Editable Documents/${prefix} ${typeLabel[route.type]}.docx`, type: route.type, role: 'LETTER', sequence: 1, bureau: route.bureau, count: route.items.length, detail: `${route.reason} · Preview the completed ordered packet from this editor`, blob: letter, packetSteps: sequence(route.type) });
         if (route.type === 'DISPUTE') {
-          const items = [{ kind: 'AFFIDAVIT' as const, role: 'AFFIDAVIT' as const, number: 4 }];
+          const items: Array<{ kind: 'AFFIDAVIT' | 'FTC'; role: 'AFFIDAVIT' | 'FTC'; number: number }> = [{ kind: 'AFFIDAVIT', role: 'AFFIDAVIT', number: 4 }];
           if (isFtcEnabled()) {
             items.push({ kind: 'FTC' as const, role: 'FTC' as const, number: 6 });
           }
