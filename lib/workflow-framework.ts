@@ -10,5 +10,4 @@ export type PacketPosition = {
   generated: boolean;
 };
 
-const DISPUTE_PACKET: readonly PacketPosition[] = [
-  { id: 'LETTER', number: 1, label:
+const
