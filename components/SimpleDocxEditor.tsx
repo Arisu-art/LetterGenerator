@@ -428,11 +428,30 @@ export default function SimpleDocxEditor({
   const next = activeIndex < slots.length - 1 ? slots[activeIndex + 1] : null;
   const evidenceToolsId = `packet-evidence-tools-${output.bureau.replace(/[^A-Za-z0-9]/g, '').toLowerCase()}`;
 
+  const ftcRailSlot: Slot | null = output.type === 'DISPUTE'
+    ? slots.find((slot) => slot.id === 'FTC') || {
+        id: 'FTC',
+        number: 6,
+        label: 'FTC Identity Theft Report',
+        document: ftc,
+        configured: Boolean(ftc || exhibits.FTC),
+        message: ftc
+          ? 'Editable DOCX component'
+          : exhibits.FTC
+            ? 'Configured template; regenerate packet to create editable FTC DOCX'
+            : 'Not configured'
+      }
+    : null;
+
+  const railSlots = output.type === 'DISPUTE' && ftcRailSlot
+    ? [...slots.filter((slot) => slot.id !== 'FTC'), ftcRailSlot].sort((a, b) => a.number - b.number)
+    : slots;
+
   if (!selected) return null;
 
   return (
     <div className="simple-editor-backdrop">
-      <section className="simple-editor-modal ordered-packet-modal premium-document-editor focused-packet-editor consolidated-packet-editor" role="dialog" aria-modal="true" aria-label={`${output.bureau} ordered packet editor`} data-ftc-editor-slots={slots.map((slot) => slot.id).join('|')}>
+      <section className="simple-editor-modal ordered-packet-modal premium-document-editor focused-packet-editor consolidated-packet-editor" role="dialog" aria-modal="true" aria-label={`${output.bureau} ordered packet editor`} data-ftc-editor-slots={slots.map((slot) => slot.id).join('|')} data-ftc-rail-slots={railSlots.map((slot) => slot.id).join('|')}>
         <header className="simple-editor-header editor-command-header">
           <div className="editor-command-identity">
             <div className="editor-packet-name">
@@ -475,7 +494,7 @@ export default function SimpleDocxEditor({
             </header>
 
             <ol>
-              {slots.map((slot) => (
+              {railSlots.map((slot) => (
                 <li className={active === slot.id ? 'current editable' : 'editable'} key={slot.id}>
                   <button type="button" onClick={() => setActive(slot.id)}>
                     <b>{String(slot.number).padStart(2, '0')}</b>
