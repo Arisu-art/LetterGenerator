@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { exhibitAccept, exhibitModes, exhibitTitles, loadTemplateExhibits, removeTemplateExhibit, saveTemplateExhibit, type ExhibitAsset, type ExhibitKind, type TemplateExhibits } from '../lib/template-exhibits';
-import { activeExhibitKinds, packetOrderText } from '../lib/workflow-framework';
+import { exhibitKindsForPacket, packetOrderText } from '../lib/workflow-framework';
 import type { LetterReference, Round } from '../lib/reference-store';
 import type { LetterType } from '../lib/letter-engine';
 
@@ -10,7 +10,7 @@ type PacketFocus = LetterType;
 type NodeId = 'DISPUTE_LETTER' | 'LATE_LETTER' | ExhibitKind | null;
 type StatusTone = 'ready' | 'required' | 'neutral';
 type Props = { round: Round; slots: LetterReference[]; supportingReady: boolean; focusedPacket?: PacketFocus; embedded?: boolean; onUploadLetter: (slot: LetterReference, file: File) => Promise<void>; onRemoveLetter: (slot: LetterReference) => Promise<void>; onExhibitsChange: (value: TemplateExhibits) => void; onMessage: (message: string) => void };
-const activeExhibits = activeExhibitKinds();
+const activeExhibits = exhibitKindsForPacket('DISPUTE');
 function Badge({ tone = 'neutral', children }: { tone?: StatusTone; children: ReactNode }) { return <span className={`packet-status ${tone}`}>{children}</span>; }
 function Tag({ children }: { children: ReactNode }) { return <span className="template-info-tag">{children}</span>; }
 function mappingMeta(asset?: ExhibitAsset | null) {
