@@ -1,5 +1,6 @@
 import type { LetterRoute, LetterType } from './letter-engine';
-import { isFtcEnabled, packetOrderText } from './workflow-framework';
+import { isFeatureEnabled } from './feature-flags';
+import { packetOrderText } from './workflow-framework';
 
 export type GeneratedLetterRecord = {
   type: LetterType;
@@ -50,7 +51,7 @@ export function assessRouteCoverage(routes: LetterRoute[], documents: GeneratedL
 }
 
 export function activeWorkflowDiagnostics(diagnostics: Diagnostic[]) {
-  return diagnostics.filter((diagnostic) => isFtcEnabled() || !/\bFTC\b|identity\s+theft\s+report|affected\s+accounts?/i.test(diagnostic.message));
+  return diagnostics.filter((diagnostic) => isFeatureEnabled('FTC_IDENTITY_THEFT_REPORT') || !/\bFTC\b|identity\s+theft\s+report|affected\s+accounts?/i.test(diagnostic.message));
 }
 
 export function requiredGenerationFailureMessage(coverage: RouteCoverage, detail?: string) {

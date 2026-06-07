@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { isFtcEnabled } from '../lib/workflow-framework';
 
 type Item = { id: string; title: string; detail: string; status: string; ready?: boolean };
 type Props = {
@@ -25,7 +26,7 @@ export default function CollapsiblePacketOrder(props: Props) {
   return <section className="packet-order">
     <header className="packet-order-header"><div><h2>Document packet order</h2><p>Open a packet to manage its reusable files. Supporting Documents remain connected to Source Data.</p></div><span>Collapsed by default</span></header>
     <article className={`order-group ${open === 'DISPUTE' ? 'open' : ''}`}>
-      <button className="order-toggle" onClick={() => setOpen(open === 'DISPUTE' ? null : 'DISPUTE')} aria-expanded={open === 'DISPUTE'}><div><strong>{props.disputeTitle}</strong><small>Supporting Document inside letter → FCRA → Affidavit → Attachment → FTC</small></div><Badge ready={props.disputeReady}>{props.disputeReady ? 'Saved' : 'Needed'}</Badge><i>{open === 'DISPUTE' ? '−' : '+'}</i></button>
+      <button className="order-toggle" onClick={() => setOpen(open === 'DISPUTE' ? null : 'DISPUTE')} aria-expanded={open === 'DISPUTE'}><div><strong>{props.disputeTitle}</strong><small>Supporting Document inside letter → FCRA → Affidavit → Attachment{isFtcEnabled() && ' → FTC'}</small></div><Badge ready={props.disputeReady}>{props.disputeReady ? 'Saved' : 'Needed'}</Badge><i>{open === 'DISPUTE' ? '−' : '+'}</i></button>
       {open === 'DISPUTE' && <div className="order-details">
         <Step id="dispute" number="01" title="Dispute Letter DOCX" detail="Reusable letter reference" status={props.disputeReady ? 'Saved' : 'Needed'} ready={props.disputeReady} action={props.renderDisputeUpload} />
         <span className="order-link" />

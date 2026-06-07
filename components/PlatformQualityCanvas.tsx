@@ -1,6 +1,7 @@
 'use client';
 
 import { packetOrderText, workflowFramework } from '../lib/workflow-framework';
+import { getFeatureDisabledReason, isFeatureEnabled } from '../lib/feature-flags';
 
 const pillars = [
   {
@@ -39,7 +40,7 @@ export default function PlatformQualityCanvas() {
       <div className="platform-canvas-contract">
         <small>Active dispute packet contract</small>
         <strong>{packetOrderText('DISPUTE')}</strong>
-        <span>FTC document processing is disabled until a replacement strategy passes validation.</span>
+        <span>{isFeatureEnabled('FTC_IDENTITY_THEFT_REPORT') ? 'FTC Identity Theft Report is active.' : `FTC: ${getFeatureDisabledReason('FTC_IDENTITY_THEFT_REPORT')}`}</span>
       </div>
       <div className="platform-canvas-grid">
         {pillars.map((pillar) => (

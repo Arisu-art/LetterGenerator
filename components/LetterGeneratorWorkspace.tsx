@@ -15,20 +15,42 @@ import { createSupportingDocumentsPdf } from '../lib/packet-renderer';
 import { defaultReferences, loadReferenceMeta, readReferenceFile, removeReferenceFile, rounds, saveReferenceFile, saveReferenceMeta, type LetterReference, type Round } from '../lib/reference-store';
 import { renderMappedAppendix } from '../lib/supplemental-template-renderer';
 import { configuredExhibits, exhibitTitles, loadTemplateExhibits, readTemplateExhibit, type ExhibitKind, type TemplateExhibits } from '../lib/template-exhibits';
+import { isFtcEnabled } from '../lib/workflow-framework';
 
 type Panel = 'Dashboard' | 'Templates' | 'Source Data' | 'Generate' | 'Outputs' | 'Settings';
 type Tone = 'neutral' | 'success' | 'warning' | 'accent';
 const panels: Panel[] = ['Dashboard', 'Templates', 'Source Data', 'Generate', 'Outputs', 'Settings'];
 const steps: Panel[] = ['Templates', 'Source Data', 'Generate', 'Outputs'];
 const typeLabel: Record<LetterType, string> = { DISPUTE: 'Dispute Letter', LATE_PAYMENT: 'Late Payment Letter' };
-const disputeRequirements: ExhibitKind[] = ['FCRA', 'AFFIDAVIT', 'ATTACHMENT', 'FTC'];
+
+// Dynamically build dispute requirements based on FTC feature flag
+function getDisputeRequirements(): ExhibitKind[] {
+  const requirements: ExhibitKind[] = ['FCRA', 'AFFIDAVIT', 'ATTACHMENT'];
+  if (isFtcEnabled()) {
+    requirements.push('FTC');
+  }
+  return requirements;
+}
+
 const emptyEvidence = (): PacketAssets => ({ supporting: [], legalPdf: null });
 const emptyTemplates = (): TemplateExhibits => ({ FCRA: null, AFFIDAVIT: null, ATTACHMENT: null, FTC: null });
 function dateInEasternTime() { return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }).format(new Date()); }
 function clean(value: string) { return (value || 'CLIENT').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().toUpperCase(); }
 function fileBase(value: string) { return clean(value).replace(/[^A-Z0-9]+/g, '_'); }
 function deliver(name: string, blob: Blob) { const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url); }
-function sequence(type: LetterType) { return type === 'LATE_PAYMENT' ? ['01 Late Payment Letter', '02 Supporting Documents'] : ['01 Dispute Letter', '02 Supporting Documents', '03 FCRA', '04 Affidavit', '05 Attachment', '06 FTC']; }
+
+// Dynamically build sequence based on FTC feature flag
+function sequence(type: LetterType) {
+  if (type === 'LATE_PAYMENT') {
+    return ['01 Late Payment Letter', '02 Supporting Documents'];
+  }
+  const seq = ['01 Dispute Letter', '02 Supporting Documents', '03 FCRA', '04 Affidavit', '05 Attachment'];
+  if (isFtcEnabled()) {
+    seq.push('06 FTC');
+  }
+  return seq;
+}
+
 function uniqueNotices(current: string[], additions: string[]) { return Array.from(new Set([...current, ...additions])); }
 function Pill({ children, tone = 'neutral' }: { children: ReactNode; tone?: Tone }) { return <span className={`pill ${tone}`}>{children}</span>; }
 function Empty({ title, text }: { title: string; text: string }) { return <div className="empty-state"><div className="empty-icon">+</div><strong>{title}</strong><p>{text}</p></div>; }
@@ -66,7 +88,7 @@ export default function LetterGeneratorWorkspace() {
   const sourceWarnings = parsed.diagnostics?.filter((item) => item.level === 'warning') || [];
   const missingLetters = Array.from(new Set(routes.map((route) => route.type))).filter((type) => !currentReferences.find((item) => item.type === type)?.file);
   const hasDispute = routes.some((route) => route.type === 'DISPUTE');
-  const missingDisputeNodes = hasDispute ? disputeRequirements.filter((kind) => !templates[kind]) : [];
+  const missingDisputeNodes = hasDispute ? getDisputeRequirements().filter((kind) => !templates[kind]) : [];
   const canGenerate = verified && routes.length > 0;
   useEffect(() => setEvidence(verified && evidenceKey ? loadPacketAssets(evidenceKey) : emptyEvidence()), [verified, evidenceKey]);
 
@@ -97,7 +119,11 @@ export default function LetterGeneratorWorkspace() {
         const prefix = `${clean(parsed.name)} ${route.bureau}`;
         docs.push({ id: `${route.type}-${route.bureau}-LETTER`, path: `Editable Documents/${prefix} ${typeLabel[route.type]}.docx`, type: route.type, role: 'LETTER', sequence: 1, bureau: route.bureau, count: route.items.length, detail: `${route.reason} · Preview the completed ordered packet from this editor`, blob: letter, packetSteps: sequence(route.type) });
         if (route.type === 'DISPUTE') {
-          for (const item of [{ kind: 'AFFIDAVIT' as const, role: 'AFFIDAVIT' as const, number: 4 }, { kind: 'FTC' as const, role: 'FTC' as const, number: 6 }]) {
+          const items = [{ kind: 'AFFIDAVIT' as const, role: 'AFFIDAVIT' as const, number: 4 }];
+          if (isFtcEnabled()) {
+            items.push({ kind: 'FTC' as const, role: 'FTC' as const, number: 6 });
+          }
+          for (const item of items) {
             if (!templates[item.kind]) continue;
             const mapped = await createMappedDoc(item.kind, route.bureau, date);
             if (mapped) docs.push({ id: `${route.bureau}-${item.kind}`, path: `Editable Documents/${prefix} ${String(item.number).padStart(2, '0')} ${exhibitTitles[item.kind]}.docx`, type: 'DISPUTE', role: item.role, sequence: item.number, bureau: route.bureau, count: parsed.dispute[route.bureau].length, detail: 'Source-populated DOCX · edit, inspect page lines and preview full packet', blob: mapped, packetSteps: sequence('DISPUTE') });
@@ -119,10 +145,23 @@ export default function LetterGeneratorWorkspace() {
       const fcra = await readTemplateExhibit(round, 'FCRA');
       const attachment = await readTemplateExhibit(round, 'ATTACHMENT');
       const affidavit = docs.find((doc) => doc.bureau === bureau && doc.role === 'AFFIDAVIT');
-      const ftc = docs.find((doc) => doc.bureau === bureau && doc.role === 'FTC');
-      const missing = [!fcra ? 'FCRA PDF' : '', !affidavit ? 'Affidavit DOCX' : '', !attachment ? 'Attachment PDF' : '', !ftc ? 'FTC DOCX' : ''].filter(Boolean);
-      if (missing.length) throw new Error(`Complete Dispute Packet Preview is unavailable. Configure or generate: ${missing.join(', ')}.`);
-      parts.push({ label: 'FCRA', kind: 'PDF', blob: fcra! }, { label: 'Affidavit', kind: 'DOCX', blob: affidavit!.blob }, { label: 'Attachment', kind: 'PDF', blob: attachment! }, { label: 'FTC', kind: 'DOCX', blob: ftc!.blob });
+      
+      // Build missing items list dynamically based on FTC feature flag
+      const missingItems: string[] = [];
+      if (!fcra) missingItems.push('FCRA PDF');
+      if (!affidavit) missingItems.push('Affidavit DOCX');
+      if (!attachment) missingItems.push('Attachment PDF');
+      
+      // Only require FTC if the feature is enabled
+      if (isFtcEnabled()) {
+        const ftc = docs.find((doc) => doc.bureau === bureau && doc.role === 'FTC');
+        if (!ftc) missingItems.push('FTC DOCX');
+        if (missingItems.length) throw new Error(`Complete Dispute Packet Preview is unavailable. Configure or generate: ${missingItems.join(', ')}.`);
+        parts.push({ label: 'FCRA', kind: 'PDF', blob: fcra! }, { label: 'Affidavit', kind: 'DOCX', blob: affidavit!.blob }, { label: 'Attachment', kind: 'PDF', blob: attachment! }, { label: 'FTC', kind: 'DOCX', blob: ftc!.blob });
+      } else {
+        if (missingItems.length) throw new Error(`Complete Dispute Packet Preview is unavailable. Configure or generate: ${missingItems.join(', ')}.`);
+        parts.push({ label: 'FCRA', kind: 'PDF', blob: fcra! }, { label: 'Affidavit', kind: 'DOCX', blob: affidavit!.blob }, { label: 'Attachment', kind: 'PDF', blob: attachment! });
+      }
     }
     return assembleFinalPdf(parts);
   }

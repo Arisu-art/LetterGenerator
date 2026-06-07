@@ -9,98 +9,86 @@ export type FtcAffectedAccount = {
   fraudulentAmount: string;
 };
 
+type FtcModel = {
+  reportNumber: string;
+  reportDate: string;
+  fullName: string;
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  address: string;
+  phone: string;
+  email: string;
+  statement: string;
+  accounts: FtcAffectedAccount[];
+};
+
 const FTC_TEMPLATE_URL = '/templates/ftc-standard.docx';
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const DEFAULT_REPORT_NUMBER = '202084447';
-const DEFAULT_SIGNATURE = 'ESPERANZITA CASTILLO';
-const DEFAULT_FOOTER = 'IdentityTheft.gov';
-const ORANGE = 'F8CBAD';
-const GRAY = 'D9D9D9';
 
-const FTC_STATEMENT = [
-  'I am reporting unauthorized accounts and inquiries created or used without my authorization.',
-  'I request that all identity theft items be blocked, removed, and corrected according to the identity theft report and supporting documents.',
-  'The information in this report is true and accurate to the best of my knowledge.'
-].join(' ');
+const FTC_STATEMENT = 'I AM A VICTIM OF IDENTITY THEFT AND REQUEST THE IMMEDIATE ENFORCEMENT OF MY RIGHTS UNDER FCRA SECTION 605B (15 U.S.C. § 1681c-2). ANY FRAUDULENT ACCOUNTS, INQUIRIES, OR INFORMATION RESULTING FROM THIS THEFT MUST BE BLOCKED AND REMOVED FROM MY CREDIT FILE. UPON RECEIPT OF THIS NOTICE, YOU ARE LEGALLY REQUIRED TO BLOCK SUCH INFORMATION WITHIN FOUR (4) BUSINESS DAYS; THIS IS A STATUTORY OBLIGATION, NOT A REQUEST. ANY FAILURE TO COMPLY CONSTITUTES A VIOLATION OF FEDERAL LAW AND MAY RESULT IN LEGAL ACTION. I EXPECT FULL COMPLIANCE AND WRITTEN CONFIRMATION THAT ALL FRAUDULENT INFORMATION HAS BEEN REMOVED.';
+
+const TEMPLATE_SEQUENCE = [
+  'FTC', ' ', 'Report', ' ', 'Number: ', 'REPORT_NUMBER_A', 'REPORT_NUMBER_B',
+  'FTC', ' ', 'Report', ' ', 'Number: ', 'REPORT_NUMBER_A', 'REPORT_NUMBER_B',
+  'I', ' ', 'am', ' ', 'a', ' ', 'victim', ' ', 'of', ' ', 'Identity', ' ', 'theft.', ' ', 'This', ' ', 'is', ' ', 'my', ' ', 'official', ' ', 'statement', ' ', 'about', ' ', 'the', ' crime.',
+  'FIRST_NAME', 'LAST_NAME', 'ADDRESS_LINE_1', 'ADDRESS_LINE_2', 'USA', 'PHONE_A', '-', 'PHONE_B',
+  'STATEMENT',
+  '            ', 'ACCOUNT_1_NAME', '                                                                                 ', 'ACCOUNT_1_NUMBER', 'ACCOUNT_1_FRAUD_BEGAN', 'ACCOUNT_1_DISCOVERED', '$', ' ', 'ACCOUNT_1_AMOUNT',
+  '            ', 'ACCOUNT_2_NAME', '                                                                                ', 'ACCOUNT_2_NUMBER', 'ACCOUNT_2_FRAUD_BEGAN', 'ACCOUNT_2_DISCOVERED', '$', ' ', 'ACCOUNT_2_AMOUNT',
+  '            ', 'ACCOUNT_3_NAME', '                                                                                ', 'ACCOUNT_3_NUMBER', 'ACCOUNT_3_FRAUD_BEGAN', 'ACCOUNT_3_DISCOVERED', '$', ' ', 'ACCOUNT_3_AMOUNT',
+  '            ', 'ACCOUNT_4_NAME', '                                                                                ', 'ACCOUNT_4_NUMBER', 'ACCOUNT_4_FRAUD_BEGAN', 'ACCOUNT_4_DISCOVERED', '$', ' ', 'ACCOUNT_4_AMOUNT',
+  '            ', 'ACCOUNT_5_NAME', 'ACCOUNT_5_FRAUD_BEGAN', 'ACCOUNT_5_DISCOVERED_A', '/', 'ACCOUNT_5_DISCOVERED_B',
+  'I understand that knowingly making any false statements to the government may violate federal, state, or local criminal statutes, and may result in a fine, imprisonment, or both.',
+  'SIGNATURE_NAME', 'PRINTED_NAME', 'DATE_A', 'DATE_B', 'Date',
+  'Use this form to prove to businesses and credit bureaus that you have submitted an FTC Identity Theft Report to law enforcement. Some businesses might request that you also file a report with your local police.',
+  'https://www.identitytheft.gov/'
+];
 
 function xml(value: unknown) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/>/g, '&gt;');
 }
 
-function textFromXml(value: unknown) {
-  return xml(value).replace(/\r?\n/g, '</w:t></w:r></w:p><w:p><w:r><w:t xml:space="preserve">');
+function normalizePhone(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return value.replace(/[()]/g, '').replace(/\s+/g, '-').replace(/--+/g, '-');
 }
 
-function paragraph(
-  value = '',
-  options: { bold?: boolean; size?: number; align?: 'left' | 'center' | 'right'; fill?: string; after?: number } = {}
-) {
-  const size = options.size ?? 22;
-  const bold = options.bold ? '<w:b/>' : '';
-  const align = options.align && options.align !== 'left' ? `<w:jc w:val="${options.align}"/>` : '';
-  const fill = options.fill ? `<w:shd w:fill="${options.fill}"/>` : '';
-  const after = options.after ?? 120;
-
-  return [
-    '<w:p>',
-    `<w:pPr>${align}${fill}<w:spacing w:after="${after}"/></w:pPr>`,
-    `<w:r><w:rPr>${bold}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr><w:t xml:space="preserve">${textFromXml(value)}</w:t></w:r>`,
-    '</w:p>'
-  ].join('');
-}
-
-function sectionTitle(value: string) {
-  return paragraph(value, { bold: true, fill: ORANGE, after: 100 });
-}
-
-function cell(value: string, width = 2500, shaded = false) {
-  const borders = [
-    '<w:top w:val="single" w:sz="6"/>',
-    '<w:left w:val="single" w:sz="6"/>',
-    '<w:bottom w:val="single" w:sz="6"/>',
-    '<w:right w:val="single" w:sz="6"/>'
-  ].join('');
-
-  return [
-    '<w:tc>',
-    `<w:tcPr><w:tcW w:w="${width}" w:type="dxa"/><w:tcBorders>${borders}</w:tcBorders>${shaded ? `<w:shd w:fill="${GRAY}"/>` : ''}</w:tcPr>`,
-    paragraph(value, { after: 40 }),
-    '</w:tc>'
-  ].join('');
-}
-
-function table(rows: string[][], widths?: number[], shadedRows = new Set<number>()) {
-  return [
-    '<w:tbl>',
-    '<w:tblPr><w:tblW w:w="10000" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="6"/><w:left w:val="single" w:sz="6"/><w:bottom w:val="single" w:sz="6"/><w:right w:val="single" w:sz="6"/><w:insideH w:val="single" w:sz="6"/><w:insideV w:val="single" w:sz="6"/></w:tblBorders></w:tblPr>',
-    rows.map((row, rowIndex) => {
-      return `<w:tr>${row.map((value, index) => cell(value, widths?.[index] || Math.floor(10000 / row.length), shadedRows.has(rowIndex))).join('')}</w:tr>`;
-    }).join(''),
-    '</w:tbl>'
-  ].join('');
+function splitName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] || '',
+    middleName: parts.length > 2 ? parts.slice(1, -1).join(' ') : '',
+    lastName: parts.length > 1 ? parts[parts.length - 1] : ''
+  };
 }
 
 function monthYear(value: string) {
-  const match = String(value || '').match(/(\d{1,2})\/(?:\d{1,2}\/)?(\d{2,4})/);
-  if (!match) return value || '';
+  const clean = String(value || '').trim();
+  const match = clean.match(/(\d{1,2})\/(?:\d{1,2}\/)?(\d{2,4})/);
+  if (!match) return clean;
   const year = match[2].length === 2 ? `20${match[2]}` : match[2];
   return `${Number(match[1])}/${year}`;
 }
 
 function reportMonthYear(source: ParsedSource) {
-  const raw = (source as any).ftcReportDate || (source as any).date || new Date().toLocaleDateString('en-US');
-  return monthYear(raw);
+  return monthYear((source as any).ftcReportDate || (source as any).date || new Date().toLocaleDateString('en-US'));
+}
+
+function amountDisplay(value: string) {
+  return String(value || '').replace(/^\$/, '').replace(/,/g, '').trim();
 }
 
 function deriveDisputeAccount(displayText: string, fallbackFraudDate: string): FtcAffectedAccount | null {
   const lines = String(displayText || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const accountName = (lines.find((line) => /^Account Name:/i.test(line)) || '').replace(/^Account Name:\s*/i, '').trim();
   const accountNumber = (lines.find((line) => /^Account Number:/i.test(line)) || '').replace(/^Account Number:\s*/i, '').trim();
-  const tail = lines.join(' ').match(/(?:^|\s)(\d{2,7}(?:\.\d{1,2})?)?\s*((?:0?[1-9]|1[0-2])\/(?:19|20)?\d{2})(?:\s|$)/);
+  const compact = lines.join(' ').match(/(?:^|\s)(\d{1,8}(?:\.\d{1,2})?)?\s*((?:0?[1-9]|1[0-2])\/(?:19|20)?\d{2})(?:\s|$)/);
 
   if (!accountName) return null;
 
@@ -108,8 +96,8 @@ function deriveDisputeAccount(displayText: string, fallbackFraudDate: string): F
     accountName,
     accountNumber,
     fraudBegan: fallbackFraudDate,
-    dateDiscovered: tail?.[2] ? monthYear(tail[2]) : '',
-    fraudulentAmount: tail?.[1] || ''
+    dateDiscovered: compact?.[2] ? monthYear(compact[2]) : '',
+    fraudulentAmount: compact?.[1] || ''
   };
 }
 
@@ -133,7 +121,15 @@ export function buildFtcAffectedAccounts(source: ParsedSource): FtcAffectedAccou
 
   const disputeItems = Object.values((source as any).dispute || {})
     .flat()
-    .map((item: any) => deriveDisputeAccount(item?.displayText || '', fallbackFraudDate))
+    .map((item: any) => {
+      const base = deriveDisputeAccount(item?.displayText || '', fallbackFraudDate);
+      if (!base) return null;
+      return {
+        ...base,
+        dateDiscovered: item?.ftcDerived?.dateDiscovered || base.dateDiscovered,
+        fraudulentAmount: item?.ftcDerived?.fraudulentAmount || base.fraudulentAmount
+      };
+    })
     .filter(Boolean) as FtcAffectedAccount[];
 
   const inquiryItems = Object.values((source as any).inquiry || {})
@@ -149,7 +145,7 @@ export function buildFtcAffectedAccounts(source: ParsedSource): FtcAffectedAccou
       accountNumber: item.accountNumber || '',
       fraudBegan: item.fraudBegan || fallbackFraudDate,
       dateDiscovered: item.dateDiscovered || '',
-      fraudulentAmount: item.fraudulentAmount || ''
+      fraudulentAmount: amountDisplay(item.fraudulentAmount)
     }))
     .filter((item) => {
       const key = `${item.accountName.toUpperCase()}|${item.accountNumber.toUpperCase()}|${item.dateDiscovered}`;
@@ -157,164 +153,191 @@ export function buildFtcAffectedAccounts(source: ParsedSource): FtcAffectedAccou
       seen.add(key);
       return true;
     })
+    .sort((a, b) => {
+      const amountA = Number(a.fraudulentAmount || 0);
+      const amountB = Number(b.fraudulentAmount || 0);
+      return amountB - amountA;
+    })
     .slice(0, 5);
 }
 
-function accountBlock(account: FtcAffectedAccount) {
-  return [
-    paragraph('Credit Card opened by the thief', { bold: true, after: 60 }),
-    table(
-      [
-        ['Company or Organization', account.accountName],
-        ['Account Number:', account.accountNumber],
-        ['Date fraud began:', 'Date that I discovered it:', 'Total fraudulent amount:'],
-        [account.fraudBegan, account.dateDiscovered, account.fraudulentAmount ? `$ ${account.fraudulentAmount}` : '']
-      ],
-      [3000, 3500, 3500],
-      new Set([2])
-    ),
-    paragraph('', { after: 140 })
-  ].join('');
-}
-
-function contentTypesXml() {
-  return [
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
-    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">',
-    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>',
-    '<Default Extension="xml" ContentType="application/xml"/>',
-    '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>',
-    '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
-    '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>',
-    '</Types>'
-  ].join('');
-}
-
-function relationshipXml() {
-  return [
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
-    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
-    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>',
-    '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>',
-    '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>',
-    '</Relationships>'
-  ].join('');
-}
-
-function generatedDocumentXml(source: ParsedSource, documentDate: string) {
+function modelFromSource(source: ParsedSource, documentDate: string): FtcModel {
   const sourceAny = source as any;
-  const accounts = buildFtcAffectedAccounts(source);
-  const name = sourceAny.name || DEFAULT_SIGNATURE;
-  const parts = String(name).split(/\s+/).filter(Boolean);
-  const firstName = sourceAny.firstName || parts[0] || '';
-  const middleName = sourceAny.middleName || '';
-  const lastName = sourceAny.lastName || parts.slice(1).join(' ');
-  const address = Array.isArray(sourceAny.address) ? [...sourceAny.address, sourceAny.country || 'USA'].filter(Boolean).join('\n') : '';
-  const phone = String(sourceAny.phone || '').replace(/[()]/g, '').replace(/\s+/g, '-').replace(/--+/g, '-');
-  const email = sourceAny.email || '';
-  const reportNumber = sourceAny.ftcReportNumber || DEFAULT_REPORT_NUMBER;
+  const fullName = sourceAny.name || '';
+  const parts = splitName(fullName);
+  const addressLines = Array.isArray(sourceAny.address) ? sourceAny.address : [];
+  const address = [...addressLines, sourceAny.country || 'USA'].filter(Boolean).join('\n');
 
-  return [
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
-    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">',
-    '<w:body>',
-    paragraph('Federal Trade Commission', { bold: true, size: 18, after: 20 }),
-    paragraph('Identity Theft Report', { bold: true, size: 40, after: 60 }),
-    paragraph(`FTC Report Number: ${reportNumber}`, { align: 'right', bold: true, after: 60 }),
-    paragraph('I am a victim of Identity theft. This is my official statement about the crime.'),
-    sectionTitle('Contact Information'),
-    table(
-      [
-        ['First Name:', 'Middle Name:', 'Last Name:'],
-        [firstName, middleName, lastName],
-        ['Address:', 'Phone:', 'Email:'],
-        [address, phone, email]
-      ],
-      [3333, 3333, 3334],
-      new Set([0, 2])
-    ),
-    sectionTitle('Personal Statement'),
-    paragraph(sourceAny.ftcStatement || FTC_STATEMENT, { after: 180 }),
-    sectionTitle('Accounts Affected by the Crime'),
-    accounts.length ? accounts.map(accountBlock).join('') : paragraph('No affected accounts were detected from the source data.', { after: 180 }),
-    paragraph('Under penalty of perjury, I declare this information is true and correct to the best of my knowledge.'),
-    paragraph('I understand that knowingly making false statements may violate federal, state, or local law.'),
-    table([[name, documentDate], [name, 'Date']], [5000, 5000]),
-    paragraph(DEFAULT_FOOTER, { align: 'center', size: 18, after: 20 }),
-    '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360" w:gutter="0"/></w:sectPr>',
-    '</w:body>',
-    '</w:document>'
-  ].join('');
+  return {
+    reportNumber: sourceAny.ftcReportNumber || DEFAULT_REPORT_NUMBER,
+    reportDate: documentDate,
+    fullName,
+    firstName: sourceAny.firstName || parts.firstName,
+    middleName: sourceAny.middleName || parts.middleName,
+    lastName: sourceAny.lastName || parts.lastName,
+    address,
+    phone: normalizePhone(sourceAny.phone || ''),
+    email: sourceAny.email || '',
+    statement: sourceAny.ftcStatement || FTC_STATEMENT,
+    accounts: buildFtcAffectedAccounts(source)
+  };
 }
 
-function replaceTextInXml(xmlSource: string, replacements: Record<string, string>) {
-  let out = xmlSource;
+function splitReportNumber(value: string) {
+  const clean = value || DEFAULT_REPORT_NUMBER;
+  return [clean.slice(0, 6), clean.slice(6)];
+}
 
-  for (const [key, value] of Object.entries(replacements)) {
-    const safeValue = xml(value);
-    out = out.replaceAll(`{{${key}}}`, safeValue);
-    out = out.replaceAll(`[${key}]`, safeValue);
-    out = out.replaceAll(key, safeValue);
-  }
+function splitDateForTemplate(value: string) {
+  const clean = value || '';
+  const match = clean.match(/^(\d{1,2})(\/\d{1,2}\/\d{2,4})$/);
+  return match ? [match[1], match[2]] : [clean, ''];
+}
 
-  return out;
+function splitPhoneForTemplate(value: string) {
+  const clean = normalizePhone(value);
+  const match = clean.match(/^(\d{3})-(\d{3}-\d{4})$/);
+  return match ? [match[1], match[2]] : [clean, ''];
+}
+
+function splitMonthYear(value: string) {
+  const clean = monthYear(value);
+  const match = clean.match(/^(\d{1,2})\/(\d{4})$/);
+  return match ? [match[1], match[2]] : [clean, ''];
+}
+
+function replacementForToken(token: string, model: FtcModel) {
+  const [reportA, reportB] = splitReportNumber(model.reportNumber);
+  const [phoneA, phoneB] = splitPhoneForTemplate(model.phone);
+  const [dateA, dateB] = splitDateForTemplate(model.reportDate);
+  const addressParts = model.address.split(/\n/);
+
+  const direct: Record<string, string> = {
+    REPORT_NUMBER_A: reportA,
+    REPORT_NUMBER_B: reportB,
+    FIRST_NAME: model.firstName,
+    LAST_NAME: model.lastName,
+    ADDRESS_LINE_1: addressParts[0] || '',
+    ADDRESS_LINE_2: addressParts.slice(1).join('\n'),
+    PHONE_A: phoneA,
+    PHONE_B: phoneB,
+    STATEMENT: model.statement,
+    SIGNATURE_NAME: model.fullName,
+    PRINTED_NAME: model.fullName,
+    DATE_A: dateA,
+    DATE_B: dateB
+  };
+
+  if (direct[token] !== undefined) return direct[token];
+
+  const accountMatch = token.match(/^ACCOUNT_(\d+)_(NAME|NUMBER|FRAUD_BEGAN|DISCOVERED|DISCOVERED_A|DISCOVERED_B|AMOUNT)$/);
+  if (!accountMatch) return token;
+
+  const account = model.accounts[Number(accountMatch[1]) - 1];
+  if (!account) return '';
+
+  const [, , field] = accountMatch;
+  const [discA, discB] = splitMonthYear(account.dateDiscovered);
+
+  if (field === 'NAME') return account.accountName;
+  if (field === 'NUMBER') return account.accountNumber;
+  if (field === 'FRAUD_BEGAN') return account.fraudBegan;
+  if (field === 'DISCOVERED') return account.dateDiscovered;
+  if (field === 'DISCOVERED_A') return discA;
+  if (field === 'DISCOVERED_B') return discB;
+  if (field === 'AMOUNT') return account.fraudulentAmount;
+
+  return '';
+}
+
+function patchTemplateDocumentXml(documentXml: string, model: FtcModel) {
+  let index = 0;
+
+  return documentXml.replace(/<w:t([^>]*)>([\s\S]*?)<\/w:t>/g, (match, attrs, text) => {
+    const decoded = text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .trim();
+
+    while (index < TEMPLATE_SEQUENCE.length) {
+      const token = TEMPLATE_SEQUENCE[index++];
+      const stableLiteral = !/^[A-Z0-9_]+$/.test(token);
+
+      if (stableLiteral) {
+        if (decoded === token.trim() || text === token || decoded === token) return match;
+        continue;
+      }
+
+      return `<w:t${attrs}>${xml(replacementForToken(token, model))}</w:t>`;
+    }
+
+    return match;
+  });
 }
 
 async function loadTemplateZip() {
-  if (typeof fetch !== 'function') return null;
-
-  try {
-    const response = await fetch(FTC_TEMPLATE_URL);
-    if (!response.ok) return null;
-    const buffer = await response.arrayBuffer();
-    return JSZip.loadAsync(buffer);
-  } catch {
-    return null;
+  if (typeof fetch !== 'function') {
+    throw new Error('FTC template loading requires browser fetch.');
   }
+
+  const response = await fetch('/templates/ftc-standard.docx');
+  if (!response.ok) {
+    throw new Error('FTC standard template missing. Add public/templates/ftc-standard.docx.');
+  }
+
+  return JSZip.loadAsync(await response.arrayBuffer());
 }
 
 async function renderFromTemplate(source: ParsedSource, documentDate: string) {
   const zip = await loadTemplateZip();
   if (!zip) return null;
 
-  const doc = zip.file('word/document.xml');
-  if (!doc) return null;
+  const document = zip.file('word/document.xml');
+  if (!document) return null;
 
-  const sourceAny = source as any;
-  const name = sourceAny.name || DEFAULT_SIGNATURE;
-  const parts = String(name).split(/\s+/).filter(Boolean);
-  const address = Array.isArray(sourceAny.address) ? sourceAny.address.join('\n') : '';
-  const accounts = buildFtcAffectedAccounts(source);
+  const model = modelFromSource(source, documentDate);
+  const documentXml = await document.async('string');
 
-  const replacements: Record<string, string> = {
-    consumer_name: name,
-    name,
-    first_name: sourceAny.firstName || parts[0] || '',
-    middle_name: sourceAny.middleName || '',
-    last_name: sourceAny.lastName || parts.slice(1).join(' '),
-    address,
-    phone: sourceAny.phone || '',
-    email: sourceAny.email || '',
-    report_number: sourceAny.ftcReportNumber || DEFAULT_REPORT_NUMBER,
-    date: documentDate,
-    statement: sourceAny.ftcStatement || FTC_STATEMENT,
-    signature: name,
-    footer: DEFAULT_FOOTER,
-    accounts: accounts.map((account) => `${account.accountName} ${account.accountNumber} ${account.fraudBegan} ${account.dateDiscovered} ${account.fraudulentAmount}`).join('\n')
-  };
-
-  const documentXml = await doc.async('string');
-  zip.file('word/document.xml', replaceTextInXml(documentXml, replacements));
+  zip.file('word/document.xml', patchTemplateDocumentXml(documentXml, model));
 
   return zip.generateAsync({ type: 'blob', mimeType: DOCX_MIME });
 }
 
-async function renderGenerated(source: ParsedSource, documentDate: string) {
+function generatedFallbackDocXml(source: ParsedSource, documentDate: string) {
+  const model = modelFromSource(source, documentDate);
+  const accountRows = model.accounts
+    .map((account) => {
+      return [
+        `Company or Organization: ${account.accountName}`,
+        `Account Number: ${account.accountNumber}`,
+        `Date fraud began: ${account.fraudBegan}`,
+        `Date that I discovered it: ${account.dateDiscovered}`,
+        `Total fraudulent amount: ${account.fraudulentAmount ? `$ ${account.fraudulentAmount}` : ''}`
+      ].join('\\n');
+    })
+    .join('\\n\\n');
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+<w:p><w:r><w:t>Federal Trade Commission Identity Theft Report</w:t></w:r></w:p>
+<w:p><w:r><w:t>FTC Report Number: ${xml(model.reportNumber)}</w:t></w:r></w:p>
+<w:p><w:r><w:t>${xml(model.fullName)}</w:t></w:r></w:p>
+<w:p><w:r><w:t>${xml(model.address)}</w:t></w:r></w:p>
+<w:p><w:r><w:t>${xml(model.phone)}</w:t></w:r></w:p>
+<w:p><w:r><w:t>${xml(model.statement)}</w:t></w:r></w:p>
+<w:p><w:r><w:t>${xml(accountRows)}</w:t></w:r></w:p>
+<w:p><w:r><w:t>${xml(model.fullName)} ${xml(model.reportDate)}</w:t></w:r></w:p>
+<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360" w:gutter="0"/></w:sectPr>
+</w:body></w:document>`;
+}
+
+async function renderFallback(source: ParsedSource, documentDate: string) {
   const zip = new JSZip();
 
-  zip.file('[Content_Types].xml', contentTypesXml());
-  zip.folder('_rels')?.file('.rels', relationshipXml());
-  zip.folder('word')?.file('document.xml', generatedDocumentXml(source, documentDate));
+  zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>');
+  zip.folder('_rels')?.file('.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>');
+  zip.folder('word')?.file('document.xml', generatedFallbackDocXml(source, documentDate));
   zip.folder('word')?.folder('_rels')?.file('document.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>');
   zip.folder('docProps')?.file('core.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>FTC Identity Theft Report</dc:title><dc:creator>LetterGenerator</dc:creator></cp:coreProperties>');
   zip.folder('docProps')?.file('app.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>LetterGenerator</Application></Properties>');
@@ -324,6 +347,10 @@ async function renderGenerated(source: ParsedSource, documentDate: string) {
 
 export async function renderFtcIdentityTheftReportDocx(source: ParsedSource, documentDate: string) {
   const templated = await renderFromTemplate(source, documentDate);
-  if (templated) return templated;
-  return renderGenerated(source, documentDate);
+
+  if (!templated) {
+    throw new Error('FTC output blocked: the official FTC standard template was not loaded. The app will not generate a simplified fallback FTC document.');
+  }
+
+  return templated;
 }

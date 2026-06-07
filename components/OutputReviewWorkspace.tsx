@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import SimpleDocxEditor from './SimpleDocxEditor';
+import { isFtcEnabled } from '../lib/workflow-framework';
 import type { PacketAssets } from '../lib/packet-assets';
 import type { LetterRoute, LetterType } from '../lib/letter-engine';
 import { packetOrderText } from '../lib/workflow-framework';
@@ -52,9 +53,10 @@ function packetTitle(output: ReviewOutput) {
 function packetDocuments(anchor: ReviewOutput, allOutputs: ReviewOutput[]) {
   return allOutputs
     .filter((item) => {
-      if (false && item.role === 'FTC') return false;
+      // Filter out FTC when the feature is disabled
+      if (item.role === 'FTC' && !isFtcEnabled()) return false;
       if (item.bureau === anchor.bureau && item.type === anchor.type) return true;
-      return anchor.type === 'DISPUTE' && (item.role === 'AFFIDAVIT' || item.role === 'FTC') && item.bureau === 'CLIENT';
+      return anchor.type === 'DISPUTE' && (item.role === 'AFFIDAVIT' || (item.role === 'FTC' && isFtcEnabled())) && item.bureau === 'CLIENT';
     })
     .sort((a, b) => (a.sequence || 1) - (b.sequence || 1));
 }
@@ -67,14 +69,20 @@ function packageRows(output: ReviewOutput, supportingCount: number) {
     ];
   }
 
-  return [
+  const rows = [
     { id: '01', label: 'Dispute Letter', detail: 'Editable DOCX' },
     { id: '02', label: 'Supporting Documents', detail: `${supportingCount} evidence file${supportingCount === 1 ? '' : 's'}` },
     { id: '03', label: 'FCRA Legal Exhibit', detail: 'Configured PDF insert' },
     { id: '04', label: 'Affidavit', detail: 'Editable DOCX' },
-    { id: '05', label: 'Attachment', detail: 'Configured PDF insert' },
-    { id: '06', label: 'FTC Identity Theft Report', detail: 'Editable DOCX' }
+    { id: '05', label: 'Attachment', detail: 'Configured PDF insert' }
   ];
+
+  // Add FTC row only if the feature is enabled
+  if (isFtcEnabled()) {
+    rows.push({ id: '06', label: 'FTC Identity Theft Report', detail: 'Editable DOCX' });
+  }
+
+  return rows;
 }
 
 export default function OutputReviewWorkspace({
@@ -92,7 +100,11 @@ export default function OutputReviewWorkspace({
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [reviewedPaths, setReviewedPaths] = useState<string[]>([]);
 
-  const activeOutputs = useMemo(() => outputs.filter((output) => output.role !== 'FTC'), [outputs]);
+  // Filter out FTC outputs only when the feature is disabled
+  const activeOutputs = useMemo(() => outputs.filter((output) => {
+    if (output.role === 'FTC' && !isFtcEnabled()) return false;
+    return true;
+  }), [outputs]);
   const packets = useMemo(
     () => activeOutputs.filter(isEditableLetter).sort((a, b) => a.bureau.localeCompare(b.bureau) || a.type.localeCompare(b.type)),
     [activeOutputs]

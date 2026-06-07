@@ -1,5 +1,6 @@
 'use client';
 
+import { isFtcEnabled } from '../lib/workflow-framework';
 import type { PacketAssets } from '../lib/packet-assets';
 
 type Round = '1st Round' | '2nd Round' | '3rd Round' | 'Final';
@@ -49,8 +50,10 @@ export default function TemplateAssemblyBlueprint({ round, slots, selectedId, pa
           <div className="blueprint-node future-node"><span className="node-step">04</span><div><strong>Affidavit</strong><small>Reserved dispute exhibit position</small></div><Status saved={false} text="Not configured" /></div>
           <Connector />
           <div className="blueprint-node future-node"><span className="node-step">05</span><div><strong>Attachment</strong><small>Reserved exhibit position</small></div><Status saved={false} text="Not configured" /></div>
-          <Connector />
-          <div className="blueprint-node future-node"><span className="node-step">06</span><div><strong>FTC</strong><small>Reserved dispute exhibit position</small></div><Status saved={false} text="Not configured" /></div>
+          {isFtcEnabled() && <>
+            <Connector />
+            <div className="blueprint-node future-node"><span className="node-step">06</span><div><strong>FTC</strong><small>Reserved dispute exhibit position</small></div><Status saved={false} text="Not configured" /></div>
+          </>}
         </div>
       </article>
       <article className="blueprint-lane late-lane">

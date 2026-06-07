@@ -1,6 +1,10 @@
+import { isFeatureEnabled, shouldProcessFeature } from './feature-flags';
 import type { LetterType } from './letter-engine';
 import type { ExhibitKind } from './template-exhibits';
 
+/**
+ * Available packet positions. FTC is included if the feature flag is enabled.
+ */
 export type ActivePacketPosition = 'LETTER' | 'SUPPORTING' | 'FCRA' | 'AFFIDAVIT' | 'ATTACHMENT' | 'FTC';
 
 export type PacketPosition = {
@@ -85,11 +89,15 @@ export function packetStepById(type: LetterType, id: ActivePacketPosition): Pack
 }
 
 export function isFtcEnabled(): boolean {
-  return false;
+  return isFeatureEnabled('FTC_IDENTITY_THEFT_REPORT');
 }
 
 export function exhibitKindsForPacket(type: LetterType): ExhibitKind[] {
-  return type === 'DISPUTE' ? ['FCRA', 'AFFIDAVIT', 'ATTACHMENT', 'FTC'] : [];
+  const kinds: ExhibitKind[] = type === 'DISPUTE' ? ['FCRA', 'AFFIDAVIT', 'ATTACHMENT'] : [];
+  if (isFtcEnabled() && type === 'DISPUTE') {
+    kinds.push('FTC');
+  }
+  return kinds;
 }
 
 export function orderedPackageManifestLine(type: LetterType): string {
@@ -98,7 +106,7 @@ export function orderedPackageManifestLine(type: LetterType): string {
 
 export const workflowFramework = {
   version: 'v3',
-  ftcEnabled: false,
+  ftcEnabled: isFeatureEnabled('FTC_IDENTITY_THEFT_REPORT'),
   workflows: packetWorkflows
 };
 

@@ -22,7 +22,7 @@ import { renderMappedAppendix } from '../lib/supplemental-template-renderer';
 import { unresolvedCustomTemplateFields } from '../lib/template-contracts';
 import { exhibitTitles, loadTemplateExhibits, readTemplateExhibit, type ExhibitKind, type TemplateExhibits } from '../lib/template-exhibits';
 import { defaultWorkspacePreferences, loadWorkspacePreferences, saveWorkspacePreferences, type WorkspacePreferences } from '../lib/workspace-preferences';
-import { packetOrderLabels } from '../lib/workflow-framework';
+import { packetOrderLabels, isFtcEnabled } from '../lib/workflow-framework';
 import { activeWorkflowDiagnostics, assessRouteCoverage, requiredGenerationFailureMessage } from '../lib/workflow-execution';
 
 type Panel = 'Dashboard' | 'Templates' | 'Source Data' | 'Outputs' | 'Filing Tracker' | 'Settings';
@@ -217,12 +217,15 @@ export default function LetterGeneratorWorkspaceV2() {
       }
       const context = routes.find((route) => route.type === 'DISPUTE');
       if (context) {
-        report('Generating FTC Identity Theft Report…');
-        const ftcAccounts = buildFtcAffectedAccounts(parsed);
-        if (!ftcAccounts.length) notes.push('FTC Identity Theft Report: no affected accounts were detected; generated with an empty review section.');
-        const ftcSource = { ...parsed, ftcAccounts };
-        const ftcFile = await withTimeout('Generating FTC Identity Theft Report', () => renderFtcIdentityTheftReportDocx(ftcSource, date));
-        output.push({ id: 'CLIENT-FTC-IDENTITY-THEFT-REPORT', path: `Editable Documents/${clean(parsed.name)} 06 FTC Identity Theft Report.docx`, type: 'DISPUTE', role: 'FTC', sequence: 6, bureau: 'CLIENT', count: ftcAccounts.length, detail: `${ftcAccounts.length} affected FTC item(s)`, blob: ftcFile, packetSteps: order('DISPUTE') });
+        // Generate FTC Identity Theft Report only if the feature is enabled
+        if (isFtcEnabled()) {
+          report('Generating FTC Identity Theft Report…');
+          const ftcAccounts = buildFtcAffectedAccounts(parsed);
+          if (!ftcAccounts.length) notes.push('FTC Identity Theft Report: no affected accounts were detected; generated with an empty review section.');
+          const ftcSource = { ...parsed, ftcAccounts };
+          const ftcFile = await withTimeout('Generating FTC Identity Theft Report', () => renderFtcIdentityTheftReportDocx(ftcSource, date));
+          output.push({ id: 'CLIENT-FTC-IDENTITY-THEFT-REPORT', path: `Editable Documents/${clean(parsed.name)} 06 FTC Identity Theft Report.docx`, type: 'DISPUTE', role: 'FTC', sequence: 6, bureau: 'CLIENT', count: ftcAccounts.length, detail: `${ftcAccounts.length} affected FTC item(s)`, blob: ftcFile, packetSteps: order('DISPUTE') });
+        }
         report('Generating client Affidavit…');
         const file = await withTimeout('Generating Affidavit', () => affidavit(context.bureau, date));
         if (!file) throw new Error('Required component missing: 04 Affidavit.docx could not be generated.');

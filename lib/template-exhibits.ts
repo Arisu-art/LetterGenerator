@@ -1,4 +1,5 @@
 import { inspectTemplateContract, type TemplateContract } from './template-contracts';
+import { isFeatureEnabled } from './feature-flags';
 
 export type ExhibitKind = 'FCRA' | 'AFFIDAVIT' | 'ATTACHMENT' | 'FTC';
 export type ActiveExhibitKind = Exclude<ExhibitKind, 'FTC'>;
@@ -10,8 +11,17 @@ const DB_NAME = 'lettergenerator-private-templates';
 const STORE_NAME = 'files';
 const META_PREFIX = 'lettergenerator.template-exhibits.v2.';
 const LEGACY_PREFIX = 'lettergenerator.template-exhibits.v1.';
-/** FTC is retained in stored metadata for backward compatibility only; it is not an active packet component. */
-export const exhibitKinds: ActiveExhibitKind[] = ['FCRA', 'AFFIDAVIT', 'ATTACHMENT'];
+
+/**
+ * Get the active exhibit kinds based on feature flags.
+ * FTC is excluded from the active list when the feature is disabled.
+ */
+function getActiveExhibitKinds(): ActiveExhibitKind[] {
+  return ['FCRA', 'AFFIDAVIT', 'ATTACHMENT'];
+}
+
+/** FTC is retained in stored metadata for backward compatibility only; it is not an active packet component unless enabled. */
+export const exhibitKinds: ActiveExhibitKind[] = getActiveExhibitKinds();
 export const exhibitModes: Record<ExhibitKind, ExhibitMode> = {
   FCRA: 'STATIC_PDF',
   AFFIDAVIT: 'GENERATED_DOCX',
@@ -22,7 +32,7 @@ export const exhibitTitles: Record<ExhibitKind, string> = {
   FCRA: 'FCRA Legal Exhibit',
   AFFIDAVIT: 'Affidavit',
   ATTACHMENT: 'Attachment',
-  FTC: 'FTC Identity Theft Report (disabled)'
+  FTC: isFeatureEnabled('FTC_IDENTITY_THEFT_REPORT') ? 'FTC Identity Theft Report' : 'FTC Identity Theft Report (disabled)'
 };
 export const exhibitAccept: Record<ExhibitKind, string> = {
   FCRA: '.pdf,application/pdf',
@@ -58,7 +68,9 @@ export function loadTemplateExhibits(round: string): TemplateExhibits {
   } catch { return empty(); }
 }
 function assertFileType(kind: ExhibitKind, file: File) {
-  if (kind === 'FTC') throw new Error('FTC Identity Theft Report generation is temporarily disabled.');
+  if (kind === 'FTC' && !isFeatureEnabled('FTC_IDENTITY_THEFT_REPORT')) {
+    throw new Error('FTC Identity Theft Report generation is not yet available. This feature is planned for a future release.');
+  }
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
   const isDocx = /\.docx$/i.test(file.name) || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   if (exhibitModes[kind] === 'STATIC_PDF' && !isPdf) throw new Error(`${exhibitTitles[kind]} accepts PDF files only.`);
@@ -85,7 +97,8 @@ export async function removeTemplateExhibit(round: string, kind: ExhibitKind) {
   const next = loadTemplateExhibits(round); next[kind] = null; saveMeta(round, next); return next;
 }
 export async function readTemplateExhibit(round: string, kind: ExhibitKind): Promise<File | null> {
-  if (kind === 'FTC') return null;
+  // FTC is not available when the feature is disabled
+  if (kind === 'FTC' && !isFeatureEnabled('FTC_IDENTITY_THEFT_REPORT')) return null;
   const db = await openDb();
   const value = await new Promise<File | null>((resolve, reject) => { const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(fileKey(round, kind)); request.onsuccess = () => resolve((request.result as File) || null); request.onerror = () => reject(request.error); });
   db.close();
