@@ -1,5 +1,6 @@
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
+import { hardenGeneratedDocx } from './docx-safety';
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -43,7 +44,7 @@ export async function renderDocxTemplate(template: File, values: PlaceholderValu
   const zip = new PizZip(await template.arrayBuffer());
   const document = new Docxtemplater(zip, { delimiters: { start: '{{', end: '}}' }, paragraphLoop: true, linebreaks: true, nullGetter: () => '' });
   document.render(values);
-  return document.getZip().generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
+  return hardenGeneratedDocx(document.getZip().generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' }));
 }
 function paragraphs(body: Element) { return Array.from(body.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'p') as Element[]; }
 function content(paragraph: Element) { return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't')).map((node) => node.textContent || '').join('').trim(); }
@@ -160,7 +161,7 @@ async function finalizeRenderedDisputeTemplate(blob: Blob, values: ReferenceDisp
   if (header) compactSsnDateBoundary(body, header.ssnParagraph, header.dateParagraph);
   removeHardInquiryLabels(body);
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
-  return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
+  return hardenGeneratedDocx(zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' }));
 }
 function resolved(values: ReferenceDisputeValues) {
   if (values.disputeItems || values.hardInquiryItems) return { accounts: values.disputeItems || [], inquiries: values.hardInquiryItems || [] };
@@ -317,6 +318,6 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
     if (signature) writeLines(signature, [values.consumerName]);
   }
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
-  return zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' });
+  return hardenGeneratedDocx(zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' }));
 }
 export function isDocx(filename: string) { return /\.docx$/i.test(filename); }
