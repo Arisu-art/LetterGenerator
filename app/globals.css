@@ -847,3 +847,195 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     animation: none;
   }
 }
+
+/* Refined neutral CTA: Use selected round in Source Data */
+.template-selected-actions .primary-button,
+.template-stage-command .primary-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  padding: 0.78rem 1.12rem;
+  min-height: 44px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #111827;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  transform: translateY(0);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.template-selected-actions .primary-button::before,
+.template-stage-command .primary-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      110deg,
+      transparent 0%,
+      transparent 38%,
+      rgba(255, 255, 255, 0.72) 50%,
+      transparent 62%,
+      transparent 100%
+    );
+  transform: translateX(-120%);
+  animation: sourceDataCtaSoftSweep 4.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.template-selected-actions .primary-button::after,
+.template-stage-command .primary-button::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  pointer-events: none;
+}
+
+.template-selected-actions .primary-button:hover,
+.template-stage-command .primary-button:hover {
+  border-color: #94a3b8;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%);
+  box-shadow:
+    0 14px 30px rgba(15, 23, 42, 0.12),
+    0 1px 0 rgba(255, 255, 255, 0.95) inset;
+  transform: translateY(-1px);
+}
+
+.template-selected-actions .primary-button:active,
+.template-stage-command .primary-button:active {
+  transform: translateY(0);
+  box-shadow:
+    0 6px 16px rgba(15, 23, 42, 0.1),
+    0 1px 0 rgba(255, 255, 255, 0.86) inset;
+}
+
+.template-selected-actions .primary-button:focus-visible,
+.template-stage-command .primary-button:focus-visible {
+  outline: 3px solid rgba(148, 163, 184, 0.45);
+  outline-offset: 3px;
+}
+
+@keyframes sourceDataCtaSoftSweep {
+  0%, 64% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .template-selected-actions .primary-button::before,
+  .template-stage-command .primary-button::before {
+    animation: none;
+  }
+}
+
+/* Refined neutral CTA: Use selected round in Source Data */
+.template-selected-actions .primary-button,
+.template-stage-command .primary-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  padding: 0.78rem 1.12rem;
+  min-height: 44px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #111827;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  transform: translateY(0);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.template-selected-actions .primary-button::before,
+.template-stage-command .primary-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      110deg,
+      transparent 0%,
+      transparent 38%,
+      rgba(255, 255, 255, 0.72) 50%,
+      transparent 62%,
+      transparent 100%
+    );
+  transform: translateX(-120%);
+  animation: sourceDataCtaSoftSweep 4.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.template-selected-actions .primary-button::after,
+.template-stage-command .primary-button::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  pointer-events: none;
+}
+
+.template-selected-actions .primary-button:hover,
+.template-stage-command .primary-button:hover {
+  border-color: #94a3b8;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%);
+  box-shadow:
+    0 14px 30px rgba(15, 23, 42, 0.12),
+    0 1px 0 rgba(255, 255, 255, 0.95) inset;
+  transform: translateY(-1px);
+}
+
+.template-selected-actions .primary-button:active,
+.template-stage-command .primary-button:active {
+  transform: translateY(0);
+  box-shadow:
+    0 6px 16px rgba(15, 23, 42, 0.1),
+    0 1px 0 rgba(255, 255, 255, 0.86) inset;
+}
+
+.template-selected-actions .primary-button:focus-visible,
+.template-stage-command .primary-button:focus-visible {
+  outline: 3px solid rgba(148, 163, 184, 0.45);
+  outline-offset: 3px;
+}
+
+@keyframes sourceDataCtaSoftSweep {
+  0%, 64% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .template-selected-actions .primary-button::before,
+  .template-stage-command .primary-button::before {
+    animation: none;
+  }
+}
