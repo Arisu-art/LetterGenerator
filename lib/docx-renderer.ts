@@ -84,6 +84,34 @@ function paragraphProperties(paragraph: Element) {
   paragraph.insertBefore(properties, paragraph.firstChild);
   return properties;
 }
+function ensureParagraphProperty(paragraph: Element, localName: string) {
+  const properties = paragraphProperties(paragraph);
+  const existing = Array.from(properties.children).find((node) => node.namespaceURI === WORD_NS && node.localName === localName) as Element | undefined;
+
+  if (existing) return existing;
+
+  const property = paragraph.ownerDocument.createElementNS(WORD_NS, `w:${localName}`);
+  properties.appendChild(property);
+  return property;
+}
+
+function keepParagraphLinesTogether(paragraph: Element) {
+  ensureParagraphProperty(paragraph, 'keepLines');
+  ensureParagraphProperty(paragraph, 'widowControl');
+}
+
+function keepWithNextParagraph(paragraph: Element) {
+  keepParagraphLinesTogether(paragraph);
+  ensureParagraphProperty(paragraph, 'keepNext');
+}
+
+function keepDisputeBlockTogether(paragraphs: Element[]) {
+  paragraphs.filter(Boolean).forEach((paragraph, index) => {
+    if (index < paragraphs.length - 1) keepWithNextParagraph(paragraph);
+    else keepParagraphLinesTogether(paragraph);
+  });
+}
+
 function setSpacing(paragraph: Element, position: 'before' | 'after') {
   const properties = paragraphProperties(paragraph);
   let spacing = Array.from(properties.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'spacing') as Element | undefined;
@@ -235,14 +263,27 @@ function insertMappedDisputeItems(body: Element, source: { accounts: string[]; i
   if (!accountHeading) insert(cloneWithText(itemStyle, ['DISPUTED ACCOUNTS']));
   addSpace();
   source.accounts.forEach((account) => {
-    insert(cloneWithText(itemStyle, account.split('\n')));
-    if (statementStyle) insert(statementStyle.cloneNode(true));
+    const accountParagraph = cloneWithText(itemStyle, account.split('\n'));
+    const statementParagraph = statementStyle
+      ? cloneWithText(statementStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT])
+      : cloneWithText(itemStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]);
+
+    keepDisputeBlockTogether([accountParagraph, statementParagraph]);
+
+    insert(accountParagraph);
+    insert(statementParagraph);
     addSpace();
   });
   source.inquiries.forEach((inquiry) => {
-    insert(cloneWithText(itemStyle, [inquiry]));
-    if (statementStyle) insert(cloneWithText(statementStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]));
-    else insert(cloneWithText(itemStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]));
+    const inquiryParagraph = cloneWithText(itemStyle, [inquiry]);
+    const statementParagraph = statementStyle
+      ? cloneWithText(statementStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT])
+      : cloneWithText(itemStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]);
+
+    keepDisputeBlockTogether([inquiryParagraph, statementParagraph]);
+
+    insert(inquiryParagraph);
+    insert(statementParagraph);
     addSpace();
   });
 }
