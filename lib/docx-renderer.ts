@@ -5,6 +5,7 @@ export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordproc
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const XML_NS = 'http://www.w3.org/XML/1998/namespace';
 const STATEMENT_PREFIX = ['Pursuant to ', '15 USC'].join('');
+const IDENTITY_THEFT_DISPUTE_STATEMENT = 'Pursuant to 15 USC 1681a(3), this account does not constitute a legitimate consumer obligation. My personal information was used without authorization, and this tradeline is the direct result of identity theft.';
 const DISPUTE_EXCLUDED_ADDRESS_FIELD = /^(?:PHONE(?:\s+NO\.?)?|TELEPHONE|MOBILE|EMAIL|E-?MAIL|COUNTRY|DOB|SSN)\s*:/i;
 const ACCOUNT_SECTION_PATTERNS = [
   /^DISPUTE(?:D)?\s+ACCOUNTS?$/i,
@@ -148,13 +149,38 @@ function accountValues(text: string) {
   const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
   const accountName = (lines.find((line) => /^(?:Account|Creditor)\s+Name\s*:/i.test(line)) || '').replace(/^(?:Account|Creditor)\s+Name\s*:\s*/i, '');
   const accountNumber = (lines.find((line) => /^Account\s+Number\s*:/i.test(line)) || '').replace(/^Account\s+Number\s*:\s*/i, '');
-  return { account_name: accountName, account_number: accountNumber, account_line: [accountName, accountNumber].filter(Boolean).join(' - '), display_text: text };
+  return {
+    account_name: accountName,
+    account_number: accountNumber,
+    account_line: [accountName, accountNumber].filter(Boolean).join(' - '),
+    display_text: text,
+    statement_line: IDENTITY_THEFT_DISPUTE_STATEMENT,
+    legal_statement: IDENTITY_THEFT_DISPUTE_STATEMENT,
+    dispute_statement: IDENTITY_THEFT_DISPUTE_STATEMENT
+  };
+}
+
+function inquiryValues(text: string) {
+  const clean = text.replace(/\s*[–—]\s*/g, ' — ').replace(/\s+/g, ' ').trim();
+  const match = clean.match(/^(.+?)\s+[—-]\s+(.+)$/);
+  const inquiryName = match?.[1]?.trim() || clean;
+  const inquiryDate = match?.[2]?.trim() || '';
+
+  return {
+    inquiry_name: inquiryName,
+    inquiry_date: inquiryDate,
+    inquiry_line: clean,
+    display_text: clean,
+    statement_line: IDENTITY_THEFT_DISPUTE_STATEMENT,
+    legal_statement: IDENTITY_THEFT_DISPUTE_STATEMENT,
+    dispute_statement: IDENTITY_THEFT_DISPUTE_STATEMENT
+  };
 }
 function disputePlaceholderValues(values: ReferenceDisputeValues): PlaceholderValues {
   const source = resolved(values);
   const address = disputeAddressLines(values);
   const accounts = source.accounts.map(accountValues);
-  const inquiries = source.inquiries.map((text) => ({ inquiry_line: text, display_text: text }));
+  const inquiries = source.inquiries.map(inquiryValues);
   return {
     consumer_name: values.consumerName,
     client_name: values.consumerName,
@@ -176,8 +202,8 @@ function disputePlaceholderValues(values: ReferenceDisputeValues): PlaceholderVa
     accounts,
     dispute_accounts: accounts,
     hard_inquiries: inquiries,
-    account_lines: accounts.map((item) => item.display_text).join('\n\n'),
-    hard_inquiry_lines: source.inquiries.join('\n')
+    account_lines: accounts.map((item) => [item.display_text, item.statement_line].join('\n')).join('\n\n'),
+    hard_inquiry_lines: inquiries.map((item) => [item.inquiry_line, item.statement_line].join('\n')).join('\n\n')
   };
 }
 function terminalBodyBoundary(body: Element) {
@@ -213,10 +239,12 @@ function insertMappedDisputeItems(body: Element, source: { accounts: string[]; i
     if (statementStyle) insert(statementStyle.cloneNode(true));
     addSpace();
   });
-  if (source.inquiries.length) {
-    insert(cloneWithText(itemStyle, source.inquiries));
+  source.inquiries.forEach((inquiry) => {
+    insert(cloneWithText(itemStyle, [inquiry]));
+    if (statementStyle) insert(cloneWithText(statementStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]));
+    else insert(cloneWithText(itemStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]));
     addSpace();
-  }
+  });
 }
 
 export async function renderReferenceDisputeDocx(reference: File, values: ReferenceDisputeValues): Promise<Blob> {
