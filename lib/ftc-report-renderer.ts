@@ -10,7 +10,7 @@ export type FtcAffectedAccount = {
   fraudulentAmount: string;
 };
 
-const MAX_FTC_ACCOUNTS = 5;
+const FTC_FIXED_FIELD_COUNT = 25;
 
 function clean(value: unknown) {
   return String(value ?? '').trim();
@@ -205,8 +205,7 @@ export function buildFtcAffectedAccounts(source: ParsedSource): FtcAffectedAccou
       seen.add(key);
       return true;
     })
-    .sort((a, b) => Number(b.fraudulentAmount || 0) - Number(a.fraudulentAmount || 0))
-    .slice(0, MAX_FTC_ACCOUNTS);
+    .sort((a, b) => Number(b.fraudulentAmount || 0) - Number(a.fraudulentAmount || 0));
 }
 
 async function ftcTemplateValues(source: ParsedSource, documentDate: string, templateFile: File): Promise<PlaceholderValues> {
@@ -271,7 +270,7 @@ async function ftcTemplateValues(source: ParsedSource, documentDate: string, tem
     account_lines: accountRows.map((account) => account.account_line).join('\n')
   };
 
-  for (let i = 0; i < MAX_FTC_ACCOUNTS; i += 1) {
+  for (let i = 0; i < FTC_FIXED_FIELD_COUNT; i += 1) {
     const account = accounts[i];
     const n = i + 1;
 
