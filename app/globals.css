@@ -744,3 +744,106 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+/* High-visibility CTA for selected template round → Source Data */
+.template-selected-actions .primary-button,
+.template-stage-command .primary-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.85rem 1.25rem;
+  min-height: 46px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.42), transparent 24%),
+    linear-gradient(135deg, #2563eb 0%, #4f46e5 45%, #7c3aed 100%);
+  box-shadow:
+    0 14px 34px rgba(37, 99, 235, 0.34),
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset,
+    0 0 0 4px rgba(37, 99, 235, 0.11);
+  transform: translateY(0);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    filter 180ms ease;
+}
+
+.template-selected-actions .primary-button::before,
+.template-stage-command .primary-button::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(96, 165, 250, 0.75), rgba(216, 180, 254, 0.75), rgba(96, 165, 250, 0.75));
+  filter: blur(12px);
+  opacity: 0.62;
+  animation: sourceDataCtaPulse 2.8s ease-in-out infinite;
+}
+
+.template-selected-actions .primary-button::after,
+.template-stage-command .primary-button::after {
+  content: "";
+  position: absolute;
+  top: -40%;
+  bottom: -40%;
+  width: 42%;
+  left: -55%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: skewX(-20deg);
+  animation: sourceDataCtaSweep 3.2s ease-in-out infinite;
+}
+
+.template-selected-actions .primary-button:hover,
+.template-stage-command .primary-button:hover {
+  transform: translateY(-2px);
+  filter: saturate(1.08) brightness(1.04);
+  box-shadow:
+    0 18px 42px rgba(37, 99, 235, 0.43),
+    0 0 0 1px rgba(255, 255, 255, 0.26) inset,
+    0 0 0 5px rgba(37, 99, 235, 0.14);
+}
+
+.template-selected-actions .primary-button:active,
+.template-stage-command .primary-button:active {
+  transform: translateY(0);
+}
+
+.template-selected-actions .primary-button:focus-visible,
+.template-stage-command .primary-button:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.45);
+  outline-offset: 4px;
+}
+
+@keyframes sourceDataCtaPulse {
+  0%, 100% {
+    opacity: 0.48;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes sourceDataCtaSweep {
+  0%, 58% {
+    left: -55%;
+  }
+  100% {
+    left: 120%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .template-selected-actions .primary-button::before,
+  .template-stage-command .primary-button::before,
+  .template-selected-actions .primary-button::after,
+  .template-stage-command .primary-button::after {
+    animation: none;
+  }
+}
