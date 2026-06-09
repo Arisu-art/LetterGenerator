@@ -72,7 +72,9 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, embed
   const ready = assets.supporting.length > 0;
   const uploadInputId = `${storageKey}-evidence-upload`;
 
-  const managerPanel = <div className="evidence-panel-v2">
+  const uploadInputId = `${storageKey}-evidence-upload`;
+
+  const managerPanel = (selectedEvidenceId: string | null, selectEvidence: (id: string) => void) => <div className="evidence-panel-v2">
     <label className="evidence-upload-card-v2" htmlFor={uploadInputId}>
       <span className="evidence-upload-title-v2">{ready ? 'Add evidence images' : 'Upload evidence images'}</span>
       <span className="evidence-upload-copy-v2">JPG, PNG or WEBP · packet position 02</span>
@@ -80,14 +82,14 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, embed
       <input id={uploadInputId} disabled={busy} multiple type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={(event) => { const files = Array.from(event.target.files || []); if (files.length) void add(files); event.target.value = ''; }} />
     </label>
 
-    {ready ? <ol className="evidence-list-v2">{assets.supporting.map((asset, index) => <li className="evidence-card-v2" key={asset.id}>
-      <div className="evidence-card-top-v2">
+    {ready ? <ol className="evidence-list-v2">{assets.supporting.map((asset, index) => <li className={`evidence-card-v2 ${selectedEvidenceId === asset.id ? 'selected' : ''}`} key={asset.id}>
+      <button type="button" className="evidence-card-select-v2" onClick={() => selectEvidence(asset.id)} aria-label={`Select ${asset.name}`}>
         <span className="evidence-number-v2">{index + 1}</span>
         <div className="evidence-meta-v2">
           <strong title={asset.name}>{asset.name}</strong>
           <small>{size(asset.size)} · {asset.placement ? 'Layout adjusted' : 'Ready to arrange'}</small>
         </div>
-      </div>
+      </button>
       <div className="evidence-actions-v2">
         <button type="button" disabled={index === 0} onClick={() => move(asset.id, -1)} aria-label="Move up">↑ Up</button>
         <button type="button" disabled={index === assets.supporting.length - 1} onClick={() => move(asset.id, 1)} aria-label="Move down">↓ Down</button>

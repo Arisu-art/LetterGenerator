@@ -3160,3 +3160,114 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     display: none !important;
   }
 }
+
+/* Thumbnail strip: no scrollbar, clean wrap/fit layout */
+.evidence-preview-toolbar-header {
+  overflow: visible !important;
+}
+
+.evidence-preview-toolbar-header .evidence-header-tools {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  width: 100% !important;
+}
+
+.evidence-preview-toolbar-header .support-image-strip {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)) !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  overflow: visible !important;
+  scrollbar-width: none !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+}
+
+.evidence-preview-toolbar-header .support-image-strip::-webkit-scrollbar {
+  display: none !important;
+}
+
+.evidence-preview-toolbar-header .support-image-strip button {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: 52px !important;
+  border-radius: 13px !important;
+  display: grid !important;
+  grid-template-columns: 42px auto minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 0.42rem !important;
+  padding: 0.36rem 0.46rem !important;
+}
+
+.evidence-preview-toolbar-header .controls-divider,
+.evidence-preview-toolbar-header .evidence-toolbar-separator {
+  display: none !important;
+}
+
+.evidence-preview-toolbar-header .evidence-auto-align {
+  white-space: nowrap !important;
+}
+
+/* Evidence Files selection sync */
+.evidence-card-v2 {
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease, transform 160ms ease !important;
+}
+
+.evidence-card-v2.selected {
+  border-color: #475569 !important;
+  background: #f1f5f9 !important;
+  box-shadow:
+    0 0 0 2px rgba(71, 85, 105, 0.14),
+    0 10px 22px rgba(15, 23, 42, 0.08) !important;
+}
+
+.evidence-card-v2.selected .evidence-number-v2 {
+  background: #475569 !important;
+  color: #ffffff !important;
+}
+
+.evidence-card-select-v2 {
+  all: unset !important;
+  cursor: pointer !important;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  gap: 0.52rem !important;
+  align-items: center !important;
+  width: 100% !important;
+}
+
+.evidence-card-select-v2:focus-visible {
+  outline: 2px solid #64748b !important;
+  outline-offset: 3px !important;
+  border-radius: 12px !important;
+}
+
+/* Preserve large center preview */
+.support-layout-grid.word-crop-grid {
+  grid-template-columns: 292px minmax(680px, 1fr) 292px !important;
+  grid-template-areas: "evidence preview controls" !important;
+}
+
+.support-page-canvas {
+  width: min(100%, 780px) !important;
+  margin-inline: auto !important;
+}
+
+@media (max-width: 1180px) {
+  .evidence-preview-toolbar-header .support-image-strip {
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)) !important;
+  }
+
+  .support-layout-grid.word-crop-grid {
+    grid-template-columns: 280px minmax(520px, 1fr) 280px !important;
+  }
+}
+
+@media (max-width: 1020px) {
+  .evidence-preview-toolbar-header .evidence-header-tools {
+    grid-template-columns: 1fr !important;
+  }
+}
