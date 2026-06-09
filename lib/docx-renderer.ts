@@ -152,7 +152,7 @@ function findPopulatedHeaderParagraphs(body: Element, values: ReferenceDisputeVa
 }
 /** Suppresses only the inquiry heading; inquiry rows remain in the generated dispute document. */
 function removeHardInquiryLabels(body: Element) {
-  // Keep HARD INQUIRIES headings as stable insertion anchors for later-round templates.
+  // Keep HARD INQUIRIES headings as anchors for 2nd, 3rd, and Final round templates.
   return;
 }
 async function finalizeRenderedDisputeTemplate(blob: Blob, values: ReferenceDisputeValues) {
