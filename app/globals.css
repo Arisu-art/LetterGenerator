@@ -1300,3 +1300,118 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     position: static;
   }
 }
+
+/* Restore large evidence page preview; move evidence manager into right option panel */
+.support-page-frame {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 0.9rem !important;
+  align-items: stretch !important;
+}
+
+.support-layout-side {
+  display: none !important;
+}
+
+.word-side-evidence-manager {
+  display: grid;
+  gap: 0.75rem;
+  padding-bottom: 0.9rem;
+  margin-bottom: 0.9rem;
+  border-bottom: 1px solid #d8dee8;
+}
+
+.word-side-evidence-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.word-side-evidence-heading p {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.word-side-evidence-heading span {
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #475569;
+  padding: 0.28rem 0.52rem;
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.word-side-evidence-manager .source-supporting-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 0.65rem !important;
+}
+
+.word-side-evidence-manager .compact-evidence-dropzone {
+  min-height: auto !important;
+  padding: 0.8rem !important;
+  border-radius: 14px !important;
+  background: #f8fafc !important;
+}
+
+.word-side-evidence-manager .compact-evidence-dropzone strong {
+  font-size: 0.82rem !important;
+}
+
+.word-side-evidence-manager .compact-evidence-dropzone span {
+  font-size: 0.72rem !important;
+}
+
+.word-side-evidence-manager .compact-evidence-list {
+  max-height: 230px !important;
+  overflow: auto !important;
+  display: grid !important;
+  gap: 0.45rem !important;
+}
+
+.word-side-evidence-manager .compact-evidence-list li {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  gap: 0.5rem !important;
+  padding: 0.58rem !important;
+  border-radius: 13px !important;
+}
+
+.word-side-evidence-manager .compact-evidence-list li strong {
+  font-size: 0.78rem !important;
+}
+
+.word-side-evidence-manager .compact-evidence-list li small {
+  font-size: 0.68rem !important;
+}
+
+.word-side-evidence-manager .compact-evidence-list .support-actions {
+  grid-column: 1 / -1 !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0.4rem !important;
+}
+
+.word-side-evidence-manager .compact-evidence-list .support-actions button {
+  min-height: 31px !important;
+  padding: 0.38rem 0.42rem !important;
+  font-size: 0.68rem !important;
+  border-radius: 10px !important;
+}
+
+/* keep the page canvas large again */
+.support-page-canvas {
+  width: min(100%, 620px) !important;
+  margin-inline: auto !important;
+}
+
+@media (max-width: 1100px) {
+  .word-side-evidence-manager {
+    order: 99;
+  }
+}
