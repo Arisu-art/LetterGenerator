@@ -25,17 +25,32 @@ const blank = (): PacketAssets => ({ supporting: [], legalPdf: null });
 const assetKey = (round: string, id: string) => `packet/${round}/${id}`;
 
 export function standardSupportingPlacement(index: number, count: number): SupportingPlacement {
-  const n = Math.max(1, count);
-  const width = 0.76;
+  const n = Math.max(1, Math.min(count || 1, 12));
+  const safeIndex = Math.max(0, Math.min(index, n - 1));
+
+  const width = 0.84;
   const x = (1 - width) / 2;
-  const gap = n <= 1 ? 0 : 0.006;
-  const height = n <= 1 ? 0.32 : n === 2 ? 0.30 : Math.min(0.245, (0.86 - gap * (n - 1)) / n);
-  const totalHeight = height * n + gap * (n - 1);
-  const startY = Math.max(0.055, (1 - totalHeight) / 2);
+
+  let height: number;
+  let startY: number;
+
+  if (n === 1) {
+    height = 0.56;
+    startY = 0.22;
+  } else if (n === 2) {
+    height = 0.36;
+    startY = 0.14;
+  } else if (n === 3) {
+    height = 0.285;
+    startY = 0.075;
+  } else {
+    height = 0.88 / n;
+    startY = 0.06;
+  }
 
   return {
     x,
-    y: startY + index * (height + gap),
+    y: startY + safeIndex * height,
     width,
     height,
     cropX: 0,
