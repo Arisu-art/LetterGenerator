@@ -1549,3 +1549,235 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     max-height: none !important;
   }
 }
+
+/* Professional supporting evidence editor layout override */
+.support-layout-grid.word-crop-grid {
+  display: grid !important;
+  grid-template-columns: 270px minmax(560px, 1fr) 292px !important;
+  grid-template-areas: "evidence preview controls" !important;
+  align-items: start !important;
+  gap: 1rem !important;
+  width: 100% !important;
+}
+
+.word-left-evidence-manager {
+  grid-area: evidence !important;
+  position: sticky !important;
+  top: 1rem !important;
+  display: grid !important;
+  gap: 0.7rem !important;
+  max-height: calc(100vh - 145px) !important;
+  overflow: hidden !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 18px !important;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%) !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08) !important;
+  padding: 0.8rem !important;
+}
+
+.support-page-frame {
+  grid-area: preview !important;
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 0.85rem !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+.word-crop-controls {
+  grid-area: controls !important;
+  position: sticky !important;
+  top: 1rem !important;
+  align-self: start !important;
+  width: 100% !important;
+  max-width: 292px !important;
+}
+
+.word-side-evidence-manager,
+.support-layout-side {
+  display: none !important;
+}
+
+/* Compact evidence manager */
+.word-left-evidence-manager .word-side-evidence-heading {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.65rem !important;
+  padding-bottom: 0.55rem !important;
+  border-bottom: 1px solid #d8dee8 !important;
+}
+
+.word-left-evidence-manager .word-side-evidence-heading p {
+  margin: 0 !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase !important;
+  color: #64748b !important;
+}
+
+.word-left-evidence-manager .word-side-evidence-heading span {
+  border-radius: 999px !important;
+  background: #e2e8f0 !important;
+  color: #475569 !important;
+  padding: 0.25rem 0.48rem !important;
+  font-size: 0.66rem !important;
+  font-weight: 850 !important;
+}
+
+.word-left-evidence-manager .source-supporting-grid,
+.word-left-evidence-manager .evidence-manager-compact {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 0.65rem !important;
+  min-width: 0 !important;
+}
+
+.word-left-evidence-manager .compact-evidence-dropzone,
+.word-left-evidence-manager .supporting-dropzone {
+  min-height: 104px !important;
+  padding: 0.82rem !important;
+  border-radius: 15px !important;
+  background: #f8fafc !important;
+  border: 1px dashed #b6c2d1 !important;
+}
+
+.word-left-evidence-manager .compact-evidence-dropzone strong,
+.word-left-evidence-manager .supporting-dropzone strong {
+  font-size: 0.82rem !important;
+  line-height: 1.2 !important;
+}
+
+.word-left-evidence-manager .compact-evidence-dropzone span,
+.word-left-evidence-manager .supporting-dropzone span {
+  font-size: 0.68rem !important;
+  line-height: 1.3 !important;
+}
+
+.word-left-evidence-manager input[type="file"] {
+  max-width: 100% !important;
+  font-size: 0.72rem !important;
+}
+
+.word-left-evidence-manager .compact-evidence-list,
+.word-left-evidence-manager .source-supporting-list {
+  max-height: 360px !important;
+  overflow: auto !important;
+  display: grid !important;
+  gap: 0.48rem !important;
+  padding: 0 0.2rem 0 0 !important;
+  margin: 0 !important;
+}
+
+.word-left-evidence-manager .compact-evidence-list li,
+.word-left-evidence-manager .source-supporting-list li {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  gap: 0.52rem !important;
+  align-items: start !important;
+  padding: 0.58rem !important;
+  border-radius: 13px !important;
+  background: #ffffff !important;
+  border: 1px solid #dbe3ee !important;
+}
+
+.word-left-evidence-manager .support-order {
+  width: 1.85rem !important;
+  height: 1.85rem !important;
+  border-radius: 10px !important;
+  font-size: 0.75rem !important;
+}
+
+.word-left-evidence-manager .compact-evidence-list li strong,
+.word-left-evidence-manager .source-supporting-list li strong {
+  display: block !important;
+  max-width: 150px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 0.78rem !important;
+}
+
+.word-left-evidence-manager .compact-evidence-list li small,
+.word-left-evidence-manager .source-supporting-list li small {
+  display: block !important;
+  font-size: 0.66rem !important;
+  line-height: 1.25 !important;
+  color: #64748b !important;
+}
+
+.word-left-evidence-manager .support-actions {
+  grid-column: 1 / -1 !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0.36rem !important;
+}
+
+.word-left-evidence-manager .support-actions button {
+  min-height: 30px !important;
+  padding: 0.35rem 0.38rem !important;
+  font-size: 0.66rem !important;
+  border-radius: 10px !important;
+}
+
+/* Keep preview visually dominant */
+.support-page-canvas {
+  width: min(100%, 660px) !important;
+  margin-inline: auto !important;
+}
+
+.support-canvas-caption {
+  min-height: 54px !important;
+  padding: 0.8rem 1rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 1rem !important;
+}
+
+/* Right controls stay compact and readable */
+.word-crop-controls {
+  padding: 0.95rem !important;
+}
+
+.word-crop-controls .word-resize-actions,
+.word-crop-controls .word-position-actions,
+.word-crop-controls .word-rotate-actions {
+  gap: 0.55rem !important;
+}
+
+.word-crop-controls button,
+.word-crop-controls select {
+  font-size: 0.82rem !important;
+  line-height: 1.15 !important;
+  font-weight: 780 !important;
+}
+
+/* Responsive fallback */
+@media (max-width: 1240px) {
+  .support-layout-grid.word-crop-grid {
+    grid-template-columns: 250px minmax(460px, 1fr) 280px !important;
+  }
+
+  .support-page-canvas {
+    width: min(100%, 610px) !important;
+  }
+}
+
+@media (max-width: 980px) {
+  .support-layout-grid.word-crop-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "evidence"
+      "preview"
+      "controls" !important;
+  }
+
+  .word-left-evidence-manager,
+  .word-crop-controls {
+    position: static !important;
+    max-width: none !important;
+    max-height: none !important;
+  }
+}
