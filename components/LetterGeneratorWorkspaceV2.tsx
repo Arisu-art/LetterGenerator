@@ -185,7 +185,7 @@ export default function LetterGeneratorWorkspaceV2() {
   async function makeZip(items: ReviewOutput[], notes: string[], date: string) {
     const zip = new JSZip();
     await addOrderedPacketFolders(zip, items, round, evidenceKey, parsed.name, routes.map((route) => ({ type: route.type, bureau: route.bureau })));
-    zip.file('Package Manifest.txt', ['COMPLETE ORDERED COMPONENT PACKAGE', `Client: ${parsed.name}`, `Round: ${round}`, `Date: ${date}`, 'Delivery format: ordered bureau folders only.', 'Dispute order: 01 Dispute Letter.docx; 02 Attachment.pdf; 03 FCRA Legal Exhibit.pdf; 04 Affidavit.docx; 05 FTC Identity Theft Report.docx.', ...notes.map((item) => `- ${item}`)].join('\n'));
+    zip.file('Package Manifest.txt', ['COMPLETE ORDERED COMPONENT PACKAGE', `Client: ${parsed.name}`, `Round: ${round}`, `Date: ${date}`, 'Delivery format: ordered bureau folders only.', 'Dispute order: 01 Dispute Letter.docx; 02 Supporting Documents.pdf; 03 Attachment.pdf; 04 FCRA Legal Exhibit.pdf; 05 Affidavit.docx; 06 FTC Identity Theft Report.docx.', ...notes.map((item) => `- ${item}`)].join('\n'));
     return zip.generateAsync({ type: 'blob' });
   }
   async function generate() {
@@ -237,7 +237,7 @@ export default function LetterGeneratorWorkspaceV2() {
         report('Generating client Affidavit…');
         const file = await withTimeout('Generating Affidavit', () => affidavit(context.bureau, date));
         if (!file) throw new Error('Required component missing: 04 Affidavit.docx could not be generated.');
-        output.push({ id: 'CLIENT-AFFIDAVIT', path: `Editable Documents/${clean(parsed.name)} 04 ${exhibitTitles.AFFIDAVIT}.docx`, type: 'DISPUTE', role: 'AFFIDAVIT', sequence: 4, bureau: 'CLIENT', count: 1, detail: 'Shared client affidavit', blob: file, packetSteps: order('DISPUTE') });
+        output.push({ id: 'CLIENT-AFFIDAVIT', path: `Editable Documents/${clean(parsed.name)} 05 ${exhibitTitles.AFFIDAVIT}.docx`, type: 'DISPUTE', role: 'AFFIDAVIT', sequence: 6, bureau: 'CLIENT', count: 1, detail: 'Shared client affidavit', blob: file, packetSteps: order('DISPUTE') });
       }
       report('Preparing complete ordered component package…');
       const zip = await withTimeout('Preparing ordered package ZIP', () => makeZip(output, notes, date), ARCHIVE_TIMEOUT_MS);
