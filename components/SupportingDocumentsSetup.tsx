@@ -72,8 +72,6 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, embed
   const ready = assets.supporting.length > 0;
   const uploadInputId = `${storageKey}-evidence-upload`;
 
-  const uploadInputId = `${storageKey}-evidence-upload`;
-
   const managerPanel = (selectedEvidenceId: string | null, selectEvidence: (id: string) => void) => <div className="evidence-panel-v2">
     <label className="evidence-upload-card-v2" htmlFor={uploadInputId}>
       <span className="evidence-upload-title-v2">{ready ? 'Add evidence images' : 'Upload evidence images'}</span>
@@ -97,15 +95,16 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, embed
       </div>
     </li>)}</ol> : <p className="evidence-empty-v2">Upload evidence images first. They will appear here for ordering and removal.</p>}
   </div>;
+
+  const managerPanelNode = managerPanel(null, () => undefined);
+
   return <section className={`${embedded ? 'source-supporting-embedded required-supporting-embedded' : 'panel source-supporting-panel'} progressive-supporting`}>
     {!embedded && <header className="supporting-header">
       <div><p className="eyebrow">Required evidence</p><h2>Supporting Documents</h2><p>Upload and arrange evidence for <strong>{clientName}</strong>.</p></div>
       <span className={`supporting-count ${ready ? 'has-files' : ''}`}>{assets.supporting.length} file{assets.supporting.length === 1 ? '' : 's'}</span>
     </header>}
     {embedded && <div className={`embedded-evidence-summary ${ready ? 'complete' : 'required'}`}><div><strong>{ready ? 'Evidence page ready for layout' : 'Evidence image required'}</strong><span>{ready ? `Client: ${clientName}` : 'Upload at least one image for packet position 02.'}</span></div><span className={`supporting-count ${ready ? 'has-files' : ''}`}>{assets.supporting.length} file{assets.supporting.length === 1 ? '' : 's'}</span></div>}
-    {!ready && <ProgressiveDisclosure open={manageOpen} onToggle={() => setManageOpen((value) => !value)} title="Upload required evidence" summary="Required for every ordered packet" badge={<span className="packet-status required">Required</span>} className="supporting-disclosure evidence-upload-disclosure">
-      {managerPanel}
-    </ProgressiveDisclosure>}
+    {!ready && <ProgressiveDisclosure open={manageOpen} onToggle={() => setManageOpen((value) => !value)} title="Upload required evidence" summary="Required for every ordered packet" badge={<span className="packet-status required">Required</span>} className="supporting-disclosure evidence-upload-disclosure"> {managerPanelNode} </ProgressiveDisclosure>}
     {ready && <ProgressiveDisclosure open={layoutOpen} onToggle={() => setLayoutOpen((value) => !value)} title="Evidence layout" summary="Position 02 supporting documents" badge={<span className="packet-status ready">Editable</span>} className="supporting-disclosure layout-disclosure"><SupportingDocumentsLayoutEditor storageKey={storageKey} assets={assets} managerPanel={managerPanel} onChanged={changed} onMessage={onMessage} /></ProgressiveDisclosure>}
   </section>;
 }
