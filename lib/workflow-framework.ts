@@ -32,15 +32,14 @@ export const latePaymentPacketPositions: PacketPosition[] = [
 
 export const baseDisputePacketPositions: PacketPosition[] = [
   { id: 'LETTER', number: 1, label: 'Dispute Letter', editable: true, required: true },
-  { id: 'SUPPORTING', number: 2, label: 'Supporting Documents', editable: false, required: true },
+  { id: 'ATTACHMENT', number: 2, label: 'Attachment', exhibitKind: 'ATTACHMENT', editable: false, required: true },
   { id: 'FCRA', number: 3, label: 'FCRA Legal Exhibit', exhibitKind: 'FCRA', editable: false, required: true },
-  { id: 'AFFIDAVIT', number: 4, label: 'Affidavit', exhibitKind: 'AFFIDAVIT', editable: true, required: true },
-  { id: 'ATTACHMENT', number: 5, label: 'Attachment', exhibitKind: 'ATTACHMENT', editable: false, required: true }
+  { id: 'AFFIDAVIT', number: 4, label: 'Affidavit', exhibitKind: 'AFFIDAVIT', editable: true, required: true }
 ];
 
 export const ftcPacketPosition: PacketPosition = {
   id: 'FTC',
-  number: 6,
+  number: 5,
   label: 'FTC Identity Theft Report',
   exhibitKind: 'FTC',
   editable: true,

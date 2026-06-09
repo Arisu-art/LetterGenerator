@@ -90,7 +90,7 @@ function ensureFtcEditorSlot(slots: Slot[], ftc?: ReviewOutput, ftcConfigured?: 
 
   normalized.push({
     id: 'FTC',
-    number: 6,
+    number: 5,
     label: 'FTC Identity Theft Report',
     document: ftc,
     configured: Boolean(ftc || ftcConfigured),

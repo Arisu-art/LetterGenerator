@@ -4,9 +4,9 @@ import { readTemplateExhibit } from './template-exhibits';
 
 export const FTC_PACKET_ROLE = 'FTC' as const;
 export const FTC_PACKET_BUREAU = 'CLIENT' as const;
-export const FTC_PACKET_SEQUENCE = 6;
+export const FTC_PACKET_SEQUENCE = 5;
 export const FTC_PACKET_LABEL = 'FTC Identity Theft Report';
-export const FTC_PACKET_FILENAME = '06 FTC Identity Theft Report.docx';
+export const FTC_PACKET_FILENAME = '05 FTC Identity Theft Report.docx';
 
 export type FtcWorkflowReviewOutput = {
   id: string;
@@ -55,7 +55,7 @@ export async function generateFtcWorkflowOutput(input: GenerateFtcWorkflowInput)
   const template = await readTemplateExhibit(input.round, 'FTC');
 
   if (!template) {
-    throw new Error('Required component missing: 06 FTC Identity Theft Report DOCX template is not uploaded.');
+    throw new Error('Required component missing: 05 FTC Identity Theft Report DOCX template is not uploaded.');
   }
 
   const workflow = buildFtcWorkflowSource(input.parsed);
