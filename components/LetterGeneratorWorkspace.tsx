@@ -58,7 +58,7 @@ function Empty({ title, text }: { title: string; text: string }) { return <div c
 export default function LetterGeneratorWorkspace() {
   const [panel, setPanel] = useState<Panel>('Dashboard');
   const [round, setRound] = useState<Round>('1st Round');
-  const [references, setReferences] = useState<LetterReference[]>(defaultReferences);
+  const [references, setReferences] = useState<LetterReference[]>(() => loadReferenceMeta());
   const [source, setSource] = useState('');
   const [originalSource, setOriginalSource] = useState('');
   const [normalized, setNormalized] = useState(false);
@@ -76,8 +76,44 @@ export default function LetterGeneratorWorkspace() {
   const [finalizing, setFinalizing] = useState(false);
   const [status, setStatus] = useState('Configure packet templates, then load a client source file.');
 
-  useEffect(() => setReferences(loadReferenceMeta()), []);
   useEffect(() => saveReferenceMeta(references), [references]);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function recoverReferenceFiles() {
+      const recovered = await Promise.all(defaultReferences().map(async (slot) => {
+        const file = await readReferenceFile(slot.id).catch(() => null);
+        return file ? { id: slot.id, file: file.name, size: file.size } : null;
+      }));
+
+      if (cancelled) return;
+
+      const byId = new Map(recovered.filter(Boolean).map((item) => [item!.id, item!]));
+
+      setReferences((items) => {
+        let changed = false;
+
+        const next = defaultReferences().map((slot) => {
+          const current = items.find((item) => item.id === slot.id) || slot;
+          const stored = byId.get(slot.id);
+
+          if (!current.file && stored?.file) {
+            changed = true;
+            return { ...current, file: stored.file, size: stored.size };
+          }
+
+          return current;
+        });
+
+        if (changed) saveReferenceMeta(next);
+        return changed ? next : items;
+      });
+    }
+
+    void recoverReferenceFiles();
+
+    return () => { cancelled = true; };
+  }, []);
   useEffect(() => setTemplates(loadTemplateExhibits(round)), [round]);
 
   const currentReferences = references.filter((item) => item.round === round);

@@ -30,15 +30,44 @@ function openDb(): Promise<IDBDatabase> {
 }
 export function loadReferenceMeta() {
   if (typeof window === 'undefined') return defaultReferences();
+
   try {
     const raw = localStorage.getItem(META_KEY) || localStorage.getItem('lettergenerator.visual-reference-output.v13');
     const values = raw ? JSON.parse(raw) as LetterReference[] : [];
-    return defaultReferences().map((item) => ({ ...item, ...(values.find((value) => value.id === item.id) || {}) }));
-  } catch { return defaultReferences(); }
+
+    return defaultReferences().map((item) => ({
+      ...item,
+      ...(Array.isArray(values) ? values.find((value) => value.id === item.id) : undefined)
+    }));
+  } catch {
+    return defaultReferences();
+  }
 }
+
 export function saveReferenceMeta(values: LetterReference[]) {
-  localStorage.setItem(META_KEY, JSON.stringify(values));
+  if (typeof window === 'undefined') return;
+
+  let existing: LetterReference[] = [];
+
+  try {
+    const raw = localStorage.getItem(META_KEY) || localStorage.getItem('lettergenerator.visual-reference-output.v13');
+    const parsed = raw ? JSON.parse(raw) as LetterReference[] : [];
+    existing = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    existing = [];
+  }
+
+  const incoming = Array.isArray(values) ? values : [];
+  const byId = new Map<string, LetterReference>();
+
+  for (const item of defaultReferences()) byId.set(item.id, item);
+  for (const item of existing) if (item?.id) byId.set(item.id, { ...(byId.get(item.id) || item), ...item });
+  for (const item of incoming) if (item?.id) byId.set(item.id, { ...(byId.get(item.id) || item), ...item });
+
+  const merged = defaultReferences().map((item) => byId.get(item.id) || item);
+  localStorage.setItem(META_KEY, JSON.stringify(merged));
 }
+
 export async function saveReferenceFile(slot: LetterReference, file: File) {
   const contract = await inspectTemplateContract(file, slot.type === 'DISPUTE' ? 'DISPUTE_LETTER' : 'LATE_PAYMENT_LETTER');
   const db = await openDb();
