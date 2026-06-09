@@ -62,17 +62,30 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, embed
   }
   function move(id: string, direction: -1 | 1) { changed(moveSupportingAsset(storageKey, id, direction)); }
   const ready = assets.supporting.length > 0;
-  const managerPanel = <div className="source-supporting-grid evidence-manager-compact">
-    <label className="supporting-dropzone required-dropzone compact-evidence-dropzone">
-      <strong>{ready ? 'Add evidence images' : 'Upload evidence images'}</strong>
-      <span>JPG, PNG or WEBP · included in packet position 02</span>
-      <input disabled={busy} multiple type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={(event) => { const files = Array.from(event.target.files || []); if (files.length) void add(files); event.target.value = ''; }} />
+  const uploadInputId = `${storageKey}-evidence-upload`;
+
+  const managerPanel = <div className="evidence-panel-v2">
+    <label className="evidence-upload-card-v2" htmlFor={uploadInputId}>
+      <span className="evidence-upload-title-v2">{ready ? 'Add evidence images' : 'Upload evidence images'}</span>
+      <span className="evidence-upload-copy-v2">JPG, PNG or WEBP · packet position 02</span>
+      <span className="evidence-upload-button-v2">Choose files</span>
+      <input id={uploadInputId} disabled={busy} multiple type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={(event) => { const files = Array.from(event.target.files || []); if (files.length) void add(files); event.target.value = ''; }} />
     </label>
-    {ready ? <ol className="source-supporting-list compact-evidence-list">{assets.supporting.map((asset, index) => <li key={asset.id}>
-      <span className="support-order">{index + 1}</span>
-      <div><strong>{asset.name}</strong><small>{size(asset.size)}{asset.placement ? ' · Layout adjusted' : ' · Ready to arrange'}</small></div>
-      <div className="support-actions evidence-card-actions"><button type="button" disabled={index === 0} onClick={() => move(asset.id, -1)} aria-label="Move up">↑ Up</button><button type="button" disabled={index === assets.supporting.length - 1} onClick={() => move(asset.id, 1)} aria-label="Move down">↓ Down</button><button type="button" className="remove-evidence-button" onClick={() => void remove(asset.id)}>Remove</button></div>
-    </li>)}</ol> : null}
+
+    {ready ? <ol className="evidence-list-v2">{assets.supporting.map((asset, index) => <li className="evidence-card-v2" key={asset.id}>
+      <div className="evidence-card-top-v2">
+        <span className="evidence-number-v2">{index + 1}</span>
+        <div className="evidence-meta-v2">
+          <strong title={asset.name}>{asset.name}</strong>
+          <small>{size(asset.size)} · {asset.placement ? 'Layout adjusted' : 'Ready to arrange'}</small>
+        </div>
+      </div>
+      <div className="evidence-actions-v2">
+        <button type="button" disabled={index === 0} onClick={() => move(asset.id, -1)} aria-label="Move up">↑ Up</button>
+        <button type="button" disabled={index === assets.supporting.length - 1} onClick={() => move(asset.id, 1)} aria-label="Move down">↓ Down</button>
+        <button type="button" className="evidence-remove-v2" onClick={() => void remove(asset.id)}>Remove</button>
+      </div>
+    </li>)}</ol> : <p className="evidence-empty-v2">Upload evidence images first. They will appear here for ordering and removal.</p>}
   </div>;
   return <section className={`${embedded ? 'source-supporting-embedded required-supporting-embedded' : 'panel source-supporting-panel'} progressive-supporting`}>
     {!embedded && <header className="supporting-header">
