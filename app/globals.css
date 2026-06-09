@@ -1039,3 +1039,49 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     animation: none;
   }
 }
+
+/* Supporting evidence editor: resize/fit UX */
+.word-fit-actions,
+.word-resize-actions {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.word-fit-actions label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.word-fit-actions select {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 0.68rem 0.75rem;
+  background: #ffffff;
+  color: #111827;
+  font-weight: 700;
+}
+
+.word-resize-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.word-resize-actions button {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  color: #111827;
+  font-weight: 800;
+  padding: 0.65rem 0.55rem;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+}
+
+.word-resize-actions button:hover,
+.word-fit-actions select:hover {
+  border-color: #94a3b8;
+}

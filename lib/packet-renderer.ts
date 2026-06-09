@@ -60,6 +60,26 @@ function rotatedBitmap(bitmap: ImageBitmap, rotation: SupportingRotation) {
   context.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2);
   return canvas;
 }
+function fittedDestination(sourceWidth: number, sourceHeight: number, boxWidth: number, boxHeight: number, fit: SupportingPlacement['fit']) {
+  if (fit === 'stretch') {
+    return { x: 0, y: 0, width: boxWidth, height: boxHeight };
+  }
+
+  const scale = fit === 'cover'
+    ? Math.max(boxWidth / sourceWidth, boxHeight / sourceHeight)
+    : Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight);
+
+  const width = sourceWidth * scale;
+  const height = sourceHeight * scale;
+
+  return {
+    x: (boxWidth - width) / 2,
+    y: (boxHeight - height) / 2,
+    width,
+    height
+  };
+}
+
 function drawPlacedImage(context: CanvasRenderingContext2D, bitmap: ImageBitmap, placement: SupportingPlacement) {
   const source = rotatedBitmap(bitmap, placement.rotation || 0);
   const sx = position(placement.cropX, source.width);
@@ -70,11 +90,14 @@ function drawPlacedImage(context: CanvasRenderingContext2D, bitmap: ImageBitmap,
   const dy = position(placement.y, CANVAS_H);
   const dw = Math.max(1, position(placement.width, CANVAS_W));
   const dh = Math.max(1, position(placement.height, CANVAS_H));
+  const fit = placement.fit || 'contain';
+  const fitted = fittedDestination(sw, sh, dw, dh, fit);
+
   context.save();
   context.beginPath();
   context.rect(dx, dy, dw, dh);
   context.clip();
-  context.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh);
+  context.drawImage(source, sx, sy, sw, sh, dx + fitted.x, dy + fitted.y, fitted.width, fitted.height);
   context.restore();
 }
 async function buildSingleSupportingPage(items: RenderAsset[]) {
