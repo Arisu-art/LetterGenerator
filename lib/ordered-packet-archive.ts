@@ -43,22 +43,38 @@ export async function addOrderedPacketFolders(
   const client = safe(clientName) || 'CLIENT';
   const supporting = caseKey ? await createSupportingDocumentsPdf(caseKey).catch(() => null) : null;
   if (!supporting) throw new Error('Required component missing: 02 Supporting Documents.pdf could not be prepared.');
-  const disputePresent = routes.some((route) => route.type === 'DISPUTE');
+
+  const disputeRoutes = routes.filter((route) => route.type === 'DISPUTE');
+  const lateRoutes = routes.filter((route) => route.type === 'LATE_PAYMENT');
+  const disputePresent = disputeRoutes.length > 0;
+  const hasLatePayment = lateRoutes.length > 0;
+
   const fcra = disputePresent ? await readTemplateExhibit(round, 'FCRA') : null;
   const attachment = disputePresent ? await readTemplateExhibit(round, 'ATTACHMENT') : null;
   if (disputePresent && !fcra) throw new Error('Required component missing: 04 FCRA Legal Exhibit.pdf is not configured.');
   if (disputePresent && !attachment) throw new Error('Required component missing: 03 Attachment.pdf is not configured.');
 
   for (const route of routes) {
-    const root = route.type === 'DISPUTE' ? 'DISPUTE PACKETS' : 'LATE PAYMENT PACKETS';
-    const folder = `${root}/${client} ${route.bureau}/`;
-    const letter = findDocument(docs, route, 'LETTER');
-    if (!letter) throw new Error(`Required component missing: ${route.bureau} 01 ${route.type === 'DISPUTE' ? 'Dispute' : 'Late Payment'} Letter.docx was not generated.`);
     const title = route.type === 'DISPUTE' ? 'Dispute Letter' : 'Late Payment Letter';
+
+    /*
+      Folder policy:
+      - If only dispute letters are generated, do not add a top-level packet folder.
+      - If both dispute and late payment are generated, group by letter type.
+      - Use "Dispute Letter", never "Dispute Packet".
+    */
+    const group = hasLatePayment ? `${title}/` : '';
+    const folder = `${group}${client} ${route.bureau}/`;
+
+    const letter = findDocument(docs, route, 'LETTER');
+    if (!letter) throw new Error(`Required component missing: ${route.bureau} 01 ${title}.docx was not generated.`);
+
     const recipient = bureauInfo[route.bureau as Bureau]?.name || route.bureau;
     const validated = await assertGeneratedDocx(letter.blob, `${route.bureau} ${title}`, [clientName, recipient]);
+
     zip.file(`${folder}01 ${title}.docx`, validated);
     zip.file(`${folder}02 Supporting Documents.pdf`, supporting);
+
     if (route.type === 'DISPUTE') {
       zip.file(`${folder}03 Attachment.pdf`, attachment!);
       zip.file(`${folder}04 FCRA Legal Exhibit.pdf`, fcra!);

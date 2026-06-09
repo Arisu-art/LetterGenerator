@@ -214,7 +214,7 @@ export default function LetterGeneratorWorkspace() {
       catch (error) { notices.push(error instanceof Error ? error.message : `${route.bureau}: PDF assembly failed.`); }
     }
     let finalOutput: { name: string; blob: Blob } | null = null;
-    if (packets.length) { const zip = new JSZip(); packets.forEach((packet) => zip.file(packet.path, packet.blob)); zip.file('Final Packet Manifest.txt', packets.flatMap((packet) => [packet.path, ...packet.sequence.map((entry) => `  ${entry}`), '']).join('\n')); finalOutput = { name: `${fileBase(parsed.name)}_${fileBase(round)}_FINAL_PDF_PACKETS.zip`, blob: await zip.generateAsync({ type: 'blob' }) }; }
+    if (packets.length) { const zip = new JSZip(); packets.forEach((packet) => zip.file(packet.path, packet.blob)); zip.file('Final Packet Manifest.txt', packets.flatMap((packet) => [packet.path, ...packet.sequence.map((entry) => `  ${entry}`), '']).join('\n')); finalOutput = { name: `${clean(parsed.name)}.zip`, blob: await zip.generateAsync({ type: 'blob' }) }; }
     setFinalPackets(packets); setFinalZip(finalOutput); setWarnings((previous) => uniqueNotices(previous, notices)); setFinalizing(false); setStatus(packets.length ? `${packets.length} final PDF packet(s) ready for page-order review.` : 'Final PDF assembly requires attention.');
   }
 

@@ -241,7 +241,7 @@ export default function LetterGeneratorWorkspaceV2() {
       }
       report('Preparing complete ordered component package…');
       const zip = await withTimeout('Preparing ordered package ZIP', () => makeZip(output, notes, date), ARCHIVE_TIMEOUT_MS);
-      const zipName = `${base(parsed.name)}_${base(round)}_ORDERED_PACKET_PACKAGE.zip`;
+      const zipName = `${clean(parsed.name)}.zip`;
       setDocs(output); setWarnings(notes); setOrderedZip({ name: zipName, blob: zip }); setDocDate(date);
       saveCase('REVIEW_READY', { editableCount: output.length, evidenceCount: evidence.supporting.length, pdfCount: 0 });
       report('Complete ordered packet package is ready for review and download.', 'success');
