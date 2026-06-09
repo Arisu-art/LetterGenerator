@@ -1,0 +1,53 @@
+/* Final evidence layout polish: one header, taller/narrower slots */
+.merged-evidence-header .embedded-evidence-summary {
+  display: none !important;
+}
+
+.merged-evidence-header .evidence-single-header > .progressive-trigger {
+  min-height: 68px !important;
+  padding: 0.95rem 1.05rem !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+}
+
+.merged-evidence-header .evidence-single-header .progressive-copy strong {
+  color: #064e3b !important;
+  font-size: 0.95rem !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.merged-evidence-header .evidence-single-header .progressive-copy small {
+  margin-top: 0.25rem !important;
+  color: #64748b !important;
+  font-size: 0.78rem !important;
+  font-weight: 650 !important;
+}
+
+.merged-evidence-header .evidence-ready-badge {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+  border: 1px solid #bbf7d0 !important;
+  border-radius: 999px !important;
+  padding: 0.42rem 0.72rem !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.035em !important;
+}
+
+.support-page-canvas {
+  width: min(100%, 590px) !important;
+  margin-inline: auto !important;
+}
+
+.support-canvas-item {
+  overflow: hidden !important;
+}
+
+.support-canvas-item canvas,
+.support-canvas-item img {
+  max-width: 100% !important;
+  max-height: 100% !important;
+}

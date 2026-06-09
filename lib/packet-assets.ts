@@ -28,24 +28,30 @@ export function standardSupportingPlacement(index: number, count: number): Suppo
   const n = Math.max(1, Math.min(count || 1, 12));
   const safeIndex = Math.max(0, Math.min(index, n - 1));
 
-  const width = 0.84;
+  /*
+    Evidence slot policy:
+    - narrower frame prevents wide document images from dominating the page
+    - taller frame keeps IDs/cards readable when gaps are zero
+    - y positions intentionally touch, so 3 files stack cleanly without vertical holes
+  */
+  const width = 0.72;
   const x = (1 - width) / 2;
 
   let height: number;
   let startY: number;
 
   if (n === 1) {
-    height = 0.56;
-    startY = 0.22;
+    height = 0.64;
+    startY = 0.18;
   } else if (n === 2) {
-    height = 0.36;
-    startY = 0.14;
+    height = 0.42;
+    startY = 0.08;
   } else if (n === 3) {
-    height = 0.285;
-    startY = 0.075;
+    height = 0.305;
+    startY = 0.045;
   } else {
-    height = 0.88 / n;
-    startY = 0.06;
+    height = 0.90 / n;
+    startY = 0.05;
   }
 
   return {

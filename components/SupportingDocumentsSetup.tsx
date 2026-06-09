@@ -70,6 +70,9 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, embed
     changed(next);
   }
   const ready = assets.supporting.length > 0;
+  const fileLabel = `${assets.supporting.length} file${assets.supporting.length === 1 ? '' : 's'}`;
+  const layoutTitle = ready ? 'Evidence page ready for layout' : 'Evidence image required';
+  const layoutSummary = ready ? `Client: ${clientName} · Position 02 supporting documents` : 'Upload at least one image for packet position 02.';
   const uploadInputId = `${storageKey}-evidence-upload`;
 
   const managerPanel = (selectedEvidenceId: string | null, selectEvidence: (id: string) => void) => <div className="evidence-panel-v2">
@@ -98,13 +101,12 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, embed
 
   const managerPanelNode = managerPanel(null, () => undefined);
 
-  return <section className={`${embedded ? 'source-supporting-embedded required-supporting-embedded' : 'panel source-supporting-panel'} progressive-supporting`}>
+  return <section className={`${embedded ? 'source-supporting-embedded required-supporting-embedded' : 'panel source-supporting-panel'} progressive-supporting merged-evidence-header`}>
     {!embedded && <header className="supporting-header">
       <div><p className="eyebrow">Required evidence</p><h2>Supporting Documents</h2><p>Upload and arrange evidence for <strong>{clientName}</strong>.</p></div>
-      <span className={`supporting-count ${ready ? 'has-files' : ''}`}>{assets.supporting.length} file{assets.supporting.length === 1 ? '' : 's'}</span>
+      <span className={`supporting-count ${ready ? 'has-files' : ''}`}>{fileLabel}</span>
     </header>}
-    {embedded && <div className={`embedded-evidence-summary ${ready ? 'complete' : 'required'}`}><div><strong>{ready ? 'Evidence page ready for layout' : 'Evidence image required'}</strong><span>{ready ? `Client: ${clientName}` : 'Upload at least one image for packet position 02.'}</span></div><span className={`supporting-count ${ready ? 'has-files' : ''}`}>{assets.supporting.length} file{assets.supporting.length === 1 ? '' : 's'}</span></div>}
-    {!ready && <ProgressiveDisclosure open={manageOpen} onToggle={() => setManageOpen((value) => !value)} title="Upload required evidence" summary="Required for every ordered packet" badge={<span className="packet-status required">Required</span>} className="supporting-disclosure evidence-upload-disclosure"> {managerPanelNode} </ProgressiveDisclosure>}
-    {ready && <ProgressiveDisclosure open={layoutOpen} onToggle={() => setLayoutOpen((value) => !value)} title="Evidence layout" summary="Position 02 supporting documents" badge={<span className="packet-status ready">Editable</span>} className="supporting-disclosure layout-disclosure"><SupportingDocumentsLayoutEditor storageKey={storageKey} assets={assets} managerPanel={managerPanel} onChanged={changed} onMessage={onMessage} /></ProgressiveDisclosure>}
+{!ready && <ProgressiveDisclosure open={manageOpen} onToggle={() => setManageOpen((value) => !value)} title={embedded ? layoutTitle : 'Upload required evidence'} summary={embedded ? layoutSummary : 'Required for every ordered packet'} badge={<span className="packet-status required">Required</span>} className="supporting-disclosure evidence-upload-disclosure evidence-single-header"> {managerPanelNode} </ProgressiveDisclosure>}
+    {ready && <ProgressiveDisclosure open={layoutOpen} onToggle={() => setLayoutOpen((value) => !value)} title={embedded ? layoutTitle : 'Evidence layout'} summary={embedded ? layoutSummary : 'Position 02 supporting documents'} badge={<span className="packet-status ready evidence-ready-badge">{embedded ? `${fileLabel} · editable` : 'Editable'}</span>} className="supporting-disclosure layout-disclosure evidence-single-header"><SupportingDocumentsLayoutEditor storageKey={storageKey} assets={assets} managerPanel={managerPanel} onChanged={changed} onMessage={onMessage} /></ProgressiveDisclosure>}
   </section>;
 }
