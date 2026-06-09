@@ -2214,3 +2214,238 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   min-width: 292px !important;
   max-width: 292px !important;
 }
+
+/* PERMANENT FIX: Evidence files panel must behave like a compact left control panel */
+.word-left-evidence-manager {
+  width: 292px !important;
+  min-width: 292px !important;
+  max-width: 292px !important;
+  height: auto !important;
+  max-height: calc(100vh - 140px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 0.95rem !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08) !important;
+}
+
+.word-left-evidence-manager .word-side-evidence-heading {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.65rem !important;
+  padding-bottom: 0.72rem !important;
+  margin-bottom: 0.72rem !important;
+  border-bottom: 1px solid #d8dee8 !important;
+}
+
+.word-left-evidence-manager .word-side-evidence-heading p {
+  margin: 0 !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase !important;
+  color: #64748b !important;
+}
+
+.word-left-evidence-manager .word-side-evidence-heading span {
+  flex: 0 0 auto !important;
+  border-radius: 999px !important;
+  background: #eef2f7 !important;
+  color: #475569 !important;
+  padding: 0.26rem 0.52rem !important;
+  font-size: 0.66rem !important;
+  font-weight: 850 !important;
+}
+
+/* New compact evidence manager layout */
+.evidence-panel-compact {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 0.72rem !important;
+  min-width: 0 !important;
+}
+
+.evidence-upload-compact {
+  display: grid !important;
+  gap: 0.32rem !important;
+  padding: 0.72rem !important;
+  border: 1px dashed #b6c2d1 !important;
+  border-radius: 14px !important;
+  background: #f8fafc !important;
+}
+
+.evidence-upload-title {
+  display: block !important;
+  font-size: 0.82rem !important;
+  line-height: 1.15 !important;
+  font-weight: 900 !important;
+  color: #111827 !important;
+}
+
+.evidence-upload-subtitle {
+  display: block !important;
+  font-size: 0.66rem !important;
+  line-height: 1.25 !important;
+  color: #64748b !important;
+}
+
+.evidence-upload-compact input[type="file"] {
+  width: 100% !important;
+  max-width: 100% !important;
+  font-size: 0.68rem !important;
+  margin-top: 0.18rem !important;
+}
+
+.evidence-card-list {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 0.55rem !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+}
+
+.evidence-card {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  grid-template-areas:
+    "index meta"
+    "actions actions" !important;
+  gap: 0.52rem !important;
+  padding: 0.62rem !important;
+  border-radius: 14px !important;
+  background: #f8fafc !important;
+  border: 1px solid #dbe3ee !important;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04) !important;
+}
+
+.evidence-card-index {
+  grid-area: index !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 1.9rem !important;
+  height: 1.9rem !important;
+  border-radius: 10px !important;
+  background: #e8f1ff !important;
+  color: #1d4ed8 !important;
+  font-size: 0.75rem !important;
+  font-weight: 900 !important;
+}
+
+.evidence-card-meta {
+  grid-area: meta !important;
+  min-width: 0 !important;
+}
+
+.evidence-card-meta strong {
+  display: block !important;
+  max-width: 176px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 0.8rem !important;
+  line-height: 1.18 !important;
+  color: #111827 !important;
+}
+
+.evidence-card-meta small {
+  display: block !important;
+  margin-top: 0.12rem !important;
+  font-size: 0.66rem !important;
+  line-height: 1.22 !important;
+  color: #64748b !important;
+}
+
+.evidence-card-actions {
+  grid-area: actions !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0.38rem !important;
+  margin-top: 0.05rem !important;
+}
+
+.evidence-card-actions button {
+  min-height: 32px !important;
+  padding: 0.38rem 0.36rem !important;
+  border-radius: 10px !important;
+  font-size: 0.66rem !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+}
+
+.evidence-card-actions button:hover {
+  border-color: #94a3b8 !important;
+  background: #f8fafc !important;
+}
+
+.evidence-card-actions button:disabled {
+  opacity: 0.42 !important;
+  cursor: not-allowed !important;
+}
+
+.evidence-card-actions .remove-evidence-button {
+  border-color: #fecaca !important;
+  color: #b91c1c !important;
+  background: #fff7f7 !important;
+}
+
+.evidence-empty-note {
+  margin: 0 !important;
+  padding: 0.75rem !important;
+  border-radius: 12px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #64748b !important;
+  font-size: 0.72rem !important;
+  line-height: 1.35 !important;
+}
+
+/* Neutralize old evidence manager styles that were hiding/clipping buttons */
+.word-left-evidence-manager .source-supporting-grid,
+.word-left-evidence-manager .evidence-manager-compact,
+.word-left-evidence-manager .source-supporting-list,
+.word-left-evidence-manager .compact-evidence-list,
+.word-left-evidence-manager .supporting-dropzone,
+.word-left-evidence-manager .compact-evidence-dropzone,
+.word-left-evidence-manager .support-actions {
+  all: revert-layer;
+}
+
+/* Preserve the established 3-column layout and center preview */
+.support-layout-grid.word-crop-grid {
+  grid-template-columns: 292px minmax(620px, 1fr) 292px !important;
+  grid-template-areas: "evidence preview controls" !important;
+}
+
+.support-page-frame {
+  grid-area: preview !important;
+}
+
+.word-crop-controls {
+  grid-area: controls !important;
+  width: 292px !important;
+  min-width: 292px !important;
+  max-width: 292px !important;
+}
+
+.support-page-canvas {
+  width: min(100%, 720px) !important;
+  margin-inline: auto !important;
+}
+
+@media (max-width: 1020px) {
+  .word-left-evidence-manager {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    position: static !important;
+    max-height: none !important;
+  }
+}
