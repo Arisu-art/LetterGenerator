@@ -1,0 +1,18 @@
+/* Supporting document slot balance.
+   The real frame size is controlled by standardSupportingPlacement().
+   This CSS only prevents visual overflow/stretch inside the frame. */
+.support-canvas-item {
+  overflow: hidden !important;
+}
+
+.support-canvas-item canvas,
+.support-canvas-item img {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+}
+
+.support-page-canvas {
+  width: min(100%, 590px) !important;
+  margin-inline: auto !important;
+}

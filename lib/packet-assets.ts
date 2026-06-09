@@ -29,30 +29,35 @@ export function standardSupportingPlacement(index: number, count: number): Suppo
   const safeIndex = Math.max(0, Math.min(index, n - 1));
 
   /*
-    Evidence slot policy:
-    - narrower frame prevents wide document images from dominating the page
-    - taller frame keeps IDs/cards readable when gaps are zero
-    - y positions intentionally touch, so 3 files stack cleanly without vertical holes
+    Count-specific evidence slot policy:
+    - 1 image: compact centered frame, not a large square container
+    - 2 images: readable stacked frames, but no oversized vertical boxes
+    - 3 images: keep existing good layout unchanged
+    - 4+ images: proportional fallback
   */
-  const width = 0.72;
-  const x = (1 - width) / 2;
-
+  let width: number;
   let height: number;
   let startY: number;
 
   if (n === 1) {
-    height = 0.64;
-    startY = 0.18;
+    width = 0.66;
+    height = 0.34;
+    startY = 0.33;
   } else if (n === 2) {
-    height = 0.42;
-    startY = 0.08;
+    width = 0.68;
+    height = 0.315;
+    startY = 0.185;
   } else if (n === 3) {
+    width = 0.72;
     height = 0.305;
     startY = 0.045;
   } else {
+    width = 0.72;
     height = 0.90 / n;
     startY = 0.05;
   }
+
+  const x = (1 - width) / 2;
 
   return {
     x,
