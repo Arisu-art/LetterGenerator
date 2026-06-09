@@ -2044,3 +2044,173 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     max-height: none !important;
   }
 }
+
+/* Evidence manager: compact portrait card layout with visible actions */
+.word-left-evidence-manager {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  width: 292px !important;
+  min-width: 292px !important;
+  max-width: 292px !important;
+  padding: 0.9rem !important;
+  overflow: hidden !important;
+}
+
+.word-left-evidence-manager .evidence-manager-compact,
+.word-left-evidence-manager .source-supporting-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  gap: 0.72rem !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Compact upload block so the evidence cards are not pushed out of view */
+.word-left-evidence-manager .compact-evidence-dropzone,
+.word-left-evidence-manager .supporting-dropzone {
+  min-height: 82px !important;
+  max-height: 96px !important;
+  padding: 0.72rem !important;
+  border-radius: 14px !important;
+  display: grid !important;
+  align-content: center !important;
+  gap: 0.28rem !important;
+}
+
+.word-left-evidence-manager .compact-evidence-dropzone strong,
+.word-left-evidence-manager .supporting-dropzone strong {
+  font-size: 0.8rem !important;
+  line-height: 1.12 !important;
+}
+
+.word-left-evidence-manager .compact-evidence-dropzone span,
+.word-left-evidence-manager .supporting-dropzone span {
+  font-size: 0.66rem !important;
+  line-height: 1.22 !important;
+}
+
+.word-left-evidence-manager input[type="file"] {
+  width: 100% !important;
+  max-width: 100% !important;
+  font-size: 0.68rem !important;
+}
+
+/* Evidence card list must always be visible under upload */
+.word-left-evidence-manager .compact-evidence-list,
+.word-left-evidence-manager .source-supporting-list {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  align-content: start !important;
+  gap: 0.55rem !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: auto !important;
+  padding: 0 0.18rem 0 0 !important;
+  margin: 0 !important;
+}
+
+.word-left-evidence-manager .compact-evidence-list li,
+.word-left-evidence-manager .source-supporting-list li {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  grid-template-areas:
+    "order meta"
+    "actions actions" !important;
+  gap: 0.5rem !important;
+  padding: 0.62rem !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  border: 1px solid #dbe3ee !important;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04) !important;
+}
+
+.word-left-evidence-manager .support-order {
+  grid-area: order !important;
+  width: 1.9rem !important;
+  height: 1.9rem !important;
+  border-radius: 10px !important;
+  font-size: 0.75rem !important;
+  font-weight: 900 !important;
+}
+
+.word-left-evidence-manager .compact-evidence-list li > div:first-of-type,
+.word-left-evidence-manager .source-supporting-list li > div:first-of-type {
+  grid-area: meta !important;
+  min-width: 0 !important;
+}
+
+.word-left-evidence-manager .compact-evidence-list li strong,
+.word-left-evidence-manager .source-supporting-list li strong {
+  max-width: 176px !important;
+  display: block !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 0.8rem !important;
+  line-height: 1.18 !important;
+}
+
+.word-left-evidence-manager .compact-evidence-list li small,
+.word-left-evidence-manager .source-supporting-list li small {
+  display: block !important;
+  font-size: 0.66rem !important;
+  line-height: 1.22 !important;
+  color: #64748b !important;
+}
+
+/* Visible, useful action row */
+.word-left-evidence-manager .support-actions,
+.word-left-evidence-manager .evidence-card-actions {
+  grid-area: actions !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0.38rem !important;
+  margin-top: 0.08rem !important;
+}
+
+.word-left-evidence-manager .support-actions button,
+.word-left-evidence-manager .evidence-card-actions button {
+  min-height: 32px !important;
+  padding: 0.38rem 0.36rem !important;
+  border-radius: 10px !important;
+  font-size: 0.66rem !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+}
+
+.word-left-evidence-manager .support-actions button:hover,
+.word-left-evidence-manager .evidence-card-actions button:hover {
+  border-color: #94a3b8 !important;
+  background: #f8fafc !important;
+}
+
+.word-left-evidence-manager .support-actions button:disabled,
+.word-left-evidence-manager .evidence-card-actions button:disabled {
+  opacity: 0.42 !important;
+  cursor: not-allowed !important;
+}
+
+.word-left-evidence-manager .remove-evidence-button {
+  border-color: #fecaca !important;
+  color: #b91c1c !important;
+  background: #fff7f7 !important;
+}
+
+/* Preserve strong center preview and right controls */
+.support-layout-grid.word-crop-grid {
+  grid-template-columns: 292px minmax(620px, 1fr) 292px !important;
+}
+
+.support-page-canvas {
+  width: min(100%, 720px) !important;
+}
+
+.word-crop-controls {
+  width: 292px !important;
+  min-width: 292px !important;
+  max-width: 292px !important;
+}

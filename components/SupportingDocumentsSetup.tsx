@@ -71,7 +71,7 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, embed
     {ready ? <ol className="source-supporting-list compact-evidence-list">{assets.supporting.map((asset, index) => <li key={asset.id}>
       <span className="support-order">{index + 1}</span>
       <div><strong>{asset.name}</strong><small>{size(asset.size)}{asset.placement ? ' · Layout adjusted' : ' · Ready to arrange'}</small></div>
-      <div className="support-actions"><button type="button" disabled={index === 0} onClick={() => move(asset.id, -1)} aria-label="Move up">↑</button><button type="button" disabled={index === assets.supporting.length - 1} onClick={() => move(asset.id, 1)} aria-label="Move down">↓</button><button type="button" onClick={() => void remove(asset.id)}>Remove</button></div>
+      <div className="support-actions evidence-card-actions"><button type="button" disabled={index === 0} onClick={() => move(asset.id, -1)} aria-label="Move up">↑ Up</button><button type="button" disabled={index === assets.supporting.length - 1} onClick={() => move(asset.id, 1)} aria-label="Move down">↓ Down</button><button type="button" className="remove-evidence-button" onClick={() => void remove(asset.id)}>Remove</button></div>
     </li>)}</ol> : null}
   </div>;
   return <section className={`${embedded ? 'source-supporting-embedded required-supporting-embedded' : 'panel source-supporting-panel'} progressive-supporting`}>
