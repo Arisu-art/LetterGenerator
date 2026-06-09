@@ -2746,3 +2746,257 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .support-page-canvas .support-canvas-item + .support-canvas-item {
   margin-top: 0 !important;
 }
+
+/* Compact evidence editor: move Arrange title into Page Preview and remove extra top strip */
+.layout-disclosure .progressive-body,
+.supporting-disclosure.layout-disclosure .progressive-body {
+  padding-top: 0.9rem !important;
+}
+
+/* Hide the redundant thumbnail/reset toolbar above the 3-column editor */
+.compact-hidden-toolbar,
+.word-crop-toolbar.compact-hidden-toolbar {
+  display: none !important;
+}
+
+/* Keep the disclosure shell compact now that the real title is in preview header */
+.layout-disclosure .progressive-header,
+.supporting-disclosure.layout-disclosure .progressive-header {
+  min-height: 58px !important;
+  padding-block: 0.72rem !important;
+}
+
+.layout-disclosure .progressive-header h3,
+.supporting-disclosure.layout-disclosure .progressive-header h3 {
+  font-size: 0.92rem !important;
+}
+
+.layout-disclosure .progressive-header p,
+.supporting-disclosure.layout-disclosure .progressive-header p {
+  font-size: 0.76rem !important;
+}
+
+/* Page preview now carries the editor title/action area */
+.evidence-preview-header {
+  min-height: 66px !important;
+  padding: 0.85rem 1rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 1rem !important;
+  border: 1px solid #d8dee8 !important;
+  border-radius: 16px !important;
+  background: #f8fafc !important;
+}
+
+.evidence-preview-header > div:first-child {
+  display: grid !important;
+  gap: 0.22rem !important;
+  min-width: 0 !important;
+}
+
+.evidence-preview-header strong {
+  font-size: 0.92rem !important;
+  font-weight: 900 !important;
+  color: #111827 !important;
+  letter-spacing: -0.015em !important;
+}
+
+.evidence-preview-header span {
+  font-size: 0.74rem !important;
+  line-height: 1.3 !important;
+  color: #64748b !important;
+}
+
+.evidence-preview-header-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.6rem !important;
+  flex: 0 0 auto !important;
+}
+
+.evidence-preview-header-actions > span {
+  border-radius: 999px !important;
+  background: #eef2f7 !important;
+  color: #475569 !important;
+  padding: 0.28rem 0.55rem !important;
+  font-size: 0.68rem !important;
+  font-weight: 850 !important;
+}
+
+.evidence-preview-header-actions button {
+  min-height: 36px !important;
+  padding: 0.48rem 0.78rem !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  color: #1f2937 !important;
+  font-size: 0.74rem !important;
+  font-weight: 850 !important;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.05) !important;
+}
+
+.evidence-preview-header-actions button:hover {
+  border-color: #94a3b8 !important;
+  background: #f1f5f9 !important;
+}
+
+/* Preserve the current good 3-column layout */
+.support-layout-grid.word-crop-grid {
+  grid-template-columns: 292px minmax(620px, 1fr) 292px !important;
+  grid-template-areas: "evidence preview controls" !important;
+  gap: 1rem !important;
+}
+
+.support-page-frame {
+  grid-area: preview !important;
+}
+
+.word-left-evidence-manager {
+  grid-area: evidence !important;
+}
+
+.word-crop-controls {
+  grid-area: controls !important;
+}
+
+/* Do not shrink the preview after removing the top strip */
+.support-page-canvas {
+  width: min(100%, 720px) !important;
+  margin-inline: auto !important;
+}
+
+@media (max-width: 1020px) {
+  .evidence-preview-header {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+
+  .evidence-preview-header-actions {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+}
+
+/* Remove redundant Evidence Layout header and top thumbnail strip */
+.supporting-disclosure.layout-disclosure > .progressive-header,
+.layout-disclosure > .progressive-header {
+  display: none !important;
+}
+
+.supporting-disclosure.layout-disclosure > .progressive-body,
+.layout-disclosure > .progressive-body {
+  padding-top: 1rem !important;
+}
+
+/* Hide old thumbnail/reset toolbar above the editor */
+.supporting-disclosure.layout-disclosure .word-crop-toolbar,
+.layout-disclosure .word-crop-toolbar,
+.supporting-disclosure.layout-disclosure .compact-hidden-toolbar,
+.layout-disclosure .compact-hidden-toolbar {
+  display: none !important;
+}
+
+/* Make Arrange evidence page live only above the large preview */
+.evidence-preview-header {
+  margin-bottom: 0.85rem !important;
+  min-height: 62px !important;
+  padding: 0.85rem 1rem !important;
+  border: 1px solid #d8dee8 !important;
+  border-radius: 16px !important;
+  background: #f8fafc !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 1rem !important;
+}
+
+.evidence-preview-header > div:first-child {
+  display: grid !important;
+  gap: 0.22rem !important;
+}
+
+.evidence-preview-header strong {
+  font-size: 0.95rem !important;
+  font-weight: 900 !important;
+  color: #111827 !important;
+  letter-spacing: -0.015em !important;
+}
+
+.evidence-preview-header span {
+  font-size: 0.74rem !important;
+  line-height: 1.3 !important;
+  color: #64748b !important;
+}
+
+.evidence-preview-header-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.6rem !important;
+  flex: 0 0 auto !important;
+}
+
+.evidence-preview-header-actions > span {
+  border-radius: 999px !important;
+  background: #eef2f7 !important;
+  color: #475569 !important;
+  padding: 0.28rem 0.55rem !important;
+  font-size: 0.68rem !important;
+  font-weight: 850 !important;
+}
+
+.evidence-preview-header-actions button {
+  min-height: 36px !important;
+  padding: 0.48rem 0.78rem !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  color: #1f2937 !important;
+  font-size: 0.74rem !important;
+  font-weight: 850 !important;
+}
+
+/* Preserve the good 3-column editor layout */
+.support-layout-grid.word-crop-grid {
+  grid-template-columns: 292px minmax(620px, 1fr) 292px !important;
+  grid-template-areas: "evidence preview controls" !important;
+  align-items: start !important;
+  gap: 1rem !important;
+}
+
+.word-left-evidence-manager {
+  grid-area: evidence !important;
+}
+
+.support-page-frame {
+  grid-area: preview !important;
+}
+
+.word-crop-controls {
+  grid-area: controls !important;
+}
+
+.support-page-canvas {
+  width: min(100%, 720px) !important;
+  margin-inline: auto !important;
+}
+
+@media (max-width: 1020px) {
+  .support-layout-grid.word-crop-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "evidence"
+      "preview"
+      "controls" !important;
+  }
+
+  .evidence-preview-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .evidence-preview-header-actions {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+}
