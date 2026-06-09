@@ -119,24 +119,9 @@ function normalizeRunsOnly(paragraph: Element) {
 }
 
 function splitPersonalInformationSsnLine(paragraph: Element) {
-  const original = rawText(paragraph).replace(/\s+/g, ' ').trim();
-  const ssnMatch = original.match(SSN_PATTERN);
-
-  if (!ssnMatch) return false;
-
-  const ssn = normalizedSsn(ssnMatch[0]);
-  const withoutBadHyphenation = original.replace(/Security\s+num\s*[-‐-‒–—]\s*ber/gi, 'Security number');
-  const splitMatch = withoutBadHyphenation.match(/^(.*?\bcurrent\s+address\s+is\s+.*?\.?)\s+(My\s+(?:Social\s+)?Security\s+number\s+is)\s*(?:X{3}|\d{3})[-‐-‒–—](?:X{2}|\d{2})[-‐-‒–—](?:X{4}|\d{4})\.?$/i);
-
-  if (!splitMatch) return false;
-
-  const firstLine = splitMatch[1].replace(/\s+/g, ' ').replace(/\s*\.$/, '.').trim();
-  const secondLine = `${splitMatch[2].replace(/\s+/g, ' ')} ${ssn}`;
-
-  writeLines(paragraph, [firstLine, secondLine]);
-  preventSensitiveBreaks(paragraph);
-
-  return true;
+  // Disabled by design: preserve template layout and do not force line breaks.
+  // SSN protection is handled by non-breaking hyphens in normalizeRunsOnly().
+  return false;
 }
 
 function hardenParagraph(paragraph: Element) {
@@ -148,10 +133,10 @@ function hardenParagraph(paragraph: Element) {
   }
 
   SSN_PATTERN.lastIndex = 0;
+
+  // Preserve the template paragraph. Do not insert line breaks and do not move words.
+  // Only prevent Word from splitting SSN values across lines.
   preventSensitiveBreaks(paragraph);
-
-  if (splitPersonalInformationSsnLine(paragraph)) return;
-
   normalizeRunsOnly(paragraph);
 }
 

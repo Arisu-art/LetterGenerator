@@ -81,16 +81,19 @@ function preventWordHyphenation(paragraph: Element) {
 function normalizeSecurityNumberFormatting(paragraph: Element, ssn: string) {
   preventWordHyphenation(paragraph);
 
-  // If the template text or a prior render inserted a visible hyphen inside "number",
-  // remove only that hyphenation artifact and keep the words.
-  allMatches(paragraph, /Security\s+num\s*[-‐-–—]\s*ber\s+is\s*/gi, 'Security number is ');
+  // Preserve original template wording and paragraph flow.
+  // Do not force a new line. Only protect the SSN value itself.
+  const safeSsn = ssn.replace(/-/g, '\u2011');
 
-  // Replace the SSN value without changing the surrounding sentence.
-  allMatches(paragraph, /(?:X{3}|\d{3})-(?:X{2}|\d{2})-(?:X{4}|\d{4})/gi, ssn);
+  // Fix only accidental word-hyphenation artifacts such as "num- ber".
+  allMatches(paragraph, /Security\s+num\s*[-‐-‒–—]\s*ber/gi, 'Security number');
 
-  // Collapse only the oversized whitespace between "Security number is" and the SSN.
+  // Replace only the SSN value with a non-breaking-hyphen version.
+  allMatches(paragraph, /(?:X{3}|\d{3})[-‐-‒–—](?:X{2}|\d{2})[-‐-‒–—](?:X{4}|\d{4})/gi, safeSsn);
+
+  // Collapse only oversized spacing between the label and the SSN.
   const valueText = raw(paragraph);
-  const ssnIndex = valueText.indexOf(ssn);
+  const ssnIndex = valueText.indexOf(safeSsn);
   if (ssnIndex < 0) return;
 
   const beforeSsn = valueText.slice(0, ssnIndex);
