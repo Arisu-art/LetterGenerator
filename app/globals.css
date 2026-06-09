@@ -1781,3 +1781,266 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     max-height: none !important;
   }
 }
+
+/* FINAL supporting evidence editor layout: left manager + center preview + right controls */
+.layout-disclosure .support-layout-grid.word-crop-grid,
+.supporting-disclosure.layout-disclosure .support-layout-grid.word-crop-grid,
+.support-layout-grid.word-crop-grid {
+  display: grid !important;
+  grid-template-columns: 292px minmax(620px, 1fr) 292px !important;
+  grid-template-areas: "evidence preview controls" !important;
+  align-items: start !important;
+  gap: 1rem !important;
+  width: 100% !important;
+}
+
+/* LEFT: match Selected Image panel width and portrait behavior */
+.layout-disclosure .word-left-evidence-manager,
+.supporting-disclosure.layout-disclosure .word-left-evidence-manager,
+.word-left-evidence-manager {
+  grid-area: evidence !important;
+  width: 292px !important;
+  max-width: 292px !important;
+  min-width: 292px !important;
+  position: sticky !important;
+  top: 1rem !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  gap: 0.8rem !important;
+  max-height: calc(100vh - 150px) !important;
+  overflow: hidden !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08) !important;
+  padding: 0.95rem !important;
+}
+
+/* Evidence heading should look like right panel section heading */
+.word-left-evidence-manager .word-side-evidence-heading {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.65rem !important;
+  padding-bottom: 0.72rem !important;
+  border-bottom: 1px solid #d8dee8 !important;
+}
+
+.word-left-evidence-manager .word-side-evidence-heading p {
+  margin: 0 !important;
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase !important;
+  color: #64748b !important;
+}
+
+.word-left-evidence-manager .word-side-evidence-heading span {
+  border-radius: 999px !important;
+  background: #eef2f7 !important;
+  color: #475569 !important;
+  padding: 0.26rem 0.52rem !important;
+  font-size: 0.66rem !important;
+  font-weight: 850 !important;
+}
+
+/* Force evidence manager internals into one compact portrait column */
+.word-left-evidence-manager .source-supporting-grid,
+.word-left-evidence-manager .evidence-manager-compact {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  grid-auto-rows: auto !important;
+  gap: 0.72rem !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Compress upload box */
+.word-left-evidence-manager .supporting-dropzone,
+.word-left-evidence-manager .compact-evidence-dropzone {
+  min-height: 92px !important;
+  padding: 0.78rem !important;
+  border-radius: 15px !important;
+  border: 1px dashed #b6c2d1 !important;
+  background: #f8fafc !important;
+  display: grid !important;
+  align-content: center !important;
+  gap: 0.36rem !important;
+}
+
+.word-left-evidence-manager .supporting-dropzone strong,
+.word-left-evidence-manager .compact-evidence-dropzone strong {
+  font-size: 0.82rem !important;
+  line-height: 1.2 !important;
+  color: #111827 !important;
+}
+
+.word-left-evidence-manager .supporting-dropzone span,
+.word-left-evidence-manager .compact-evidence-dropzone span {
+  font-size: 0.68rem !important;
+  line-height: 1.25 !important;
+  color: #64748b !important;
+}
+
+.word-left-evidence-manager input[type="file"] {
+  max-width: 100% !important;
+  font-size: 0.7rem !important;
+}
+
+/* Compact evidence cards */
+.word-left-evidence-manager .source-supporting-list,
+.word-left-evidence-manager .compact-evidence-list {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 0.5rem !important;
+  max-height: 360px !important;
+  overflow: auto !important;
+  margin: 0 !important;
+  padding: 0 0.18rem 0 0 !important;
+}
+
+.word-left-evidence-manager .source-supporting-list li,
+.word-left-evidence-manager .compact-evidence-list li {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  gap: 0.5rem !important;
+  align-items: start !important;
+  padding: 0.58rem !important;
+  border-radius: 14px !important;
+  background: #f8fafc !important;
+  border: 1px solid #dbe3ee !important;
+  box-shadow: none !important;
+}
+
+.word-left-evidence-manager .support-order {
+  width: 1.85rem !important;
+  height: 1.85rem !important;
+  border-radius: 10px !important;
+  font-size: 0.75rem !important;
+  font-weight: 850 !important;
+}
+
+.word-left-evidence-manager .source-supporting-list li strong,
+.word-left-evidence-manager .compact-evidence-list li strong {
+  display: block !important;
+  max-width: 172px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 0.78rem !important;
+  line-height: 1.2 !important;
+}
+
+.word-left-evidence-manager .source-supporting-list li small,
+.word-left-evidence-manager .compact-evidence-list li small {
+  display: block !important;
+  font-size: 0.66rem !important;
+  line-height: 1.2 !important;
+  color: #64748b !important;
+}
+
+/* Reorder/remove buttons become compact action row */
+.word-left-evidence-manager .support-actions {
+  grid-column: 1 / -1 !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0.38rem !important;
+  margin-top: 0.18rem !important;
+}
+
+.word-left-evidence-manager .support-actions button {
+  min-height: 30px !important;
+  padding: 0.35rem 0.38rem !important;
+  font-size: 0.66rem !important;
+  line-height: 1 !important;
+  border-radius: 10px !important;
+}
+
+/* CENTER: restore large preview dominance */
+.layout-disclosure .support-page-frame,
+.supporting-disclosure.layout-disclosure .support-page-frame,
+.support-page-frame {
+  grid-area: preview !important;
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 0.9rem !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+.support-canvas-caption {
+  min-height: 54px !important;
+  padding: 0.8rem 1rem !important;
+  border-radius: 16px !important;
+  background: #f8fafc !important;
+  border: 1px solid #d8dee8 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 1rem !important;
+}
+
+.support-page-canvas {
+  width: min(100%, 720px) !important;
+  margin-inline: auto !important;
+}
+
+/* RIGHT: keep selected image controls fixed to right */
+.layout-disclosure .word-crop-controls,
+.supporting-disclosure.layout-disclosure .word-crop-controls,
+.word-crop-controls {
+  grid-area: controls !important;
+  width: 292px !important;
+  max-width: 292px !important;
+  min-width: 292px !important;
+  position: sticky !important;
+  top: 1rem !important;
+  align-self: start !important;
+}
+
+/* Hide any old/duplicate evidence-manager variants */
+.word-side-evidence-manager,
+.support-layout-side {
+  display: none !important;
+}
+
+/* Responsive fallback */
+@media (max-width: 1280px) {
+  .layout-disclosure .support-layout-grid.word-crop-grid,
+  .supporting-disclosure.layout-disclosure .support-layout-grid.word-crop-grid,
+  .support-layout-grid.word-crop-grid {
+    grid-template-columns: 270px minmax(520px, 1fr) 270px !important;
+  }
+
+  .word-left-evidence-manager,
+  .word-crop-controls {
+    width: 270px !important;
+    min-width: 270px !important;
+    max-width: 270px !important;
+  }
+
+  .support-page-canvas {
+    width: min(100%, 660px) !important;
+  }
+}
+
+@media (max-width: 1020px) {
+  .layout-disclosure .support-layout-grid.word-crop-grid,
+  .supporting-disclosure.layout-disclosure .support-layout-grid.word-crop-grid,
+  .support-layout-grid.word-crop-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "evidence"
+      "preview"
+      "controls" !important;
+  }
+
+  .word-left-evidence-manager,
+  .word-crop-controls {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    position: static !important;
+    max-height: none !important;
+  }
+}
