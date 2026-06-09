@@ -152,13 +152,8 @@ function findPopulatedHeaderParagraphs(body: Element, values: ReferenceDisputeVa
 }
 /** Suppresses only the inquiry heading; inquiry rows remain in the generated dispute document. */
 function removeHardInquiryLabels(body: Element) {
-  paragraphs(body).forEach((paragraph) => {
-    const match = content(paragraph).match(HARD_INQUIRY_LABEL);
-    if (!match) return;
-    const inlineRecord = match[1]?.trim();
-    if (inlineRecord) writeLines(paragraph, [inlineRecord]);
-    else body.removeChild(paragraph);
-  });
+  // Keep HARD INQUIRIES headings as stable insertion anchors for later-round templates.
+  return;
 }
 async function finalizeRenderedDisputeTemplate(blob: Blob, values: ReferenceDisputeValues) {
   const zip = new PizZip(await blob.arrayBuffer());
@@ -250,55 +245,126 @@ function terminalBodyBoundary(body: Element) {
 }
 function insertMappedDisputeItems(body: Element, source: { accounts: string[]; inquiries: string[] }) {
   if (!source.accounts.length && !source.inquiries.length) throw new Error('No matching account or inquiry records were found.');
+
   const all = paragraphs(body);
   const accountHeading = findParagraph(all, ACCOUNT_SECTION_PATTERNS);
-  const accountHeadingIndex = accountHeading ? all.indexOf(accountHeading) : -1;
-  const nextSectionBoundary = accountHeadingIndex >= 0
-    ? all.slice(accountHeadingIndex + 1).find((paragraph) => NEXT_SECTION_PATTERNS.some((pattern) => pattern.test(content(paragraph))))
-    : null;
+  const hardInquiryHeading = findParagraph(all, [HARD_INQUIRY_LABEL]);
   const legalBoundary = findParagraph(all, LEGAL_BOUNDARY_PATTERNS);
   const signatureBoundary = all.find((paragraph) => SIGNATURE_PATTERN.test(content(paragraph)));
   const terminalBoundary = terminalBodyBoundary(body);
-  const standardBoundary = nextSectionBoundary || legalBoundary || signatureBoundary;
-  const standardBoundaryIndex = standardBoundary ? all.indexOf(standardBoundary) : -1;
-  const reusableRegion = accountHeading && standardBoundary && standardBoundaryIndex > accountHeadingIndex
-    ? all.slice(accountHeadingIndex + 1, standardBoundaryIndex)
-    : [];
-  const itemStyle = reusableRegion.find((paragraph) => content(paragraph) && !content(paragraph).startsWith(STATEMENT_PREFIX))
-    || accountHeading
-    || standardBoundary
-    || all.find((paragraph) => content(paragraph))!;
-  const statementStyle = reusableRegion.find((paragraph) => content(paragraph).startsWith(STATEMENT_PREFIX));
-  const spacer = reusableRegion.find((paragraph) => !content(paragraph));
-  if (reusableRegion.length) reusableRegion.forEach((paragraph) => body.removeChild(paragraph));
-  const boundary = standardBoundary || (accountHeading ? accountHeading.nextSibling : terminalBoundary);
-  const insert = (node: Node) => boundary ? body.insertBefore(node, boundary) : body.appendChild(node);
-  const addSpace = () => { if (spacer) insert(spacer.cloneNode(true)); };
-  if (!accountHeading) insert(cloneWithText(itemStyle, ['DISPUTED ACCOUNTS']));
-  addSpace();
+  const fallbackBoundary = legalBoundary || signatureBoundary || terminalBoundary;
+
+  function indexOf(paragraph: Element | null | undefined) {
+    return paragraph ? all.indexOf(paragraph) : -1;
+  }
+
+  function firstBoundaryAfter(start: Element | null | undefined, fallback: Node | null | undefined) {
+    const startIndex = indexOf(start);
+    if (startIndex < 0) return fallback || null;
+
+    return all.slice(startIndex + 1).find((paragraph) =>
+      NEXT_SECTION_PATTERNS.some((pattern) => pattern.test(content(paragraph))) ||
+      LEGAL_BOUNDARY_PATTERNS.some((pattern) => pattern.test(content(paragraph))) ||
+      SIGNATURE_PATTERN.test(content(paragraph))
+    ) || fallback || null;
+  }
+
+  function regionBetween(start: Element | null | undefined, boundary: Node | null | undefined) {
+    if (!start || !boundary || !(boundary instanceof Element)) return [];
+
+    const startIndex = all.indexOf(start);
+    const boundaryIndex = all.indexOf(boundary);
+
+    return startIndex >= 0 && boundaryIndex > startIndex ? all.slice(startIndex + 1, boundaryIndex) : [];
+  }
+
+  function styleFrom(region: Element[], heading: Element | null | undefined, fallback: Node | null | undefined) {
+    return region.find((paragraph) => content(paragraph) && !content(paragraph).startsWith(STATEMENT_PREFIX))
+      || heading
+      || (fallback instanceof Element ? fallback : undefined)
+      || all.find((paragraph) => content(paragraph))!;
+  }
+
+  function statementStyleFrom(region: Element[], fallback: Element) {
+    return region.find((paragraph) => content(paragraph).startsWith(STATEMENT_PREFIX)) || fallback;
+  }
+
+  function spacerFrom(region: Element[]) {
+    return region.find((paragraph) => !content(paragraph));
+  }
+
+  function insertBefore(boundary: Node | null | undefined, node: Node) {
+    return boundary ? body.insertBefore(node, boundary) : body.appendChild(node);
+  }
+
+  function addSpacer(boundary: Node | null | undefined, sourceSpacer: Element | undefined) {
+    if (sourceSpacer) insertBefore(boundary, sourceSpacer.cloneNode(true));
+  }
+
+  const accountBoundary = accountHeading
+    ? firstBoundaryAfter(accountHeading, hardInquiryHeading || fallbackBoundary)
+    : hardInquiryHeading || fallbackBoundary;
+
+  const accountRegion = regionBetween(accountHeading, accountBoundary);
+  const accountStyle = styleFrom(accountRegion, accountHeading, accountBoundary);
+  const accountStatementStyle = statementStyleFrom(accountRegion, accountStyle);
+  const accountSpacer = spacerFrom(accountRegion);
+
+  accountRegion.forEach((paragraph) => paragraph.parentNode?.removeChild(paragraph));
+
+  if (!accountHeading) {
+    insertBefore(accountBoundary, cloneWithText(accountStyle, ['DISPUTED ACCOUNTS']));
+  }
+
+  addSpacer(accountBoundary, accountSpacer);
+
   source.accounts.forEach((account) => {
-    const accountParagraph = cloneWithText(itemStyle, account.split('\n'));
-    const statementParagraph = statementStyle
-      ? cloneWithText(statementStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT])
-      : cloneWithText(itemStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]);
+    const accountParagraph = cloneWithText(accountStyle, account.split('\n'));
+    const statementParagraph = cloneWithText(accountStatementStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]);
 
     keepDisputeBlockTogether([accountParagraph, statementParagraph]);
 
-    insert(accountParagraph);
-    insert(statementParagraph);
-    addSpace();
+    insertBefore(accountBoundary, accountParagraph);
+    insertBefore(accountBoundary, statementParagraph);
+    addSpacer(accountBoundary, accountSpacer);
   });
+
+  if (!source.inquiries.length) return;
+
+  const refreshedAfterAccounts = paragraphs(body);
+  const liveInquiryHeading = refreshedAfterAccounts.find((paragraph) => HARD_INQUIRY_LABEL.test(content(paragraph)));
+  const inquiryBoundary = liveInquiryHeading
+    ? firstBoundaryAfter(liveInquiryHeading, legalBoundary || signatureBoundary || terminalBoundary)
+    : legalBoundary || signatureBoundary || terminalBoundary;
+
+  const inquiryHeading = liveInquiryHeading || cloneWithText(accountStyle, ['HARD INQUIRIES']);
+
+  if (!liveInquiryHeading) {
+    insertBefore(inquiryBoundary, inquiryHeading);
+  }
+
+  const refreshedAfterHeading = paragraphs(body);
+  const finalInquiryHeading = refreshedAfterHeading.find((paragraph) => HARD_INQUIRY_LABEL.test(content(paragraph))) || inquiryHeading;
+  const inquiryRegion = regionBetween(finalInquiryHeading, inquiryBoundary);
+  const inquiryStyle = styleFrom(inquiryRegion, finalInquiryHeading, inquiryBoundary);
+  const inquiryStatementStyle = statementStyleFrom(inquiryRegion, inquiryStyle);
+  const inquirySpacer = spacerFrom(inquiryRegion);
+
+  inquiryRegion.forEach((paragraph) => {
+    if (paragraph !== finalInquiryHeading) paragraph.parentNode?.removeChild(paragraph);
+  });
+
+  addSpacer(inquiryBoundary, inquirySpacer);
+
   source.inquiries.forEach((inquiry) => {
-    const inquiryParagraph = cloneWithText(itemStyle, [inquiry]);
-    const statementParagraph = statementStyle
-      ? cloneWithText(statementStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT])
-      : cloneWithText(itemStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]);
+    const inquiryParagraph = cloneWithText(inquiryStyle, [inquiry]);
+    const statementParagraph = cloneWithText(inquiryStatementStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]);
 
     keepDisputeBlockTogether([inquiryParagraph, statementParagraph]);
 
-    insert(inquiryParagraph);
-    insert(statementParagraph);
-    addSpace();
+    insertBefore(inquiryBoundary, inquiryParagraph);
+    insertBefore(inquiryBoundary, statementParagraph);
+    addSpacer(inquiryBoundary, inquirySpacer);
   });
 }
 
