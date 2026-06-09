@@ -3000,3 +3000,163 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     justify-content: space-between !important;
   }
 }
+
+/* Final evidence preview header: thumbnail toolbar replaces text header */
+.support-layout-header.evidence-command-bar,
+.word-crop-toolbar,
+.compact-hidden-toolbar {
+  display: none !important;
+}
+
+.evidence-preview-toolbar-header {
+  min-height: 74px !important;
+  padding: 0.72rem 0.82rem !important;
+  border: 1px solid #d8dee8 !important;
+  border-radius: 16px !important;
+  background: #f8fafc !important;
+  display: block !important;
+}
+
+.evidence-preview-toolbar-header .evidence-header-tools {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto auto !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  width: 100% !important;
+}
+
+.evidence-preview-toolbar-header .support-image-strip {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  overflow-x: auto !important;
+  min-width: 0 !important;
+  padding: 0.12rem !important;
+}
+
+.evidence-preview-toolbar-header .support-image-strip button {
+  flex: 0 0 auto !important;
+  min-width: 145px !important;
+  max-width: 155px !important;
+  height: 52px !important;
+  border-radius: 13px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  display: grid !important;
+  grid-template-columns: 44px auto minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 0.45rem !important;
+  padding: 0.38rem 0.5rem !important;
+}
+
+.evidence-preview-toolbar-header .support-image-strip button.selected {
+  border-color: #475569 !important;
+  box-shadow: 0 0 0 2px rgba(71, 85, 105, 0.12) !important;
+}
+
+.evidence-preview-toolbar-header .support-image-strip button span {
+  width: 42px !important;
+  height: 36px !important;
+  border-radius: 9px !important;
+  overflow: hidden !important;
+  background: #eef2f7 !important;
+}
+
+.evidence-preview-toolbar-header .support-image-strip button img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+.evidence-preview-toolbar-header .support-image-strip button strong {
+  font-size: 0.72rem !important;
+  font-weight: 900 !important;
+  color: #111827 !important;
+}
+
+.evidence-preview-toolbar-header .support-image-strip button small {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  color: #111827 !important;
+}
+
+.evidence-preview-toolbar-header .controls-divider,
+.evidence-preview-toolbar-header .evidence-toolbar-separator {
+  width: 1px !important;
+  height: 42px !important;
+  background: #d8dee8 !important;
+}
+
+.evidence-preview-toolbar-header .evidence-auto-align {
+  min-height: 42px !important;
+  padding: 0.55rem 0.9rem !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  font-size: 0.74rem !important;
+  font-weight: 850 !important;
+}
+
+/* Give the center preview more room again */
+.support-layout-grid.word-crop-grid {
+  grid-template-columns: 292px minmax(680px, 1fr) 292px !important;
+  grid-template-areas: "evidence preview controls" !important;
+  gap: 1rem !important;
+}
+
+.support-page-frame {
+  grid-area: preview !important;
+  min-width: 0 !important;
+}
+
+.support-page-canvas {
+  width: min(100%, 780px) !important;
+  margin-inline: auto !important;
+}
+
+.word-left-evidence-manager {
+  grid-area: evidence !important;
+}
+
+.word-crop-controls {
+  grid-area: controls !important;
+}
+
+@media (max-width: 1180px) {
+  .support-layout-grid.word-crop-grid {
+    grid-template-columns: 280px minmax(520px, 1fr) 280px !important;
+  }
+
+  .support-page-canvas {
+    width: min(100%, 700px) !important;
+  }
+
+  .evidence-preview-toolbar-header .support-image-strip button {
+    min-width: 128px !important;
+    max-width: 136px !important;
+  }
+}
+
+@media (max-width: 1020px) {
+  .support-layout-grid.word-crop-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "evidence"
+      "preview"
+      "controls" !important;
+  }
+
+  .evidence-preview-toolbar-header .evidence-header-tools {
+    grid-template-columns: 1fr !important;
+  }
+
+  .evidence-preview-toolbar-header .controls-divider,
+  .evidence-preview-toolbar-header .evidence-toolbar-separator {
+    display: none !important;
+  }
+}
