@@ -62,18 +62,27 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, embed
   }
   function move(id: string, direction: -1 | 1) { changed(moveSupportingAsset(storageKey, id, direction)); }
   const ready = assets.supporting.length > 0;
+  const managerPanel = <div className="source-supporting-grid evidence-manager-compact">
+    <label className="supporting-dropzone required-dropzone compact-evidence-dropzone">
+      <strong>{ready ? 'Add evidence images' : 'Upload evidence images'}</strong>
+      <span>JPG, PNG or WEBP · included in packet position 02</span>
+      <input disabled={busy} multiple type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={(event) => { const files = Array.from(event.target.files || []); if (files.length) void add(files); event.target.value = ''; }} />
+    </label>
+    {ready ? <ol className="source-supporting-list compact-evidence-list">{assets.supporting.map((asset, index) => <li key={asset.id}>
+      <span className="support-order">{index + 1}</span>
+      <div><strong>{asset.name}</strong><small>{size(asset.size)}{asset.placement ? ' · Layout adjusted' : ' · Ready to arrange'}</small></div>
+      <div className="support-actions"><button type="button" disabled={index === 0} onClick={() => move(asset.id, -1)} aria-label="Move up">↑</button><button type="button" disabled={index === assets.supporting.length - 1} onClick={() => move(asset.id, 1)} aria-label="Move down">↓</button><button type="button" onClick={() => void remove(asset.id)}>Remove</button></div>
+    </li>)}</ol> : null}
+  </div>;
   return <section className={`${embedded ? 'source-supporting-embedded required-supporting-embedded' : 'panel source-supporting-panel'} progressive-supporting`}>
     {!embedded && <header className="supporting-header">
       <div><p className="eyebrow">Required evidence</p><h2>Supporting Documents</h2><p>Upload and arrange evidence for <strong>{clientName}</strong>.</p></div>
       <span className={`supporting-count ${ready ? 'has-files' : ''}`}>{assets.supporting.length} file{assets.supporting.length === 1 ? '' : 's'}</span>
     </header>}
     {embedded && <div className={`embedded-evidence-summary ${ready ? 'complete' : 'required'}`}><div><strong>{ready ? 'Evidence page ready for layout' : 'Evidence image required'}</strong><span>{ready ? `Client: ${clientName}` : 'Upload at least one image for packet position 02.'}</span></div><span className={`supporting-count ${ready ? 'has-files' : ''}`}>{assets.supporting.length} file{assets.supporting.length === 1 ? '' : 's'}</span></div>}
-    <ProgressiveDisclosure open={manageOpen} onToggle={() => setManageOpen((value) => !value)} title={ready ? 'Manage uploaded evidence' : 'Upload required evidence'} summary={ready ? `${assets.supporting.length} file(s) assigned to packet position 02` : 'Required for every ordered packet'} badge={<span className={`packet-status ${ready ? 'ready' : 'required'}`}>{ready ? 'Ready' : 'Required'}</span>} className="supporting-disclosure evidence-upload-disclosure">
-      <div className="source-supporting-grid">
-        <label className="supporting-dropzone required-dropzone"><strong>{ready ? 'Add evidence images' : 'Upload evidence images'}</strong><span>JPG, PNG or WEBP · included in packet position 02</span><input disabled={busy} multiple type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={(event) => { const files = Array.from(event.target.files || []); if (files.length) void add(files); event.target.value = ''; }} /></label>
-        {ready ? <ol className="source-supporting-list">{assets.supporting.map((asset, index) => <li key={asset.id}><span className="support-order">{index + 1}</span><div><strong>{asset.name}</strong><small>{size(asset.size)}{asset.placement ? ' · Layout adjusted' : ' · Ready to arrange'}</small></div><div className="support-actions"><button type="button" disabled={index === 0} onClick={() => move(asset.id, -1)} aria-label="Move up">↑</button><button type="button" disabled={index === assets.supporting.length - 1} onClick={() => move(asset.id, 1)} aria-label="Move down">↓</button><button type="button" onClick={() => void remove(asset.id)}>Remove</button></div></li>)}</ol> : null}
-      </div>
-    </ProgressiveDisclosure>
-    {ready && <ProgressiveDisclosure open={layoutOpen} onToggle={() => setLayoutOpen((value) => !value)} title="Arrange evidence page" summary="Crop, rotate and position images on one clean page" badge={<span className="packet-status ready">Editable</span>} className="supporting-disclosure layout-disclosure"><SupportingDocumentsLayoutEditor storageKey={storageKey} assets={assets} onChanged={changed} onMessage={onMessage} /></ProgressiveDisclosure>}
+    {!ready && <ProgressiveDisclosure open={manageOpen} onToggle={() => setManageOpen((value) => !value)} title="Upload required evidence" summary="Required for every ordered packet" badge={<span className="packet-status required">Required</span>} className="supporting-disclosure evidence-upload-disclosure">
+      {managerPanel}
+    </ProgressiveDisclosure>}
+    {ready && <ProgressiveDisclosure open={layoutOpen} onToggle={() => setLayoutOpen((value) => !value)} title="Arrange evidence page" summary="Manage, crop, rotate and position images on one clean page" badge={<span className="packet-status ready">Editable</span>} className="supporting-disclosure layout-disclosure"><SupportingDocumentsLayoutEditor storageKey={storageKey} assets={assets} managerPanel={managerPanel} onChanged={changed} onMessage={onMessage} /></ProgressiveDisclosure>}
   </section>;
 }

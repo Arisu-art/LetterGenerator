@@ -355,6 +355,7 @@ export default function SimpleDocxEditor({
   onSave
 }: Props) {
   const [active, setActive] = useState<SlotId>(() => slotForDocument(initialDocumentPath, documents));
+  const lastInitialDocumentPath = useRef(initialDocumentPath);
   const exhibits = useMemo(() => loadTemplateExhibits(round), [round]);
 
   const letter = documents.find((document) => roleOf(document) === 'LETTER') || output;
@@ -413,8 +414,11 @@ export default function SimpleDocxEditor({
   }, [output.type, letter, affidavit, ftc, evidence?.supporting.length, exhibits]);
 
   useEffect(() => {
-    setActive(slotForDocument(initialDocumentPath, documents));
-  }, [initialDocumentPath, output.path, documents]);
+    if (lastInitialDocumentPath.current !== initialDocumentPath) {
+      lastInitialDocumentPath.current = initialDocumentPath;
+      setActive(slotForDocument(initialDocumentPath, documents));
+    }
+  }, [initialDocumentPath, documents]);
 
   useEffect(() => {
     if (!slots.some((slot) => slot.id === active)) {

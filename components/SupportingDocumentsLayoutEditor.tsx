@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode
 import { createPortal } from 'react-dom';
 import { loadPacketFile, saveSupportingPlacement, resetSupportingPlacements, type PacketAsset, type PacketAssets, type SupportingPlacement, type SupportingRotation } from '../lib/packet-assets';
 
-type Props = { storageKey: string; assets: PacketAssets; toolbarTargetId?: string; onChanged: (assets: PacketAssets) => void; onMessage: (message: string) => void };
+type Props = { storageKey: string; assets: PacketAssets; toolbarTargetId?: string; managerPanel?: ReactNode; onChanged: (assets: PacketAssets) => void; onMessage: (message: string) => void };
 type Preview = { id: string; url: string };
 type ToolMode = 'POSITION' | 'CROP';
 type CropHandle = 'top-left' | 'top' | 'top-right' | 'right' | 'bottom-right' | 'bottom' | 'bottom-left' | 'left';
-type Drag = { id: string; pointerId: number; x: number; y: number; placement: SupportingPlacement; mode: 'MOVE' | 'PAN' | 'HANDLE'; handle?: CropHandle } | null;
+type Drag = { id: string; pointerId: number; x: number; y: number; placement: SupportingPlacement; mode: 'MOVE' | 'PAN' | 'HANDLE'; handle?: CropHandle; moved: boolean } | null;
 const PAGE_RATIO = 8.5 / 11;
 const MIN = 0.08;
 const MIN_CROP = 0.1;
@@ -130,7 +130,7 @@ function PreviewCanvas({ url, box, label }: { url?: string; box: SupportingPlace
   return url ? <canvas ref={canvas} className="support-cropped-preview" role="img" aria-label={label} /> : null;
 }
 
-export default function SupportingDocumentsLayoutEditor({ storageKey, assets, toolbarTargetId, onChanged, onMessage }: Props) {
+export default function SupportingDocumentsLayoutEditor({ storageKey, assets, toolbarTargetId, managerPanel, onChanged, onMessage }: Props) {
   const [workingAssets, setWorkingAssets] = useState<PacketAssets>(assets);
   const [previews, setPreviews] = useState<Preview[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(assets.supporting[0]?.id || null);
@@ -245,20 +245,22 @@ export default function SupportingDocumentsLayoutEditor({ storageKey, assets, to
     const isSelected = asset.id === selectedId;
     const mode = isSelected && tool === 'CROP' ? 'PAN' : 'MOVE';
     choose(asset.id);
-    setDrag({ id: asset.id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, placement: placement(asset, index, workingAssets.supporting.length), mode });
+    setDrag({ id: asset.id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, placement: placement(asset, index, workingAssets.supporting.length), mode, moved: false });
   }
   function startHandle(event: PointerEvent<HTMLElement>, handle: CropHandle) {
     if (!selected || !current) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    setDrag({ id: selected.id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, placement: current, mode: 'HANDLE', handle });
+    setDrag({ id: selected.id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, placement: current, mode: 'HANDLE', handle, moved: false });
   }
   function move(event: PointerEvent<HTMLElement>) {
     if (!drag || drag.pointerId !== event.pointerId || !page.current) return;
     const bounds = page.current.getBoundingClientRect();
     const deltaX = (event.clientX - drag.x) / bounds.width;
     const deltaY = (event.clientY - drag.y) / bounds.height;
+    const hasMoved = Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 2;
+    if (hasMoved && !drag.moved) setDrag((value) => value && value.pointerId === event.pointerId ? { ...value, moved: true } : value);
     if (drag.mode === 'HANDLE' && drag.handle) { persist(drag.id, cropWithHandle(drag.placement, drag.handle, deltaX, deltaY), false); return; }
     if (drag.mode === 'PAN') {
       const frameWidth = Math.max(1, bounds.width * drag.placement.width);
@@ -268,12 +270,26 @@ export default function SupportingDocumentsLayoutEditor({ storageKey, assets, to
     }
     persist(drag.id, { ...drag.placement, x: clamp(drag.placement.x + deltaX, 0, 1 - drag.placement.width), y: clamp(drag.placement.y + deltaY, 0, 1 - drag.placement.height) }, false);
   }
-  function finish(event: PointerEvent<HTMLElement>) { if (drag?.pointerId === event.pointerId) { onChanged(latestAssets.current); setDrag(null); if (drag.mode === 'HANDLE') onMessage('Crop boundary saved.'); else if (drag.mode === 'MOVE') onMessage('Evidence position saved for packet position 02.'); } }
+  function finish(event: PointerEvent<HTMLElement>) {
+    if (drag?.pointerId !== event.pointerId) return;
+
+    const hasMoved = drag.moved || Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 2;
+
+    setDrag(null);
+
+    if (!hasMoved) return;
+
+    onChanged(latestAssets.current);
+
+    if (drag.mode === 'HANDLE') onMessage('Crop boundary saved.');
+    else if (drag.mode === 'MOVE') onMessage('Evidence position saved for packet position 02.');
+    else if (drag.mode === 'PAN') onMessage('Crop position saved.');
+  }
   function resetPage() { const updated = resetSupportingPlacements(storageKey); latestAssets.current = updated; setWorkingAssets(updated); onChanged(updated); setTool('POSITION'); onMessage('Evidence page returned to automatic alignment.'); }
   if (!workingAssets.supporting.length) return null;
   const toolbar: ReactNode = <div className="evidence-header-tools"><nav className="support-image-strip" aria-label="Evidence images">{workingAssets.supporting.map((asset, index) => <button type="button" key={asset.id} className={asset.id === selectedId ? 'selected' : ''} onClick={() => choose(asset.id)}><span>{images.get(asset.id) && <img src={images.get(asset.id)} alt="" />}</span><strong>{String(index + 1).padStart(2, '0')}</strong><small>{asset.name}</small></button>)}</nav><span className="evidence-toolbar-separator controls-divider" aria-hidden="true" /><button type="button" className="evidence-auto-align" onClick={resetPage}>Reset page</button></div>;
   return <section className="support-layout-editor professional-evidence-editor word-crop-editor">
     {toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbarTargetId ? null : <header className="support-layout-header evidence-command-bar"><div className="evidence-heading"><p className="eyebrow">Evidence editor</p><h3>Supporting Documents page</h3><span>Position, crop or rotate the selected image.</span></div><span className="evidence-toolbar-separator" aria-hidden="true" />{toolbar}</header>}
-    <div className="support-layout-grid word-crop-grid"><div className="support-page-frame"><div className="support-canvas-caption"><strong>Page preview</strong><span>{tool === 'CROP' ? 'Drag handles to crop or drag image to reposition inside the crop' : 'Drag an image to position it on the page'}</span></div><div ref={page} className={`support-page-canvas tool-${tool.toLowerCase()}`} style={{ aspectRatio: String(PAGE_RATIO) }}>{workingAssets.supporting.map((asset, index) => { const box = placement(asset, index, workingAssets.supporting.length); const selectedItem = asset.id === selectedId; return <div key={asset.id} className={`support-canvas-item ${selectedItem ? 'selected' : ''} ${selectedItem && tool === 'CROP' ? 'cropping word-cropping' : ''}`} style={{ left: pct(box.x), top: pct(box.y), width: pct(box.width), height: pct(box.height) }} onPointerDown={(event) => startImage(event, asset, index)} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish}><PreviewCanvas url={images.get(asset.id)} box={box} label={asset.name} />{selectedItem && tool === 'CROP' && <>{(['top-left', 'top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left'] as CropHandle[]).map((handle) => <i key={handle} className={`crop-handle ${handle}`} onPointerDown={(event) => startHandle(event, handle)} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} />)}</>}<span>{index + 1}</span></div>; })}</div></div>{selected && current && <aside className="support-layout-controls word-crop-controls"><header><div><p className="eyebrow">Selected image</p><strong>{selected.name}</strong></div><span>{String(selectedIndex + 1).padStart(2, '0')}</span></header><div className="word-crop-actions">{tool === 'CROP' ? <button type="button" className="action-button" onClick={doneCrop}>Done cropping</button> : <button type="button" className="action-button crop-command" onClick={beginCrop}>Crop image</button>}</div><div className="word-control-section"><p>Image fit</p><div className="word-fit-actions" aria-label="Image fit mode"><label><span>Fit mode</span><select value={current.fit || 'contain'} onChange={(event) => edit({ fit: event.target.value as SupportingPlacement['fit'] })}><option value="contain">Contain — no stretch</option><option value="cover">Cover frame</option><option value="stretch">Stretch/manual</option></select></label></div></div><div className="word-control-section"><p>Resize frame</p><div className="word-resize-actions"><button type="button" onClick={() => resizeSelected(0.92)}>− Smaller</button><button type="button" onClick={() => resizeSelected(1.08)}>+ Larger</button><button type="button" onClick={() => void tightenSelectedFrame()}>Tighten frame</button><button type="button" onClick={fitSelectedToWidth}>Fit width</button><button type="button" onClick={centerSelected}>Center</button></div></div><div className="word-control-section"><p>Orientation</p><div className="word-rotate-actions"><button type="button" onClick={() => rotate(-90)} aria-label="Rotate image left 90 degrees">↶ Rotate left</button><button type="button" onClick={() => rotate(90)} aria-label="Rotate image right 90 degrees">Rotate right ↷</button></div></div><div className="word-control-section"><p>Reset</p><div className="word-position-actions"><button type="button" onClick={() => persist(selected.id, auto(selectedIndex, workingAssets.supporting.length))}>Reset slot</button><button type="button" onClick={resetCrop}>Reset crop</button></div></div></aside>}</div>
+    <div className="support-layout-grid word-crop-grid"><div className="support-page-frame"><div className="support-layout-side">{managerPanel ? <div className="support-layout-manager-slot">{managerPanel}</div> : <div className="support-canvas-caption"><strong>Page preview</strong><span>{tool === 'CROP' ? 'Drag handles to crop or drag image to reposition inside the crop' : 'Drag an image to position it on the page'}</span></div>}</div><div ref={page} className={`support-page-canvas tool-${tool.toLowerCase()}`} style={{ aspectRatio: String(PAGE_RATIO) }}>{workingAssets.supporting.map((asset, index) => { const box = placement(asset, index, workingAssets.supporting.length); const selectedItem = asset.id === selectedId; return <div key={asset.id} className={`support-canvas-item ${selectedItem ? 'selected' : ''} ${selectedItem && tool === 'CROP' ? 'cropping word-cropping' : ''}`} style={{ left: pct(box.x), top: pct(box.y), width: pct(box.width), height: pct(box.height) }} onPointerDown={(event) => startImage(event, asset, index)} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish}><PreviewCanvas url={images.get(asset.id)} box={box} label={asset.name} />{selectedItem && tool === 'CROP' && <>{(['top-left', 'top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left'] as CropHandle[]).map((handle) => <i key={handle} className={`crop-handle ${handle}`} onPointerDown={(event) => startHandle(event, handle)} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} />)}</>}<span>{index + 1}</span></div>; })}</div></div>{selected && current && <aside className="support-layout-controls word-crop-controls"><header><div><p className="eyebrow">Selected image</p><strong>{selected.name}</strong></div><span>{String(selectedIndex + 1).padStart(2, '0')}</span></header><div className="word-crop-actions">{tool === 'CROP' ? <button type="button" className="action-button" onClick={doneCrop}>Done cropping</button> : <button type="button" className="action-button crop-command" onClick={beginCrop}>Crop image</button>}</div><div className="word-control-section"><p>Image fit</p><div className="word-fit-actions" aria-label="Image fit mode"><label><span>Fit mode</span><select value={current.fit || 'contain'} onChange={(event) => edit({ fit: event.target.value as SupportingPlacement['fit'] })}><option value="contain">Contain — no stretch</option><option value="cover">Cover frame</option><option value="stretch">Stretch/manual</option></select></label></div></div><div className="word-control-section"><p>Resize frame</p><div className="word-resize-actions"><button type="button" onClick={() => resizeSelected(0.92)}>− Smaller</button><button type="button" onClick={() => resizeSelected(1.08)}>+ Larger</button><button type="button" onClick={() => void tightenSelectedFrame()}>Tighten frame</button><button type="button" onClick={fitSelectedToWidth}>Fit width</button><button type="button" onClick={centerSelected}>Center</button></div></div><div className="word-control-section"><p>Orientation</p><div className="word-rotate-actions"><button type="button" onClick={() => rotate(-90)} aria-label="Rotate image left 90 degrees">↶ Rotate left</button><button type="button" onClick={() => rotate(90)} aria-label="Rotate image right 90 degrees">Rotate right ↷</button></div></div><div className="word-control-section"><p>Reset</p><div className="word-position-actions"><button type="button" onClick={() => persist(selected.id, auto(selectedIndex, workingAssets.supporting.length))}>Reset slot</button><button type="button" onClick={resetCrop}>Reset crop</button></div></div></aside>}</div>
   </section>;
 }

@@ -1223,3 +1223,80 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   max-width: 100%;
   max-height: 100%;
 }
+
+/* Evidence layout UX: integrated manager + stable editor selection */
+.support-page-frame {
+  display: grid;
+  grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.support-layout-side {
+  position: sticky;
+  top: 1rem;
+  align-self: start;
+}
+
+.support-layout-manager-slot {
+  border: 1px solid #cbd5e1;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  padding: 0.85rem;
+}
+
+.evidence-manager-compact {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.78rem;
+}
+
+.compact-evidence-dropzone {
+  min-height: 112px !important;
+  padding: 1rem !important;
+  border-radius: 16px !important;
+  background: #f8fafc !important;
+}
+
+.compact-evidence-list {
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.compact-evidence-list li {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.compact-evidence-list .support-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.compact-evidence-list .support-actions button {
+  min-height: 34px;
+  border-radius: 10px;
+}
+
+.support-canvas-caption {
+  border: 1px solid #cbd5e1;
+  border-radius: 16px;
+  background: #f8fafc;
+  padding: 1rem;
+  color: #334155;
+}
+
+@media (max-width: 1100px) {
+  .support-page-frame {
+    grid-template-columns: 1fr;
+  }
+
+  .support-layout-side {
+    position: static;
+  }
+}
