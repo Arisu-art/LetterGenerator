@@ -104,6 +104,6 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, embed
     {!ready && <ProgressiveDisclosure open={manageOpen} onToggle={() => setManageOpen((value) => !value)} title="Upload required evidence" summary="Required for every ordered packet" badge={<span className="packet-status required">Required</span>} className="supporting-disclosure evidence-upload-disclosure">
       {managerPanel}
     </ProgressiveDisclosure>}
-    {ready && <ProgressiveDisclosure open={layoutOpen} onToggle={() => setLayoutOpen((value) => !value)} title="Arrange evidence page" summary="Manage, crop, rotate and position images on one clean page" badge={<span className="packet-status ready">Editable</span>} className="supporting-disclosure layout-disclosure"><SupportingDocumentsLayoutEditor storageKey={storageKey} assets={assets} managerPanel={managerPanel} onChanged={changed} onMessage={onMessage} /></ProgressiveDisclosure>}
+    {ready && <ProgressiveDisclosure open={layoutOpen} onToggle={() => setLayoutOpen((value) => !value)} title="Evidence layout" summary="Position 02 supporting documents" badge={<span className="packet-status ready">Editable</span>} className="supporting-disclosure layout-disclosure"><SupportingDocumentsLayoutEditor storageKey={storageKey} assets={assets} managerPanel={managerPanel} onChanged={changed} onMessage={onMessage} /></ProgressiveDisclosure>}
   </section>;
 }
