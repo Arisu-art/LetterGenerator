@@ -1,0 +1,79 @@
+/* Supporting Documents editor balance
+   Goal: center preview + controls, remove giant left dead-space,
+   and prevent 1/2 image frames from becoming oversized. */
+
+.support-layout-editor.professional-evidence-editor,
+.support-layout-editor.word-crop-editor {
+  width: 100% !important;
+}
+
+.support-layout-grid.word-crop-grid {
+  display: grid !important;
+  grid-template-columns: minmax(520px, 680px) minmax(270px, 292px) !important;
+  grid-template-areas: "preview controls" !important;
+  justify-content: center !important;
+  align-items: start !important;
+  gap: 1.15rem !important;
+  width: min(100%, 1040px) !important;
+  margin-inline: auto !important;
+}
+
+/* The thumbnail strip already replaces the left evidence manager in this view. */
+.support-layout-grid.word-crop-grid > .word-left-evidence-manager {
+  display: none !important;
+}
+
+.support-page-frame {
+  grid-area: preview !important;
+  justify-self: center !important;
+  width: min(100%, 680px) !important;
+  min-width: 0 !important;
+}
+
+.word-crop-controls,
+.support-layout-controls.word-crop-controls {
+  grid-area: controls !important;
+  justify-self: start !important;
+  width: 292px !important;
+  max-width: 292px !important;
+}
+
+.support-page-canvas {
+  width: min(100%, 520px) !important;
+  margin-inline: auto !important;
+}
+
+/* Prevent visual stretching inside any slot. The slot size comes from TS geometry. */
+.support-canvas-item {
+  overflow: hidden !important;
+}
+
+.support-canvas-item canvas,
+.support-canvas-item img {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+}
+
+/* Reduce dead space inside the editor body. */
+.supporting-disclosure .progressive-region-inner,
+.layout-disclosure .progressive-region-inner {
+  padding-inline: clamp(0.75rem, 1.2vw, 1.25rem) !important;
+}
+
+@media (max-width: 980px) {
+  .support-layout-grid.word-crop-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "preview"
+      "controls" !important;
+    width: 100% !important;
+  }
+
+  .word-crop-controls,
+  .support-layout-controls.word-crop-controls {
+    justify-self: center !important;
+    width: min(100%, 520px) !important;
+    max-width: 520px !important;
+  }
+}

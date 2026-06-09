@@ -18,13 +18,13 @@ function supportSlot(index: number, total: number): Pick<SupportingPlacement, 'x
   const count = Math.max(1, Math.min(total || 1, 12));
 
   if (count === 1) {
-    return { x: 0.08, y: 0.20, width: 0.84, height: 0.56 };
+    return { x: 0.14, y: 0.36, width: 0.72, height: 0.28 };
   }
 
   if (count === 2) {
-    const height = 0.36;
-    const top = 0.14;
-    return { x: 0.08, y: top + index * height, width: 0.84, height };
+    const height = 0.265;
+    const top = 0.235;
+    return { x: 0.14, y: top + index * height, width: 0.72, height };
   }
 
   if (count === 3) {

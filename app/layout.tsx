@@ -46,6 +46,7 @@ import './inactive-packet-position.css';
 import './platform-quality-canvas.css';
 import './execution-integrity.css';
 import './complete-package-delivery.css';
+import './supporting-editor-balanced-stage.css';
 import './supporting-slot-balance.css';
 import './evidence-layout-final-polish.css';
 
