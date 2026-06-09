@@ -1085,3 +1085,94 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .word-fit-actions select:hover {
   border-color: #94a3b8;
 }
+
+/* Supporting evidence editor: clearer frame and connected control UX */
+.support-page-canvas {
+  background:
+    linear-gradient(180deg, #d7dde5 0%, #cbd5e1 100%) !important;
+  border: 1px solid #aab4c2 !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 16px 34px rgba(15, 23, 42, 0.12) !important;
+}
+
+.support-canvas-item {
+  background:
+    linear-gradient(135deg, #cbd5e1 0%, #e2e8f0 100%) !important;
+  border: 1.5px dashed #8793a2 !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 8px 20px rgba(15, 23, 42, 0.1) !important;
+}
+
+.support-canvas-item.selected {
+  border: 2px solid #475569 !important;
+  box-shadow:
+    0 0 0 3px rgba(71, 85, 105, 0.16),
+    0 12px 26px rgba(15, 23, 42, 0.16) !important;
+}
+
+.support-canvas-item canvas {
+  background: #e5e7eb;
+}
+
+.word-crop-controls {
+  gap: 0.85rem;
+}
+
+.word-crop-help {
+  background: #e2e8f0 !important;
+  color: #334155 !important;
+  border: 1px solid #cbd5e1;
+}
+
+.word-control-section {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.78rem;
+  border-top: 1px solid #d8dee8;
+}
+
+.word-control-section > p {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.word-resize-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.word-resize-actions button,
+.word-position-actions button,
+.word-rotate-actions button,
+.word-crop-actions button,
+.word-fit-actions select {
+  border-color: #b8c2cf !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%) !important;
+  color: #1f2937 !important;
+  font-weight: 850 !important;
+}
+
+.word-resize-actions button:hover,
+.word-position-actions button:hover,
+.word-rotate-actions button:hover,
+.word-crop-actions button:hover,
+.word-fit-actions select:hover {
+  border-color: #64748b !important;
+  background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%) !important;
+}
+
+.word-crop-actions .action-button {
+  background: #4b5563 !important;
+  border-color: #4b5563 !important;
+  color: #ffffff !important;
+}
+
+.word-crop-actions .action-button:hover {
+  background: #374151 !important;
+  border-color: #374151 !important;
+}
