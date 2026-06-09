@@ -34,10 +34,11 @@ export function loadReferenceMeta() {
   try {
     const raw = localStorage.getItem(META_KEY) || localStorage.getItem('lettergenerator.visual-reference-output.v13');
     const values = raw ? JSON.parse(raw) as LetterReference[] : [];
+    const saved = Array.isArray(values) ? values : [];
 
-    return defaultReferences().map((item) => ({
-      ...item,
-      ...(Array.isArray(values) ? values.find((value) => value.id === item.id) : undefined)
+    return defaultReferences().map((slot) => ({
+      ...slot,
+      ...(saved.find((value) => value.id === slot.id) || {})
     }));
   } catch {
     return defaultReferences();
@@ -60,12 +61,46 @@ export function saveReferenceMeta(values: LetterReference[]) {
   const incoming = Array.isArray(values) ? values : [];
   const byId = new Map<string, LetterReference>();
 
-  for (const item of defaultReferences()) byId.set(item.id, item);
-  for (const item of existing) if (item?.id) byId.set(item.id, { ...(byId.get(item.id) || item), ...item });
-  for (const item of incoming) if (item?.id) byId.set(item.id, { ...(byId.get(item.id) || item), ...item });
+  /*
+    All-round persistence contract:
+    - every slot is keyed by id, not by active round
+    - saving one slot cannot erase another round's slot
+    - each round keeps its own file name, size, and placeholder contract
+  */
+  for (const slot of defaultReferences()) byId.set(slot.id, slot);
+  for (const slot of existing) if (slot?.id) byId.set(slot.id, { ...(byId.get(slot.id) || slot), ...slot });
+  for (const slot of incoming) if (slot?.id) byId.set(slot.id, { ...(byId.get(slot.id) || slot), ...slot });
 
-  const merged = defaultReferences().map((item) => byId.get(item.id) || item);
+  const merged = defaultReferences().map((slot) => byId.get(slot.id) || slot);
   localStorage.setItem(META_KEY, JSON.stringify(merged));
+}
+
+export async function recoverReferenceMetaFromFiles(values: LetterReference[] = loadReferenceMeta()) {
+  if (typeof window === 'undefined') return defaultReferences();
+
+  const base = defaultReferences().map((slot) => ({
+    ...slot,
+    ...(values.find((value) => value.id === slot.id) || {})
+  }));
+
+  const recovered = await Promise.all(base.map(async (slot) => {
+    const file = await readReferenceFile(slot.id).catch(() => null);
+
+    if (!file) return slot;
+
+    const kind = slot.type === 'DISPUTE' ? 'DISPUTE_LETTER' : 'LATE_PAYMENT_LETTER';
+    const contract = slot.contract || await inspectTemplateContract(file, kind).catch(() => slot.contract);
+
+    return {
+      ...slot,
+      file: slot.file || file.name,
+      size: slot.size || file.size,
+      contract
+    };
+  }));
+
+  saveReferenceMeta(recovered);
+  return recovered;
 }
 
 export async function saveReferenceFile(slot: LetterReference, file: File) {

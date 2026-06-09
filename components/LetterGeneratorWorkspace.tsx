@@ -12,7 +12,7 @@ import { renderLatePaymentReference } from '../lib/late-reference-renderer';
 import { bureauInfo, bureaus, createNormalizedSourceCopy, detectRoutes, parseSource, recommendedSourceFormat, type Bureau, type LetterRoute, type LetterType } from '../lib/letter-engine';
 import { loadPacketAssets, type PacketAssets } from '../lib/packet-assets';
 import { createSupportingDocumentsPdf } from '../lib/packet-renderer';
-import { defaultReferences, loadReferenceMeta, readReferenceFile, removeReferenceFile, rounds, saveReferenceFile, saveReferenceMeta, type LetterReference, type Round } from '../lib/reference-store';
+import { defaultReferences, loadReferenceMeta, readReferenceFile, removeReferenceFile, rounds, saveReferenceFile, saveReferenceMeta, recoverReferenceMetaFromFiles, type LetterReference, type Round } from '../lib/reference-store';
 import { renderMappedAppendix } from '../lib/supplemental-template-renderer';
 import { configuredExhibits, exhibitTitles, loadTemplateExhibits, readTemplateExhibit, type ExhibitKind, type TemplateExhibits } from '../lib/template-exhibits';
 import { isFtcEnabled } from '../lib/workflow-framework';
@@ -77,6 +77,15 @@ export default function LetterGeneratorWorkspace() {
   const [status, setStatus] = useState('Configure packet templates, then load a client source file.');
 
   useEffect(() => saveReferenceMeta(references), [references]);
+  useEffect(() => {
+    let cancelled = false;
+
+    void recoverReferenceMetaFromFiles()
+      .then((next) => { if (!cancelled) setReferences(next); })
+      .catch(() => { if (!cancelled) setReferences(loadReferenceMeta()); });
+
+    return () => { cancelled = true; };
+  }, []);
   useEffect(() => {
     let cancelled = false;
 

@@ -17,7 +17,7 @@ import { generateFtcWorkflowOutput } from '../lib/ftc-workflow';
 import { resolveAffidavitJurisdiction } from '../lib/affidavit-jurisdiction';
 import { bureauInfo, bureaus, createNormalizedSourceCopy, detectRoutes, parseSource, type Bureau, type LetterRoute, type LetterType } from '../lib/letter-engine';
 import { loadPacketAssets, type PacketAssets } from '../lib/packet-assets';
-import { defaultReferences, loadReferenceMeta, readReferenceFile, removeReferenceFile, saveReferenceFile, saveReferenceMeta, type LetterReference, type Round } from '../lib/reference-store';
+import { defaultReferences, loadReferenceMeta, readReferenceFile, removeReferenceFile, saveReferenceFile, saveReferenceMeta, recoverReferenceMetaFromFiles, type LetterReference, type Round } from '../lib/reference-store';
 import { renderMappedAppendix } from '../lib/supplemental-template-renderer';
 import { unresolvedCustomTemplateFields } from '../lib/template-contracts';
 import { exhibitTitles, loadTemplateExhibits, readTemplateExhibit, type ExhibitKind, type TemplateExhibits } from '../lib/template-exhibits';
@@ -68,7 +68,7 @@ export default function LetterGeneratorWorkspaceV2() {
   const [panel, setPanel] = useState<Panel>('Dashboard');
   const [round, setRound] = useState<Round>('1st Round');
   const [preferences, setPreferences] = useState<WorkspacePreferences>(defaultWorkspacePreferences);
-  const [references, setReferences] = useState<LetterReference[]>(defaultReferences);
+  const [references, setReferences] = useState<LetterReference[]>(() => loadReferenceMeta());
   const [source, setSource] = useState('');
   const [originalSource, setOriginalSource] = useState('');
   const [recoveryDraft, setRecoveryDraft] = useState<SourceDraftSnapshot | null>(null);
@@ -90,11 +90,19 @@ export default function LetterGeneratorWorkspaceV2() {
     const storedPreferences = loadWorkspacePreferences();
     setPreferences(storedPreferences);
     setRound(storedPreferences.defaultRound);
-    setReferences(loadReferenceMeta());
     setCases(loadClientCases());
     setFilings(loadFilings());
   }, []);
   useEffect(() => saveReferenceMeta(references), [references]);
+  useEffect(() => {
+    let cancelled = false;
+
+    void recoverReferenceMetaFromFiles()
+      .then((next) => { if (!cancelled) setReferences(next); })
+      .catch(() => { if (!cancelled) setReferences(loadReferenceMeta()); });
+
+    return () => { cancelled = true; };
+  }, []);
   useEffect(() => setTemplates(loadTemplateExhibits(round)), [round]);
 
   const refs = references.filter((item) => item.round === round);

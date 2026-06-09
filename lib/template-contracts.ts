@@ -27,6 +27,18 @@ const BASE_FIELDS: Record<string, Omit<TemplateFieldContract, 'key'>> = {
   last_name: { label: 'Last name', section: 'FTC', sourceKey: 'lastName', required: false },
 
   address: { label: 'Address', section: 'CLIENT', sourceKey: 'address', required: true },
+  consumer_address: { label: 'Address', section: 'CLIENT', sourceKey: 'address', required: true },
+  client_address: { label: 'Address', section: 'CLIENT', sourceKey: 'address', required: true },
+  mailing_address: { label: 'Address', section: 'CLIENT', sourceKey: 'address', required: false },
+
+  bureau: { label: 'Bureau name', section: 'ROUTING', sourceKey: 'bureauInfo.name', required: true },
+  credit_bureau: { label: 'Bureau name', section: 'ROUTING', sourceKey: 'bureauInfo.name', required: true },
+  bureau_full_name: { label: 'Bureau name', section: 'ROUTING', sourceKey: 'bureauInfo.name', required: true },
+
+  current_date: { label: 'Document date', section: 'CLIENT', sourceKey: 'generated', required: true },
+  today: { label: 'Document date', section: 'CLIENT', sourceKey: 'generated', required: true },
+  generated_date: { label: 'Document date', section: 'CLIENT', sourceKey: 'generated', required: true },
+
   address_inline: { label: 'Address', section: 'CLIENT', sourceKey: 'address', required: true },
   address_line_1: { label: 'Address line 1', section: 'CLIENT', sourceKey: 'address', required: true },
   address_line_2: { label: 'Address line 2', section: 'CLIENT', sourceKey: 'address', required: false },
