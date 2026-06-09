@@ -18,10 +18,7 @@
   margin-inline: auto !important;
 }
 
-/* The thumbnail strip already replaces the left evidence manager in this view. */
-.support-layout-grid.word-crop-grid > .word-left-evidence-manager {
-  display: none !important;
-}
+
 
 .support-page-frame {
   grid-area: preview !important;
