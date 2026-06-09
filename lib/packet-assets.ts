@@ -24,6 +24,52 @@ const META = 'lettergenerator.packet-assets.v1.';
 const blank = (): PacketAssets => ({ supporting: [], legalPdf: null });
 const assetKey = (round: string, id: string) => `packet/${round}/${id}`;
 
+export function standardSupportingPlacement(index: number, count: number): SupportingPlacement {
+  const n = Math.max(1, count);
+  const width = 0.76;
+  const x = (1 - width) / 2;
+  const gap = n <= 1 ? 0 : 0.006;
+  const height = n <= 1 ? 0.32 : n === 2 ? 0.30 : Math.min(0.245, (0.86 - gap * (n - 1)) / n);
+  const totalHeight = height * n + gap * (n - 1);
+  const startY = Math.max(0.055, (1 - totalHeight) / 2);
+
+  return {
+    x,
+    y: startY + index * (height + gap),
+    width,
+    height,
+    cropX: 0,
+    cropY: 0,
+    cropWidth: 1,
+    cropHeight: 1,
+    rotation: 0,
+    fit: 'contain'
+  };
+}
+
+export function normalizeSupportingLayout(value: PacketAssets): PacketAssets {
+  return {
+    ...value,
+    supporting: value.supporting.map((asset, index) => {
+      const slot = standardSupportingPlacement(index, value.supporting.length);
+      const existing = asset.placement;
+
+      return {
+        ...asset,
+        placement: {
+          ...slot,
+          cropX: existing?.cropX ?? 0,
+          cropY: existing?.cropY ?? 0,
+          cropWidth: existing?.cropWidth ?? 1,
+          cropHeight: existing?.cropHeight ?? 1,
+          rotation: existing?.rotation ?? 0,
+          fit: existing?.fit ?? 'contain'
+        }
+      };
+    })
+  };
+}
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
@@ -72,7 +118,7 @@ export function loadPacketAssets(round: string): PacketAssets {
     return { supporting: Array.isArray(value.supporting) ? value.supporting : [], legalPdf: value.legalPdf || null };
   } catch { return blank(); }
 }
-function savePacketAssets(round: string, value: PacketAssets) { localStorage.setItem(`${META}${round}`, JSON.stringify(value)); }
+export function savePacketAssets(round: string, value: PacketAssets) { localStorage.setItem(`${META}${round}`, JSON.stringify(value)); }
 export async function addSupportingAssets(round: string, files: File[]) {
   const value = loadPacketAssets(round);
   const added: PacketAsset[] = [];

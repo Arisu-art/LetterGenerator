@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { loadPacketFile, saveSupportingPlacement, resetSupportingPlacements, type PacketAsset, type PacketAssets, type SupportingPlacement, type SupportingRotation } from '../lib/packet-assets';
+import { loadPacketFile, saveSupportingPlacement, resetSupportingPlacements, standardSupportingPlacement, type PacketAsset, type PacketAssets, type SupportingPlacement, type SupportingRotation } from '../lib/packet-assets';
 
 type Props = { storageKey: string; assets: PacketAssets; toolbarTargetId?: string; managerPanel?: ReactNode; onChanged: (assets: PacketAssets) => void; onMessage: (message: string) => void };
 type Preview = { id: string; url: string };
@@ -13,26 +13,7 @@ const PAGE_RATIO = 8.5 / 11;
 const MIN = 0.08;
 const MIN_CROP = 0.1;
 function clamp(value: number, low: number, high: number) { return Math.max(low, Math.min(high, value)); }
-function auto(index: number, count: number): SupportingPlacement {
-  const n = Math.max(1, count);
-  const gap = .026;
-  const x = .13;
-  const y = .055;
-  const height = (1 - y * 2 - gap * (n - 1)) / n;
-
-  return {
-    x,
-    y: y + index * (height + gap),
-    width: 1 - x * 2,
-    height,
-    cropX: 0,
-    cropY: 0,
-    cropWidth: 1,
-    cropHeight: 1,
-    rotation: 0,
-    fit: 'contain'
-  };
-}
+function auto(index: number, count: number): SupportingPlacement { return standardSupportingPlacement(index, count); }
 function placement(asset: PacketAsset, index: number, count: number) { return { rotation: 0 as SupportingRotation, ...(asset.placement || auto(index, count)) }; }
 function pct(value: number) { return `${Math.round(value * 10000) / 100}%`; }
 function safeRotation(value: number): SupportingRotation { return (((value % 360) + 360) % 360) as SupportingRotation; }

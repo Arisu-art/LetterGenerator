@@ -8,7 +8,9 @@ import {
   addSupportingAssets,
   loadPacketAssets,
   moveSupportingAsset,
+  normalizeSupportingLayout,
   removeSupportingAsset,
+  savePacketAssets,
   type PacketAssets
 } from '../lib/packet-assets';
 
@@ -42,7 +44,8 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, embed
   async function add(files: File[]) {
     setBusy(true);
     try {
-      const next = await addSupportingAssets(storageKey, files);
+      const next = normalizeSupportingLayout(await addSupportingAssets(storageKey, files));
+      savePacketAssets(storageKey, next);
       changed(next);
       setManageOpen(false);
       setLayoutOpen(true);
@@ -50,7 +53,8 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, embed
     } finally { setBusy(false); }
   }
   async function remove(id: string) {
-    const next = await removeSupportingAsset(storageKey, id);
+    const next = normalizeSupportingLayout(await removeSupportingAsset(storageKey, id));
+    savePacketAssets(storageKey, next);
     changed(next);
     if (!next.supporting.length) {
       setManageOpen(true);
@@ -60,7 +64,11 @@ export default function SupportingDocumentsSetup({ storageKey, clientName, embed
     }
     onMessage('Supporting document removed from this client packet.');
   }
-  function move(id: string, direction: -1 | 1) { changed(moveSupportingAsset(storageKey, id, direction)); }
+  function move(id: string, direction: -1 | 1) {
+    const next = normalizeSupportingLayout(moveSupportingAsset(storageKey, id, direction));
+    savePacketAssets(storageKey, next);
+    changed(next);
+  }
   const ready = assets.supporting.length > 0;
   const uploadInputId = `${storageKey}-evidence-upload`;
 

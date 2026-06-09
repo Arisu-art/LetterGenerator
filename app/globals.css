@@ -2718,3 +2718,31 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
     max-height: none !important;
   }
 }
+
+/* Fixed evidence slots: no oversized containers, tight alignment */
+.support-canvas-item {
+  background: #e5e7eb !important;
+  border: 1px dashed #8fa1b5 !important;
+  box-shadow: none !important;
+}
+
+.support-canvas-item.selected {
+  border: 2px solid #4b5563 !important;
+  box-shadow:
+    0 0 0 2px rgba(75, 85, 99, 0.12),
+    0 8px 18px rgba(15, 23, 42, 0.1) !important;
+}
+
+.support-canvas-item canvas {
+  display: block !important;
+  background: transparent !important;
+}
+
+.support-page-canvas {
+  width: min(100%, 720px) !important;
+}
+
+/* Make the visual stack cleaner by reducing perceived whitespace */
+.support-page-canvas .support-canvas-item + .support-canvas-item {
+  margin-top: 0 !important;
+}
