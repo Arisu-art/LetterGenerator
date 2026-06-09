@@ -9,12 +9,22 @@ const STATEMENT_PREFIX = ['Pursuant to ', '15 USC'].join('');
 const IDENTITY_THEFT_DISPUTE_STATEMENT = 'Pursuant to 15 USC 1681a(3), this account does not constitute a legitimate consumer obligation. My personal information was used without authorization, and this tradeline is the direct result of identity theft.';
 const DISPUTE_EXCLUDED_ADDRESS_FIELD = /^(?:PHONE(?:\s+NO\.?)?|TELEPHONE|MOBILE|EMAIL|E-?MAIL|COUNTRY|DOB|SSN)\s*:/i;
 const ACCOUNT_SECTION_PATTERNS = [
-  /^DISPUTE(?:D)?\s+ACCOUNTS?$/i,
-  /^ACCOUNTS?\s+(?:IN\s+DISPUTE|TO\s+BE\s+DISPUTED)$/i,
-  /^(?:INACCURATE|UNVERIFIED|NEGATIVE)\s+ACCOUNTS?$/i,
-  /^FRAUDULENT\s+ACCOUNTS(?:\s+FOR\s+IMMEDIATE\s+BLOCKING\s+AND\s+DELETION)?$/i
+  /^DISPUTE(?:D)?\s+ACCOUNTS?(?:\s*[:\-–—].*)?$/i,
+  /^ACCOUNTS?\s+(?:IN\s+DISPUTE|TO\s+BE\s+DISPUTED)(?:\s*[:\-–—].*)?$/i,
+  /^(?:INACCURATE|UNVERIFIED|NEGATIVE)\s+ACCOUNTS?(?:\s*[:\-–—].*)?$/i,
+  /^FRAUDULENT\s+ACCOUNTS?(?:\s*\([^)]*\))?(?:\s*[:\-–—].*)?$/i,
+  /^FRAUDULENT\s+ACCOUNTS?\s+.*(?:DELETION|BLOCKING|RE-?ASSERTED).*$/i
 ];
 const HARD_INQUIRY_LABEL = /^HARD\s+(?:CREDIT\s+)?INQUIR(?:Y|IES)(?:\s*[:\-]\s*(.*))?$/i;
+const NEXT_SECTION_PATTERNS = [
+  /^HARD\s+(?:CREDIT\s+)?INQUIR(?:Y|IES)(?:\s*[:\-–—].*)?$/i,
+  /^LEGAL\s+DEMAND(?:\s+AND\s+NOTICE\s+OF\s+DUTY)?$/i,
+  /^REQUEST(?:ED)?\s+ACTION$/i,
+  /^NOTICE\s+OF\s+DUTY$/i,
+  /^CONCLUSION$/i,
+  /^CLOSING$/i,
+  /^GOVERN\s+YOURSELF\s+ACCORDINGLY\.?$/i
+];
 const LEGAL_BOUNDARY_PATTERNS = [
   /^LEGAL\s+DEMAND(?:\s+AND\s+NOTICE\s+OF\s+DUTY)?$/i,
   /^REQUEST(?:ED)?\s+ACTION$/i,
@@ -242,11 +252,14 @@ function insertMappedDisputeItems(body: Element, source: { accounts: string[]; i
   if (!source.accounts.length && !source.inquiries.length) throw new Error('No matching account or inquiry records were found.');
   const all = paragraphs(body);
   const accountHeading = findParagraph(all, ACCOUNT_SECTION_PATTERNS);
+  const accountHeadingIndex = accountHeading ? all.indexOf(accountHeading) : -1;
+  const nextSectionBoundary = accountHeadingIndex >= 0
+    ? all.slice(accountHeadingIndex + 1).find((paragraph) => NEXT_SECTION_PATTERNS.some((pattern) => pattern.test(content(paragraph))))
+    : null;
   const legalBoundary = findParagraph(all, LEGAL_BOUNDARY_PATTERNS);
   const signatureBoundary = all.find((paragraph) => SIGNATURE_PATTERN.test(content(paragraph)));
   const terminalBoundary = terminalBodyBoundary(body);
-  const standardBoundary = legalBoundary || signatureBoundary;
-  const accountHeadingIndex = accountHeading ? all.indexOf(accountHeading) : -1;
+  const standardBoundary = nextSectionBoundary || legalBoundary || signatureBoundary;
   const standardBoundaryIndex = standardBoundary ? all.indexOf(standardBoundary) : -1;
   const reusableRegion = accountHeading && standardBoundary && standardBoundaryIndex > accountHeadingIndex
     ? all.slice(accountHeadingIndex + 1, standardBoundaryIndex)
