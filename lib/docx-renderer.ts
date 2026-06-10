@@ -3,7 +3,6 @@ import PizZip from 'pizzip';
 import { hardenGeneratedDocx } from './docx-safety';
 import { assertHydrationContract } from './docx-hydration-contract';
 import { buildAccountHydrationBlocks, buildInquiryHydrationBlocks } from './dispute-hydration-blocks';
-import { shouldInventAnchor } from './docx-anchor-binder';
 import { createStructuralSnapshot, validateStructuralInvariance } from './docx-structural-guard';
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -49,7 +48,6 @@ export type ReferenceDisputeValues = {
   bureauName: string;
   bureauAddressLines: string[];
   disputeItems?: string[];
-  /** Rendered as inquiry rows only; no HARD INQUIRIES label is emitted. */
   hardInquiryItems?: string[];
   fraudItems?: string[];
 };
@@ -87,7 +85,20 @@ function writeLines(paragraph: Element, lines: string[]) {
   });
 }
 function cloneWithText(source: Element, lines: string[]) { const paragraph = source.cloneNode(true) as Element; writeLines(paragraph, lines); return paragraph; }
-function cloneStatementWithTemplateStyle(source: Element, lines: string[]) { return cloneWithText(source, lines); }
+function forceIdentityStatementColor(paragraph: Element) {
+  if (!content(paragraph).includes(IDENTITY_THEFT_DISPUTE_STATEMENT)) return paragraph;
+  const doc = paragraph.ownerDocument;
+  Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 'r')).forEach((run) => {
+    let properties = Array.from(run.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'rPr') as Element | undefined;
+    if (!properties) { properties = doc.createElementNS(WORD_NS, 'w:rPr'); run.insertBefore(properties, run.firstChild); }
+    Array.from(properties.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'color').forEach((node) => properties?.removeChild(node));
+    const color = doc.createElementNS(WORD_NS, 'w:color');
+    color.setAttributeNS(WORD_NS, 'w:val', 'FF0000');
+    properties.appendChild(color);
+  });
+  return paragraph;
+}
+function cloneStatementWithTemplateStyle(source: Element, lines: string[]) { return forceIdentityStatementColor(cloneWithText(source, lines)); }
 function paragraphProperties(paragraph: Element) {
   const existing = Array.from(paragraph.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'pPr') as Element | undefined;
   if (existing) return existing;
@@ -143,6 +154,7 @@ async function finalizeRenderedDisputeTemplate(blob: Blob, values: ReferenceDisp
   const header = findPopulatedHeaderParagraphs(body, values);
   if (header) compactSsnDateBoundary(body, header.ssnParagraph, header.dateParagraph);
   removeHardInquiryLabels(body);
+  paragraphs(body).forEach(forceIdentityStatementColor);
   const outputXml = new XMLSerializer().serializeToString(xml);
   validateStructuralInvariance(snapshot, outputXml);
   zip.file('word/document.xml', outputXml);
@@ -188,17 +200,8 @@ function insertMappedDisputeItems(body: Element, source: { accounts: string[]; i
   const fallbackBoundary = legalBoundary || signatureBoundary || terminalBoundary;
   if (accountBlocks.length && !accountHeading) throw new Error('Disputed accounts anchor was not found in the latest DOCX template.');
   function indexOf(paragraph: Element | null | undefined) { return paragraph ? all.indexOf(paragraph) : -1; }
-  function firstBoundaryAfter(start: Element | null | undefined, fallback: Node | null | undefined) {
-    const startIndex = indexOf(start);
-    if (startIndex < 0) return fallback || null;
-    return all.slice(startIndex + 1).find((paragraph) => NEXT_SECTION_PATTERNS.some((pattern) => pattern.test(content(paragraph))) || LEGAL_BOUNDARY_PATTERNS.some((pattern) => pattern.test(content(paragraph))) || SIGNATURE_PATTERN.test(content(paragraph))) || fallback || null;
-  }
-  function regionBetween(start: Element | null | undefined, boundary: Node | null | undefined) {
-    if (!start || !boundary || !(boundary instanceof Element)) return [];
-    const startIndex = all.indexOf(start);
-    const boundaryIndex = all.indexOf(boundary);
-    return startIndex >= 0 && boundaryIndex > startIndex ? all.slice(startIndex + 1, boundaryIndex) : [];
-  }
+  function firstBoundaryAfter(start: Element | null | undefined, fallback: Node | null | undefined) { const startIndex = indexOf(start); if (startIndex < 0) return fallback || null; return all.slice(startIndex + 1).find((paragraph) => NEXT_SECTION_PATTERNS.some((pattern) => pattern.test(content(paragraph))) || LEGAL_BOUNDARY_PATTERNS.some((pattern) => pattern.test(content(paragraph))) || SIGNATURE_PATTERN.test(content(paragraph))) || fallback || null; }
+  function regionBetween(start: Element | null | undefined, boundary: Node | null | undefined) { if (!start || !boundary || !(boundary instanceof Element)) return []; const startIndex = all.indexOf(start); const boundaryIndex = all.indexOf(boundary); return startIndex >= 0 && boundaryIndex > startIndex ? all.slice(startIndex + 1, boundaryIndex) : []; }
   function styleFrom(region: Element[], heading: Element | null | undefined, fallback: Node | null | undefined) { return region.find((paragraph) => content(paragraph) && !content(paragraph).startsWith(STATEMENT_PREFIX)) || heading || (fallback instanceof Element ? fallback : undefined) || all.find((paragraph) => content(paragraph))!; }
   function statementStyleFrom(region: Element[], fallback: Element) { return region.find((paragraph) => content(paragraph).startsWith(STATEMENT_PREFIX)) || fallback; }
   function spacerFrom(region: Element[]) { return region.find((paragraph) => !content(paragraph)); }
@@ -247,6 +250,7 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   const renderedParagraphs = paragraphs(body);
   const close = renderedParagraphs.find((paragraph) => SIGNATURE_PATTERN.test(content(paragraph)));
   if (close) { const signature = renderedParagraphs.slice(renderedParagraphs.indexOf(close) + 1).find((paragraph) => content(paragraph)); if (signature) writeLines(signature, [values.consumerName]); }
+  paragraphs(body).forEach(forceIdentityStatementColor);
   const outputXml = new XMLSerializer().serializeToString(xml);
   validateStructuralInvariance(snapshot, outputXml);
   zip.file('word/document.xml', outputXml);
