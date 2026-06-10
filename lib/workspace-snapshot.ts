@@ -1,11 +1,14 @@
 import { bureaus, detectRoutes, parseSource } from './letter-engine';
-import { loadPacketAssets, loadPacketFile, replacePacketAssetsFromSnapshot, type PacketAssets } from './packet-assets';
-import { defaultReferences, loadReferenceMeta, readReferenceFile, rounds, saveReferenceFile, type LetterReference, type Round } from './reference-store';
+import { loadPacketAssets, loadPacketFile, savePacketAssets, type PacketAssets } from './packet-assets';
+import { loadReferenceMeta, readReferenceFile, rounds, saveReferenceFile, type LetterReference, type Round } from './reference-store';
 import { exhibitKinds, loadTemplateExhibits, readTemplateExhibit, saveTemplateExhibit, type ExhibitAsset, type ExhibitKind, type TemplateExhibits } from './template-exhibits';
 import type { WorkspacePreferences } from './workspace-preferences';
 
 export const WORKSPACE_SNAPSHOT_VERSION = 1;
 export const WORKSPACE_ENGINE = 'LETTERGENERATOR_WORKSPACE_SNAPSHOT';
+
+const PRIVATE_DB_NAME = 'lettergenerator-private-templates';
+const PRIVATE_STORE_NAME = 'files';
 
 type EncodedFile = {
   name: string;
@@ -17,7 +20,6 @@ type EncodedFile = {
 
 type SnapshotReference = LetterReference & { filePayload: EncodedFile | null };
 type SnapshotExhibit = ExhibitAsset & { filePayload: EncodedFile | null };
-
 type SnapshotRoundExhibits = Record<ExhibitKind, SnapshotExhibit | null>;
 
 export type WorkspaceSnapshot = {
@@ -76,6 +78,67 @@ function emptyRoundExhibits(): SnapshotRoundExhibits {
 function dataUrlToBase64(value: string) {
   const index = value.indexOf(',');
   return index >= 0 ? value.slice(index + 1) : value;
+}
+
+async function openPrivateDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(PRIVATE_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(PRIVATE_STORE_NAME)) request.result.createObjectStore(PRIVATE_STORE_NAME);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function packetAssetKey(round: string, id: string) {
+  return `packet/${round}/${id}`;
+}
+
+async function putPrivateFile(key: string, file: File) {
+  const db = await openPrivateDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(PRIVATE_STORE_NAME, 'readwrite');
+    tx.objectStore(PRIVATE_STORE_NAME).put(file, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+async function deletePrivateFile(key: string) {
+  const db = await openPrivateDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(PRIVATE_STORE_NAME, 'readwrite');
+    tx.objectStore(PRIVATE_STORE_NAME).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+async function replacePacketAssets(roundKey: string, value: PacketAssets, files: Record<string, File>) {
+  const existing = loadPacketAssets(roundKey);
+
+  await Promise.all([
+    ...existing.supporting.map((asset) => deletePrivateFile(packetAssetKey(roundKey, asset.id)).catch(() => undefined)),
+    existing.legalPdf ? deletePrivateFile(packetAssetKey(roundKey, existing.legalPdf.id)).catch(() => undefined) : Promise.resolve()
+  ]);
+
+  for (const asset of value.supporting || []) {
+    const file = files[asset.id];
+    if (file) await putPrivateFile(packetAssetKey(roundKey, asset.id), file);
+  }
+
+  if (value.legalPdf && files[value.legalPdf.id]) await putPrivateFile(packetAssetKey(roundKey, value.legalPdf.id), files[value.legalPdf.id]);
+
+  const next: PacketAssets = {
+    supporting: (value.supporting || []).filter((asset) => Boolean(files[asset.id])),
+    legalPdf: value.legalPdf && files[value.legalPdf.id] ? value.legalPdf : null
+  };
+
+  savePacketAssets(roundKey, next);
+  return next;
 }
 
 async function encodeFile(file: File | Blob | null, fallbackName = 'workspace-file'): Promise<EncodedFile | null> {
@@ -222,7 +285,7 @@ export async function importWorkspaceSnapshot(snapshot: WorkspaceSnapshot): Prom
   if (key) {
     const files: Record<string, File> = {};
     Object.entries(value.packetFiles || {}).forEach(([id, payload]) => { files[id] = decodeFile(payload); });
-    await replacePacketAssetsFromSnapshot(key, value.packetAssets || { supporting: [], legalPdf: null }, files);
+    await replacePacketAssets(key, value.packetAssets || { supporting: [], legalPdf: null }, files);
   } else if (value.packetAssets.supporting.length || value.packetAssets.legalPdf) {
     notices.push('Supporting document files were present, but no case ID was stored in the snapshot.');
   }
