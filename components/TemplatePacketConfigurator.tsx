@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { exhibitAccept, exhibitModes, exhibitTitles, loadTemplateExhibits, removeTemplateExhibit, saveTemplateExhibit, type ExhibitAsset, type ExhibitKind, type TemplateExhibits } from '../lib/template-exhibits';
+import { exhibitAccept, exhibitModes, exhibitTitles, recoverTemplateExhibitsFromFiles, removeTemplateExhibit, saveTemplateExhibit, type ExhibitAsset, type ExhibitKind, type TemplateExhibits } from '../lib/template-exhibits';
 import { exhibitKindsForPacket, packetOrderText } from '../lib/workflow-framework';
 import type { LetterReference, Round } from '../lib/reference-store';
 import type { LetterType } from '../lib/letter-engine';
@@ -28,7 +28,14 @@ function format(kind: ExhibitKind) { return exhibitModes[kind] === 'GENERATED_DO
 export default function TemplatePacketConfigurator({ round, slots, supportingReady, focusedPacket = 'DISPUTE', embedded = false, onUploadLetter, onRemoveLetter, onExhibitsChange, onMessage }: Props) {
   const [activeNode, setActiveNode] = useState<NodeId>(null), [exhibits, setExhibits] = useState<TemplateExhibits>({ FCRA: null, AFFIDAVIT: null, ATTACHMENT: null, FTC: null });
   const dispute = slots.find((slot) => slot.type === 'DISPUTE'), late = slots.find((slot) => slot.type === 'LATE_PAYMENT');
-  useEffect(() => { const saved = loadTemplateExhibits(round); setExhibits(saved); onExhibitsChange(saved); setActiveNode(null); }, [round]);
+  useEffect(() => {
+    let cancelled = false;
+    setActiveNode(null);
+    void recoverTemplateExhibitsFromFiles(round)
+      .then((saved) => { if (!cancelled) { setExhibits(saved); onExhibitsChange(saved); } })
+      .catch(() => { if (!cancelled) onMessage('Template recovery could not be completed. Reopen Templates or upload the missing file again.'); });
+    return () => { cancelled = true; };
+  }, [round]);
   useEffect(() => setActiveNode(null), [focusedPacket]);
   async function uploadExhibit(kind: ExhibitKind, file: File) { try { const next = await saveTemplateExhibit(round, kind, file); setExhibits(next); onExhibitsChange(next); const contract = next[kind]?.contract; onMessage(`${exhibitTitles[kind]} saved${contract?.mode === 'PLACEHOLDERS' ? `; ${contract.tags.length} placeholder tag(s) mapped to Source Data.` : contract?.mode === 'LEGACY_HIGHLIGHTED' ? '; highlighted fields will be mapped from Source Data.' : '.'}`); setActiveNode(null); } catch (error) { onMessage(error instanceof Error ? error.message : 'File could not be saved.'); } }
   async function removeExhibit(kind: ExhibitKind) { const next = await removeTemplateExhibit(round, kind); setExhibits(next); onExhibitsChange(next); onMessage(`${exhibitTitles[kind]} removed from ${round}.`); }
