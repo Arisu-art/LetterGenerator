@@ -12,138 +12,76 @@ type Props = {
 
 function formatDate(value?: string) {
   if (!value) return '—';
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  }).format(date);
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
 }
 
 function packetLabel(record: FilingRecord) {
   return record.packetType === 'DISPUTE' ? 'Dispute Packet' : 'Late Payment Packet';
 }
 
-export default function FilingTrackerWorkspace({
-  records,
-  outputsAvailable,
-  onReturnToOutputs,
-  onStartCase,
-  onMarkSent
-}: Props) {
+function nextDeliveryStep(records: FilingRecord[], outputsAvailable: boolean) {
+  const ready = records.some((record) => record.status === 'PDF_READY');
+  if (ready) return 'Send ready packets, then mark each packet as sent.';
+  if (outputsAvailable) return 'Open Outputs to review and download the final package.';
+  return 'Generate a package first, then return here for delivery handoff.';
+}
+
+export default function FilingTrackerWorkspace({ records, outputsAvailable, onReturnToOutputs, onStartCase, onMarkSent }: Props) {
   const ready = records.filter((record) => record.status === 'PDF_READY').length;
   const sent = records.filter((record) => record.status === 'SENT').length;
-  const active = records.length - sent;
+  const open = records.length - sent;
+  const completion = records.length ? Math.round((sent / records.length) * 100) : 0;
 
-  return (
-    <section className="filing-tracker-workspace operations-workspace saas-dashboard-shell">
-      <header className="saas-hero">
+  return <section className="filing-tracker-workspace operations-workspace saas-dashboard-shell">
+    <section className="panel operations-table-surface saas-panel">
+      <header className="operations-section-head">
         <div>
-          <p className="eyebrow">Client operations</p>
-          <h2>Filing tracker</h2>
-          <p>
-            Track generated bureau packets from review-ready status to sent delivery without exposing backend workflow details.
-          </p>
+          <p className="eyebrow">Delivery Center</p>
+          <h3>Final package handoff</h3>
+          <p>{nextDeliveryStep(records, outputsAvailable)}</p>
         </div>
-
         <div className="operations-actions">
-          {outputsAvailable && (
-            <button type="button" className="secondary-button" onClick={onReturnToOutputs}>
-              Open Outputs
-            </button>
-          )}
-          <button type="button" className="action-button" onClick={onStartCase}>
-            New Case
-          </button>
+          {outputsAvailable && <button type="button" className="secondary-button" onClick={onReturnToOutputs}>Open Outputs</button>}
+          <button type="button" className="action-button" onClick={onStartCase}>New Case</button>
         </div>
       </header>
 
-      <div className="saas-metric-grid operations-metrics" aria-label="Filing status summary">
+      <div className="saas-metric-grid operations-metrics" aria-label="Delivery readiness summary">
         <article className="saas-metric-card">
-          <span>Total Packets</span>
-          <strong>{records.length}</strong>
-          <p>Tracked filing records</p>
-        </article>
-
-        <article className="saas-metric-card">
-          <span>Ready</span>
+          <span>Ready to send</span>
           <strong>{ready}</strong>
-          <p>Packets ready to send</p>
+          <p>Packets waiting for delivery</p>
         </article>
-
         <article className="saas-metric-card">
-          <span>Active</span>
-          <strong>{active}</strong>
-          <p>Open delivery items</p>
+          <span>Open handoff</span>
+          <strong>{open}</strong>
+          <p>Packets not yet marked sent</p>
         </article>
-
         <article className="saas-metric-card complete">
-          <span>Sent</span>
+          <span>Delivered</span>
           <strong>{sent}</strong>
-          <p>Completed deliveries</p>
+          <p>{completion}% completion</p>
         </article>
       </div>
 
-      <section className="panel operations-table-surface saas-panel">
-        <header className="operations-section-head">
-          <div>
-            <p className="eyebrow">Delivery queue</p>
-            <h3>Client packet delivery</h3>
-            <p>Review each generated packet status and mark delivery as sent when complete.</p>
+      {records.length === 0 ? <div className="operations-empty">
+        <strong>No delivery handoff yet</strong>
+        <p>Generate and review a package. This center will show the final send queue for each bureau packet.</p>
+        {outputsAvailable ? <button type="button" className="action-button" onClick={onReturnToOutputs}>Open Outputs</button> : <button type="button" className="action-button" onClick={onStartCase}>Start Case</button>}
+      </div> : <div className="filing-records" role="list">
+        {records.map((record) => <article key={record.id} className="filing-record" role="listitem">
+          <div className="filing-identity">
+            <strong>{record.clientName}</strong>
+            <span>{record.bureau} · {packetLabel(record)}</span>
           </div>
-          <span className="operations-count">
-            {records.length} filing{records.length === 1 ? '' : 's'}
-          </span>
-        </header>
-
-        {records.length === 0 ? (
-          <div className="operations-empty">
-            <strong>No packets tracked yet</strong>
-            <p>Generate a packet package first, then return here to track delivery status.</p>
-            <button type="button" className="action-button" onClick={onStartCase}>
-              Start Case
-            </button>
-          </div>
-        ) : (
-          <div className="filing-records" role="list">
-            {records.map((record) => (
-              <article key={record.id} className="filing-record" role="listitem">
-                <div className="filing-identity">
-                  <strong>{record.clientName}</strong>
-                  <span>
-                    {record.bureau} · {packetLabel(record)}
-                  </span>
-                </div>
-
-                <div className="filing-date">
-                  <small>Generated</small>
-                  <strong>{formatDate(record.generatedAt)}</strong>
-                </div>
-
-                <div className="filing-date">
-                  <small>Sent</small>
-                  <strong>{formatDate(record.sentAt)}</strong>
-                </div>
-
-                <span className={`operations-status ${record.status === 'SENT' ? 'ready' : 'active'}`}>
-                  {record.status === 'SENT' ? 'Sent' : 'Ready'}
-                </span>
-
-                {record.status === 'PDF_READY' ? (
-                  <button type="button" className="secondary-button" onClick={() => onMarkSent(record.id)}>
-                    Mark sent
-                  </button>
-                ) : (
-                  <span className="filing-complete">Complete</span>
-                )}
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+          <div className="filing-date"><small>Prepared</small><strong>{formatDate(record.generatedAt)}</strong></div>
+          <div className="filing-date"><small>Sent</small><strong>{formatDate(record.sentAt)}</strong></div>
+          <span className={`operations-status ${record.status === 'SENT' ? 'ready' : 'active'}`}>{record.status === 'SENT' ? 'Sent' : 'Ready'}</span>
+          {record.status === 'PDF_READY' ? <button type="button" className="secondary-button" onClick={() => onMarkSent(record.id)}>Mark sent</button> : <span className="filing-complete">Complete</span>}
+        </article>)}
+      </div>}
     </section>
-  );
+  </section>;
 }
