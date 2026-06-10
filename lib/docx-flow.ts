@@ -3,6 +3,7 @@ const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 type FlowRule = 'keepNext' | 'keepLines' | 'widowControl';
 const FLOW_ORDER: FlowRule[] = ['keepNext', 'keepLines', 'widowControl'];
 const MAJOR_HEADING = /^(FRAUDULENT ACCOUNTS FOR IMMEDIATE BLOCKING AND DELETION|LEGAL DEMAND AND NOTICE OF DUTY|REQUIRED ACTIONS|SUPPORTING DOCUMENTS|Subject:\s*Dispute of Inaccurate Late Payment.*)$/i;
+const DYNAMIC_ITEM_GAP = '80';
 
 function paragraphText(paragraph: Element): string {
   return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't'))
@@ -93,6 +94,20 @@ function normalizeSpacingAfterMajorHeadings(body: Element) {
   });
 }
 
+function removeBlankParagraphsBetweenDynamicItems(body: Element) {
+  const paragraphs = directParagraphs(body);
+  paragraphs.forEach((paragraph, index) => {
+    const current = paragraphText(paragraph);
+    if (!/^Pursuant to 15 USC/i.test(current)) return;
+    const blanks: Element[] = [];
+    for (let pointer = index + 1; pointer < paragraphs.length; pointer += 1) {
+      if (paragraphText(paragraphs[pointer])) break;
+      blanks.push(paragraphs[pointer]);
+    }
+    blanks.forEach((blank) => blank.parentNode === body && body.removeChild(blank));
+  });
+}
+
 function normalizeDynamicItemSpacing(body: Element) {
   let paragraphs = directParagraphs(body);
   const fraudStatement = /^Pursuant to 15 USC/i;
@@ -111,26 +126,22 @@ function normalizeDynamicItemSpacing(body: Element) {
     if (accountNumber.test(current)) setSpacing(paragraph, '0', '0');
 
     if (fraudStatement.test(current)) {
-      setSpacing(paragraph, '0', '160');
+      setSpacing(paragraph, '0', DYNAMIC_ITEM_GAP);
       if (previous && (accountNumber.test(previousText) || !MAJOR_HEADING.test(previousText))) applyRule(previous, 'keepNext');
     }
 
     if (!accountName.test(current) && !accountNumber.test(current) && nextText && fraudStatement.test(nextText)) {
-      setSpacing(paragraph, '160', '0');
+      setSpacing(paragraph, '0', '0');
       applyRule(paragraph, 'keepNext');
     }
   });
 
+  removeBlankParagraphsBetweenDynamicItems(body);
   paragraphs = directParagraphs(body);
-  paragraphs.forEach((paragraph, index) => {
-    if (!paragraphText(paragraph)) return;
-    const blanks: Element[] = [];
-    for (let pointer = index + 1; pointer < paragraphs.length; pointer += 1) {
-      if (paragraphText(paragraphs[pointer])) break;
-      blanks.push(paragraphs[pointer]);
-    }
+  paragraphs.forEach((paragraph) => {
     const current = paragraphText(paragraph);
-    if (/^Pursuant to 15 USC/i.test(current)) blanks.slice(1).forEach((blank) => blank.parentNode === body && body.removeChild(blank));
+    if (accountName.test(current) || accountNumber.test(current)) setSpacing(paragraph, '0', '0');
+    if (fraudStatement.test(current)) setSpacing(paragraph, '0', DYNAMIC_ITEM_GAP);
   });
 }
 
