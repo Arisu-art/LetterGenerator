@@ -16,6 +16,10 @@ function directParagraphs(body: Element): Element[] {
   return Array.from(body.children).filter((child) => child.namespaceURI === WORD_NS && child.localName === 'p');
 }
 
+function children(root: Element, localName: string): Element[] {
+  return Array.from(root.children).filter((child) => child.namespaceURI === WORD_NS && child.localName === localName) as Element[];
+}
+
 function paragraphProperties(paragraph: Element): Element {
   const existing = Array.from(paragraph.children).find((child) => child.namespaceURI === WORD_NS && child.localName === 'pPr') as Element | undefined;
   if (existing) return existing;
@@ -38,6 +42,22 @@ function applyRule(paragraph: Element, rule: FlowRule) {
   else properties.appendChild(property);
 }
 
+function spacing(paragraph: Element): Element {
+  const pPr = paragraphProperties(paragraph);
+  const existing = children(pPr, 'spacing')[0];
+  if (existing) return existing;
+  const created = paragraph.ownerDocument.createElementNS(WORD_NS, 'w:spacing');
+  pPr.appendChild(created);
+  return created;
+}
+
+function setSpacing(paragraph: Element, before: string, after: string) {
+  const node = spacing(paragraph);
+  node.setAttributeNS(WORD_NS, 'w:before', before);
+  node.setAttributeNS(WORD_NS, 'w:after', after);
+  node.setAttributeNS(WORD_NS, 'w:lineRule', 'auto');
+}
+
 function protectParagraph(paragraph: Element, keepWithNext = false) {
   applyRule(paragraph, 'widowControl');
   applyRule(paragraph, 'keepLines');
@@ -51,11 +71,13 @@ function previousTextParagraph(paragraphs: Element[], index: number): Element | 
   return undefined;
 }
 
-/**
- * Templates occasionally express vertical spacing using many empty paragraphs. This becomes
- * unsafe after a dynamic item section expands: a heading can be left at the foot of a page
- * with its first paragraph pushed to the next page. Keep one intentional spacer only.
- */
+function nextTextParagraph(paragraphs: Element[], index: number): Element | undefined {
+  for (let pointer = index + 1; pointer < paragraphs.length; pointer += 1) {
+    if (paragraphText(paragraphs[pointer])) return paragraphs[pointer];
+  }
+  return undefined;
+}
+
 function normalizeSpacingAfterMajorHeadings(body: Element) {
   const paragraphs = directParagraphs(body);
   paragraphs.forEach((paragraph, index) => {
@@ -71,11 +93,47 @@ function normalizeSpacingAfterMajorHeadings(body: Element) {
   });
 }
 
-/**
- * Word's keepNext only links a paragraph to the paragraph immediately following it.
- * A visual template can contain a spacing paragraph after a heading. That spacer must be
- * chained too, otherwise Word can still strand the heading at the bottom of a page.
- */
+function normalizeDynamicItemSpacing(body: Element) {
+  let paragraphs = directParagraphs(body);
+  const fraudStatement = /^Pursuant to 15 USC/i;
+  const accountName = /^(Account|Creditor)\s+Name\s*:/i;
+  const accountNumber = /^Account\s+Number\s*:/i;
+
+  paragraphs.forEach((paragraph, index) => {
+    const current = paragraphText(paragraph);
+    if (!current) return;
+    const next = nextTextParagraph(paragraphs, index);
+    const nextText = next ? paragraphText(next) : '';
+    const previous = previousTextParagraph(paragraphs, index);
+    const previousText = previous ? paragraphText(previous) : '';
+
+    if (accountName.test(current)) setSpacing(paragraph, '0', '0');
+    if (accountNumber.test(current)) setSpacing(paragraph, '0', '0');
+
+    if (fraudStatement.test(current)) {
+      setSpacing(paragraph, '0', '160');
+      if (previous && (accountNumber.test(previousText) || !MAJOR_HEADING.test(previousText))) applyRule(previous, 'keepNext');
+    }
+
+    if (!accountName.test(current) && !accountNumber.test(current) && nextText && fraudStatement.test(nextText)) {
+      setSpacing(paragraph, '160', '0');
+      applyRule(paragraph, 'keepNext');
+    }
+  });
+
+  paragraphs = directParagraphs(body);
+  paragraphs.forEach((paragraph, index) => {
+    if (!paragraphText(paragraph)) return;
+    const blanks: Element[] = [];
+    for (let pointer = index + 1; pointer < paragraphs.length; pointer += 1) {
+      if (paragraphText(paragraphs[pointer])) break;
+      blanks.push(paragraphs[pointer]);
+    }
+    const current = paragraphText(paragraph);
+    if (/^Pursuant to 15 USC/i.test(current)) blanks.slice(1).forEach((blank) => blank.parentNode === body && body.removeChild(blank));
+  });
+}
+
 function keepHeadingWithFirstContent(paragraphs: Element[], headingIndex: number) {
   applyRule(paragraphs[headingIndex], 'keepNext');
   for (let pointer = headingIndex + 1; pointer < paragraphs.length; pointer += 1) {
@@ -84,13 +142,9 @@ function keepHeadingWithFirstContent(paragraphs: Element[], headingIndex: number
   }
 }
 
-/**
- * Applies deterministic native Word pagination controls to a generated letter.
- * Word performs the final pagination using the actual font metrics and page geometry;
- * this layer prevents orphan headings, split paragraphs and excessive spacer gaps.
- */
 export function applyLetterFlowRules(body: Element) {
   normalizeSpacingAfterMajorHeadings(body);
+  normalizeDynamicItemSpacing(body);
   const paragraphs = directParagraphs(body);
   const accountName = /^(Account|Creditor)\s+Name\s*:/i;
   const accountNumber = /^Account\s+Number\s*:/i;
@@ -101,16 +155,13 @@ export function applyLetterFlowRules(body: Element) {
     const content = paragraphText(paragraph);
     if (!content) return;
 
-    // Prevent an individual paragraph from breaking between pages, and suppress widow/orphan lines.
     protectParagraph(paragraph);
 
-    // Move a heading to the next page whenever its first real paragraph cannot travel with it.
     if (MAJOR_HEADING.test(content)) {
       keepHeadingWithFirstContent(paragraphs, index);
       return;
     }
 
-    // Preserve account label/value blocks and attach identity details to the following explanation.
     if (accountName.test(content)) {
       applyRule(paragraph, 'keepNext');
       return;
