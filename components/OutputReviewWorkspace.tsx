@@ -5,7 +5,7 @@ import SimpleDocxEditor from './SimpleDocxEditor';
 import { isFtcEnabled } from '../lib/workflow-framework';
 import type { PacketAssets } from '../lib/packet-assets';
 import type { LetterRoute, LetterType } from '../lib/letter-engine';
-import { packetOrderText } from '../lib/workflow-framework';
+import { buildPacketReviewSummary } from '../lib/packet-review-contract';
 
 export interface ReviewOutput {
   id?: string;
@@ -32,22 +32,6 @@ interface OutputReviewWorkspaceProps {
   onMessage?: (message: string) => void;
   onZip: () => void;
   onReplace: (output: ReviewOutput, file: File) => void | Promise<void>;
-  finalPackets?: unknown[];
-  finalizing?: boolean;
-  finalZipName?: string;
-  onFinalZip?: () => void;
-  onFinalize?: () => void | Promise<void>;
-  onPreviewPacket?: (output: ReviewOutput, pendingBlob: Blob) => Promise<unknown>;
-  onPdfDownload?: (packet: ReviewOutput) => void;
-}
-
-function isEditableLetter(output: ReviewOutput) {
-  return !output.role || output.role === 'LETTER';
-}
-
-function packetTitle(output: ReviewOutput) {
-  const label = output.type === 'LATE_PAYMENT' ? 'Late Payment' : 'Dispute';
-  return `${output.bureau} ${label} Packet`;
 }
 
 function packetDocuments(anchor: ReviewOutput, allOutputs: ReviewOutput[]) {
@@ -60,32 +44,10 @@ function packetDocuments(anchor: ReviewOutput, allOutputs: ReviewOutput[]) {
     .sort((a, b) => (a.sequence || 1) - (b.sequence || 1));
 }
 
-function packageRows(output: ReviewOutput, supportingCount: number) {
-  if (output.type === 'LATE_PAYMENT') {
-    return [
-      { id: '01', label: 'Late Payment Letter', detail: 'Editable DOCX' },
-      { id: '02', label: 'Supporting Documents', detail: `${supportingCount} evidence file${supportingCount === 1 ? '' : 's'}` }
-    ];
-  }
-
-  const rows = [
-    { id: '01', label: 'Dispute Letter', detail: 'Editable DOCX' },
-    { id: '02', label: 'Supporting Documents', detail: `${supportingCount} evidence file${supportingCount === 1 ? '' : 's'}` },
-    { id: '03', label: 'Attachment', detail: 'Configured PDF insert' },
-    { id: '04', label: 'FCRA Legal Exhibit', detail: 'Configured PDF insert' },
-    { id: '05', label: 'Affidavit', detail: 'Editable DOCX' }
-  ];
-
-  if (isFtcEnabled()) {
-    rows.push({ id: '06', label: 'FTC Identity Theft Report', detail: 'Editable DOCX' });
-  }
-
-  return rows;
-}
-
 export default function OutputReviewWorkspace({
   round,
   outputs,
+  expectedRoutes,
   zipName,
   warnings,
   evidenceKey,
@@ -98,22 +60,14 @@ export default function OutputReviewWorkspace({
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [reviewedPaths, setReviewedPaths] = useState<string[]>([]);
 
-  const activeOutputs = useMemo(() => outputs.filter((output) => {
-    if (output.role === 'FTC' && !isFtcEnabled()) return false;
-    return true;
-  }), [outputs]);
-  const packets = useMemo(
-    () => activeOutputs.filter(isEditableLetter).sort((a, b) => a.bureau.localeCompare(b.bureau) || a.type.localeCompare(b.type)),
-    [activeOutputs]
-  );
-
+  const activeOutputs = useMemo(() => outputs.filter((output) => output.role !== 'FTC' || isFtcEnabled()), [outputs]);
+  const review = useMemo(() => buildPacketReviewSummary({ outputs: activeOutputs, reviewedPaths, evidence, expectedRoutes }), [activeOutputs, reviewedPaths, evidence, expectedRoutes]);
   const selected = activeOutputs.find((output) => output.path === selectedPath) || null;
   const selectedDocuments = selected ? packetDocuments(selected, activeOutputs) : [];
-  const supportingCount = evidence?.supporting.length || 0;
 
-  function openPacket(packet: ReviewOutput) {
-    setSelectedPath(packet.path);
-    setReviewedPaths((current) => current.includes(packet.path) ? current : [...current, packet.path]);
+  function openPacket(path: string) {
+    setSelectedPath(path);
+    setReviewedPaths((current) => current.includes(path) ? current : [...current, path]);
   }
 
   return (
@@ -122,35 +76,35 @@ export default function OutputReviewWorkspace({
         <header className="output-stage-header output-progressive-command">
           <div className="output-stage-heading">
             <p className="eyebrow">Review and delivery</p>
-            <h2>Complete ordered package</h2>
-            <p>{packets.length} packet{packets.length === 1 ? '' : 's'} ready for live-proof review. Open each packet, edit generated DOCX documents, then download the ordered ZIP package.</p>
+            <h2>{review.headline}</h2>
+            <p>{review.instruction}</p>
           </div>
         </header>
 
         <section className="output-packet-review canonical-package-review" aria-label="Live-proof packet review">
           <div className="review-cards output-packet-grid">
-            {packets.map((packet) => (
-              <article className={`review-card packet-card component-package-card ${reviewedPaths.includes(packet.path) ? 'reviewed' : ''}`} key={packet.path}>
+            {review.cards.map((packet) => (
+              <article className={`review-card packet-card component-package-card ${packet.reviewed ? 'reviewed' : ''}`} key={packet.key}>
                 <header className="output-card-head">
                   <span className="output-bureau">{packet.bureau}</span>
-                  <span className="packet-status ready">Ready</span>
+                  <span className={`packet-status ${packet.ready ? 'ready' : 'pending'}`}>{packet.reviewed ? 'Reviewed' : packet.ready ? 'Ready' : 'Needs review'}</span>
                 </header>
 
-                <h3>{packetTitle(packet)}</h3>
-                <p className="output-card-order">{packetOrderText(packet.type)}</p>
+                <h3>{packet.title}</h3>
+                <p className="output-card-order">{packet.subtitle}</p>
 
                 <div className="package-file-list">
-                  {packageRows(packet, supportingCount).map((row) => (
+                  {packet.documents.map((row) => (
                     <div key={row.id}>
                       <b>{row.id}</b>
                       <strong>{row.label}</strong>
                       <small>{row.detail}</small>
-                      <span>Included</span>
+                      <span>{row.included ? 'Included' : 'Missing'}</span>
                     </div>
                   ))}
                 </div>
 
-                <button type="button" className="edit-document" onClick={() => openPacket(packet)}>
+                <button type="button" className="edit-document" onClick={() => openPacket(packet.key)}>
                   Open Live-Proof Preview
                 </button>
               </article>
@@ -169,9 +123,9 @@ export default function OutputReviewWorkspace({
           <div>
             <p className="eyebrow">Download</p>
             <h3>Ordered package ZIP</h3>
-            <p>Downloads the final ordered bureau folders only.</p>
+            <p>{review.reviewedPackets}/{review.totalPackets} packet{review.totalPackets === 1 ? '' : 's'} reviewed. Download contains final ordered bureau folders only.</p>
           </div>
-          <button type="button" className="action-button" disabled={!zipName} onClick={onZip}>
+          <button type="button" className="action-button" disabled={!zipName || !review.readyToDownload} onClick={onZip}>
             Download Ordered Package ZIP
           </button>
         </section>
