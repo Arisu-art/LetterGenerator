@@ -120,6 +120,67 @@ function assertFileType(kind: ExhibitKind, file: File) {
   }
 }
 
+async function readStoredExhibit(round: string, kind: ExhibitKind): Promise<File | null> {
+  const db = await openDb();
+
+  const file = await new Promise<File | null>((resolve, reject) => {
+    const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(fileKey(round, kind));
+    request.onsuccess = () => resolve((request.result as File | undefined) || null);
+    request.onerror = () => reject(request.error);
+  });
+
+  db.close();
+  return file;
+}
+
+async function assetFromStoredFile(round: string, kind: ExhibitKind, file: File, existing?: ExhibitAsset | null): Promise<ExhibitAsset> {
+  const contract = existing?.contract || (exhibitModes[kind] === 'GENERATED_DOCX'
+    ? await inspectTemplateContract(file, kind as any).catch(() => existing?.contract)
+    : existing?.contract);
+
+  return {
+    id: fileKey(round, kind),
+    kind,
+    mode: exhibitModes[kind],
+    name: existing?.name || file.name,
+    type: existing?.type || file.type || 'application/octet-stream',
+    size: existing?.size || file.size,
+    contract
+  };
+}
+
+export async function recoverTemplateExhibitsFromFiles(round: string, values: TemplateExhibits = loadTemplateExhibits(round)) {
+  if (typeof window === 'undefined') return emptyTemplates();
+
+  const recovered = { ...emptyTemplates(), ...values } as TemplateExhibits;
+  let changed = false;
+
+  for (const kind of exhibitKinds) {
+    const file = await readStoredExhibit(round, kind).catch(() => null);
+
+    if (!file) {
+      if (recovered[kind]) {
+        recovered[kind] = null;
+        changed = true;
+      }
+      continue;
+    }
+
+    if (!recovered[kind] || recovered[kind]?.name !== file.name || recovered[kind]?.size !== file.size) {
+      recovered[kind] = await assetFromStoredFile(round, kind, file, recovered[kind]);
+      changed = true;
+    }
+  }
+
+  if (changed) saveTemplateMeta(round, recovered);
+  return recovered;
+}
+
+export async function recoverAllTemplateExhibitsFromFiles(rounds: string[]) {
+  const entries = await Promise.all(rounds.map(async (round) => [round, await recoverTemplateExhibitsFromFiles(round)] as const));
+  return Object.fromEntries(entries) as Record<string, TemplateExhibits>;
+}
+
 export async function saveTemplateExhibit(round: string, kind: ExhibitKind, file: File) {
   assertFileType(kind, file);
 
@@ -171,16 +232,7 @@ export async function removeTemplateExhibit(round: string, kind: ExhibitKind) {
 }
 
 export async function readTemplateExhibit(round: string, kind: ExhibitKind): Promise<File | null> {
-  const db = await openDb();
-
-  const file = await new Promise<File | null>((resolve, reject) => {
-    const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(fileKey(round, kind));
-    request.onsuccess = () => resolve((request.result as File | undefined) || null);
-    request.onerror = () => reject(request.error);
-  });
-
-  db.close();
-  return file;
+  return readStoredExhibit(round, kind);
 }
 
 export function configuredExhibits(exhibits: TemplateExhibits) {
