@@ -6,6 +6,7 @@ import { isFtcEnabled } from '../lib/workflow-framework';
 import type { PacketAssets } from '../lib/packet-assets';
 import type { LetterRoute, LetterType } from '../lib/letter-engine';
 import { buildPacketReviewSummary } from '../lib/packet-review-contract';
+import { userFacingText } from '../lib/ux-copy-contract';
 
 export interface ReviewOutput {
   id?: string;
@@ -88,7 +89,7 @@ export default function OutputReviewWorkspace({
           </div>
         </header>
 
-        <section className="output-packet-review canonical-package-review" aria-label="Live-proof packet review">
+        <section className="output-packet-review canonical-package-review" aria-label="Packet review">
           <div className="review-cards output-packet-grid">
             {review.cards.map((packet) => (
               <article className={`review-card packet-card component-package-card ${packet.reviewed ? 'reviewed' : ''}`} key={packet.key}>
@@ -112,7 +113,7 @@ export default function OutputReviewWorkspace({
                 </div>
 
                 <button type="button" className="edit-document" onClick={() => openPacket(packet.key)}>
-                  Open Live-Proof Preview
+                  Review packet
                 </button>
               </article>
             ))}
@@ -121,19 +122,19 @@ export default function OutputReviewWorkspace({
 
         {warnings.length > 0 && (
           <section className="output-notices">
-            <strong>Notes</strong>
-            {warnings.slice(0, 3).map((warning, index) => <p key={index}>{warning}</p>)}
+            <strong>Items to review</strong>
+            {warnings.slice(0, 3).map((warning, index) => <p key={index}>{userFacingText(warning, 'error')}</p>)}
           </section>
         )}
 
         <section className="complete-package-delivery">
           <div>
-            <p className="eyebrow">Download</p>
-            <h3>Ordered package ZIP</h3>
-            <p>{review.reviewedPackets}/{review.totalPackets} packet{review.totalPackets === 1 ? '' : 's'} reviewed. Download contains final ordered bureau folders only.</p>
+            <p className="eyebrow">Final package</p>
+            <h3>Download final package</h3>
+            <p>{review.reviewedPackets}/{review.totalPackets} packet{review.totalPackets === 1 ? '' : 's'} reviewed. Review each prepared packet, then download the final organized package.</p>
           </div>
           <button type="button" className="action-button" disabled={!zipName || !review.readyToDownload} onClick={onZip}>
-            Download Ordered Package ZIP
+            Download final package
           </button>
         </section>
       </section>
