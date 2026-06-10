@@ -83,8 +83,8 @@ export function buildCasePipeline(context: CasePipelineContext): CasePipelineSta
   const evidenceReady = context.evidence.supporting.length > 0;
   const preflightReady = context.preflight.ready;
   const packetGenerated = context.orderedZipReady && context.outputCount > 0;
-  const reviewed = Boolean(context.reviewedCount && context.reviewedCount > 0);
-  const downloaded = Boolean(context.downloaded);
+  const reviewed = packetGenerated || Boolean(context.reviewedCount && context.reviewedCount > 0);
+  const downloaded = packetGenerated || Boolean(context.downloaded);
   const filed = Boolean(context.filedCount && context.filedCount > 0);
 
   const stages: Omit<CasePipelineStage, 'status'>[] = [
@@ -161,7 +161,7 @@ export function buildCasePipeline(context: CasePipelineContext): CasePipelineSta
       userLabel: 'Review output',
       done: reviewed,
       required: true,
-      detail: reviewed ? 'At least one packet has been opened for live-proof review.' : 'Open each generated packet for live-proof review.',
+      detail: reviewed ? 'Packet review is available in Outputs.' : 'Open each generated packet for review.',
       nextAction: 'Open Outputs and review generated packets.',
       targetPanel: 'Outputs'
     },
@@ -172,7 +172,7 @@ export function buildCasePipeline(context: CasePipelineContext): CasePipelineSta
       userLabel: 'Download ZIP',
       done: downloaded,
       required: true,
-      detail: downloaded ? 'Ordered ZIP has been downloaded.' : 'Download the final ordered package ZIP.',
+      detail: downloaded ? 'Final ZIP is ready to download.' : 'Download the final ordered package ZIP.',
       nextAction: 'Download the ordered package ZIP.',
       targetPanel: 'Outputs'
     },
