@@ -47,20 +47,20 @@ function hasRole(outputs: PacketReviewOutput[], role: PacketReviewOutput['role']
 
 function disputeDocuments(outputs: PacketReviewOutput[], supportingCount: number): PacketReviewDocument[] {
   const rows: PacketReviewDocument[] = [
-    { id: '01', role: 'LETTER', sequence: 1, label: 'Dispute Letter', detail: 'Editable DOCX', included: true, editable: true },
+    { id: '01', role: 'LETTER', sequence: 1, label: 'Dispute Letter', detail: 'Editable document', included: true, editable: true },
     { id: '02', role: 'SUPPORTING', sequence: 2, label: 'Supporting Documents', detail: `${supportingCount} evidence file${supportingCount === 1 ? '' : 's'}`, included: supportingCount > 0, editable: false },
-    { id: '03', role: 'ATTACHMENT', sequence: 3, label: 'Attachment', detail: 'Configured PDF insert', included: true, editable: false },
-    { id: '04', role: 'FCRA', sequence: 4, label: 'FCRA Legal Exhibit', detail: 'Configured PDF insert', included: true, editable: false },
-    { id: '05', role: 'AFFIDAVIT', sequence: 5, label: 'Affidavit', detail: 'Editable DOCX', included: hasRole(outputs, 'AFFIDAVIT'), editable: true }
+    { id: '03', role: 'ATTACHMENT', sequence: 3, label: 'Attachment', detail: 'Configured supporting insert', included: true, editable: false },
+    { id: '04', role: 'FCRA', sequence: 4, label: 'FCRA Legal Exhibit', detail: 'Configured supporting insert', included: true, editable: false },
+    { id: '05', role: 'AFFIDAVIT', sequence: 5, label: 'Affidavit', detail: 'Editable document', included: hasRole(outputs, 'AFFIDAVIT'), editable: true }
   ];
 
-  if (isFtcEnabled()) rows.push({ id: '06', role: 'FTC', sequence: 6, label: 'FTC Identity Theft Report', detail: 'Editable DOCX', included: hasRole(outputs, 'FTC'), editable: true });
+  if (isFtcEnabled()) rows.push({ id: '06', role: 'FTC', sequence: 6, label: 'FTC Identity Report', detail: 'Editable document', included: hasRole(outputs, 'FTC'), editable: true });
   return rows;
 }
 
 function latePaymentDocuments(supportingCount: number): PacketReviewDocument[] {
   return [
-    { id: '01', role: 'LETTER', sequence: 1, label: 'Late Payment Letter', detail: 'Editable DOCX', included: true, editable: true },
+    { id: '01', role: 'LETTER', sequence: 1, label: 'Late Payment Letter', detail: 'Editable document', included: true, editable: true },
     { id: '02', role: 'SUPPORTING', sequence: 2, label: 'Supporting Documents', detail: `${supportingCount} evidence file${supportingCount === 1 ? '' : 's'}`, included: supportingCount > 0, editable: false }
   ];
 }
@@ -83,7 +83,7 @@ export function buildPacketReviewSummary(input: {
         bureau: letter.bureau,
         type: letter.type,
         title: `${letter.bureau} ${typeLabel} Packet`,
-        subtitle: documents.map((document) => `${document.id} ${document.label}`).join(' → '),
+        subtitle: documents.map((document) => `${document.id} ${document.label}`).join(' / '),
         ready: documents.every((document) => document.included),
         reviewed: input.reviewedPaths.includes(letter.path),
         documents
@@ -96,9 +96,9 @@ export function buildPacketReviewSummary(input: {
     reviewedPackets,
     readyToDownload: cards.length > 0 && cards.every((card) => card.ready),
     cards,
-    headline: 'Complete ordered package',
+    headline: 'Review packets before delivery',
     instruction: cards.length
-      ? `${cards.length} packet${cards.length === 1 ? '' : 's'} ready for live proofing. Review packets, then download the ordered ZIP.`
-      : 'Generate a packet to begin live-proof review.'
+      ? `${cards.length} packet${cards.length === 1 ? '' : 's'} prepared. Review each packet, confirm the included files, then download the final package.`
+      : 'Prepare a packet to begin review.'
   };
 }
