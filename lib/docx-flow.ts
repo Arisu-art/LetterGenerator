@@ -1,20 +1,20 @@
+import PizZip from 'pizzip';
+import { hardenGeneratedDocx } from './docx-safety';
+
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 type FlowRule = 'keepNext' | 'keepLines' | 'widowControl';
 const FLOW_ORDER: FlowRule[] = ['keepNext', 'keepLines', 'widowControl'];
-const MAJOR_HEADING = /^(FRAUDULENT ACCOUNTS FOR IMMEDIATE BLOCKING AND DELETION|LEGAL DEMAND AND NOTICE OF DUTY|REQUIRED ACTIONS|SUPPORTING DOCUMENTS|Subject:\s*Dispute of Inaccurate Late Payment.*)$/i;
+const MAJOR_HEADING = /^(FRAUDULENT ACCOUNTS FOR IMMEDIATE BLOCKING AND DELETION|LEGAL DEMAND AND NOTICE OF DUTY|REQUIRED ACTIONS|SUPPORTING DOCUMENTS|ACCOUNT INFORMATION\s*:|AFFECTED ACCOUNTS?|AFFECTED ITEMS?|Subject:\s*Dispute of Inaccurate Late Payment.*)$/i;
 const DYNAMIC_ITEM_GAP = '80';
 
 function paragraphText(paragraph: Element): string {
-  return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't'))
-    .map((node) => node.textContent || '')
-    .join('')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't')).map((node) => node.textContent || '').join('').replace(/\s+/g, ' ').trim();
 }
 
 function directParagraphs(body: Element): Element[] {
-  return Array.from(body.children).filter((child) => child.namespaceURI === WORD_NS && child.localName === 'p');
+  return Array.from(body.children).filter((child) => child.namespaceURI === WORD_NS && child.localName === 'p') as Element[];
 }
 
 function children(root: Element, localName: string): Element[] {
@@ -66,16 +66,12 @@ function protectParagraph(paragraph: Element, keepWithNext = false) {
 }
 
 function previousTextParagraph(paragraphs: Element[], index: number): Element | undefined {
-  for (let pointer = index - 1; pointer >= 0; pointer -= 1) {
-    if (paragraphText(paragraphs[pointer])) return paragraphs[pointer];
-  }
+  for (let pointer = index - 1; pointer >= 0; pointer -= 1) if (paragraphText(paragraphs[pointer])) return paragraphs[pointer];
   return undefined;
 }
 
 function nextTextParagraph(paragraphs: Element[], index: number): Element | undefined {
-  for (let pointer = index + 1; pointer < paragraphs.length; pointer += 1) {
-    if (paragraphText(paragraphs[pointer])) return paragraphs[pointer];
-  }
+  for (let pointer = index + 1; pointer < paragraphs.length; pointer += 1) if (paragraphText(paragraphs[pointer])) return paragraphs[pointer];
   return undefined;
 }
 
@@ -88,17 +84,14 @@ function normalizeSpacingAfterMajorHeadings(body: Element) {
       if (paragraphText(paragraphs[pointer])) break;
       blanks.push(paragraphs[pointer]);
     }
-    blanks.slice(1).forEach((blank) => {
-      if (blank.parentNode === body) body.removeChild(blank);
-    });
+    blanks.slice(1).forEach((blank) => { if (blank.parentNode === body) body.removeChild(blank); });
   });
 }
 
 function removeBlankParagraphsBetweenDynamicItems(body: Element) {
   const paragraphs = directParagraphs(body);
   paragraphs.forEach((paragraph, index) => {
-    const current = paragraphText(paragraph);
-    if (!/^Pursuant to 15 USC/i.test(current)) return;
+    if (!/^Pursuant to 15 USC/i.test(paragraphText(paragraph))) return;
     const blanks: Element[] = [];
     for (let pointer = index + 1; pointer < paragraphs.length; pointer += 1) {
       if (paragraphText(paragraphs[pointer])) break;
@@ -122,14 +115,11 @@ function normalizeDynamicItemSpacing(body: Element) {
     const previous = previousTextParagraph(paragraphs, index);
     const previousText = previous ? paragraphText(previous) : '';
 
-    if (accountName.test(current)) setSpacing(paragraph, '0', '0');
-    if (accountNumber.test(current)) setSpacing(paragraph, '0', '0');
-
+    if (accountName.test(current) || accountNumber.test(current)) setSpacing(paragraph, '0', '0');
     if (fraudStatement.test(current)) {
       setSpacing(paragraph, '0', DYNAMIC_ITEM_GAP);
       if (previous && (accountNumber.test(previousText) || !MAJOR_HEADING.test(previousText))) applyRule(previous, 'keepNext');
     }
-
     if (!accountName.test(current) && !accountNumber.test(current) && nextText && fraudStatement.test(nextText)) {
       setSpacing(paragraph, '0', '0');
       applyRule(paragraph, 'keepNext');
@@ -153,9 +143,16 @@ function keepHeadingWithFirstContent(paragraphs: Element[], headingIndex: number
   }
 }
 
+function protectTables(body: Element) {
+  Array.from(body.getElementsByTagNameNS(WORD_NS, 'tc')).forEach((cell) => {
+    Array.from(cell.getElementsByTagNameNS(WORD_NS, 'p')).forEach((paragraph) => protectParagraph(paragraph));
+  });
+}
+
 export function applyLetterFlowRules(body: Element) {
   normalizeSpacingAfterMajorHeadings(body);
   normalizeDynamicItemSpacing(body);
+  protectTables(body);
   const paragraphs = directParagraphs(body);
   const accountName = /^(Account|Creditor)\s+Name\s*:/i;
   const accountNumber = /^Account\s+Number\s*:/i;
@@ -165,18 +162,9 @@ export function applyLetterFlowRules(body: Element) {
   paragraphs.forEach((paragraph, index) => {
     const content = paragraphText(paragraph);
     if (!content) return;
-
     protectParagraph(paragraph);
-
-    if (MAJOR_HEADING.test(content)) {
-      keepHeadingWithFirstContent(paragraphs, index);
-      return;
-    }
-
-    if (accountName.test(content)) {
-      applyRule(paragraph, 'keepNext');
-      return;
-    }
+    if (MAJOR_HEADING.test(content)) { keepHeadingWithFirstContent(paragraphs, index); return; }
+    if (accountName.test(content)) { applyRule(paragraph, 'keepNext'); return; }
     if (accountNumber.test(content)) {
       const next = paragraphs.slice(index + 1).find((candidate) => paragraphText(candidate));
       if (next && (fraudStatement.test(paragraphText(next)) || statutoryParagraph.test(paragraphText(next)))) applyRule(paragraph, 'keepNext');
@@ -187,4 +175,17 @@ export function applyLetterFlowRules(body: Element) {
       if (label) applyRule(label, 'keepNext');
     }
   });
+}
+
+export async function applyDocxFlowRulesToBlob(blob: Blob): Promise<Blob> {
+  const zip = new PizZip(await blob.arrayBuffer());
+  const file = zip.file('word/document.xml');
+  if (!file) return blob;
+  const xml = new DOMParser().parseFromString(file.asText(), 'application/xml');
+  if (xml.getElementsByTagName('parsererror').length) return blob;
+  const body = xml.getElementsByTagNameNS(WORD_NS, 'body')[0];
+  if (!body) return blob;
+  applyLetterFlowRules(body);
+  zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
+  return hardenGeneratedDocx(zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' }));
 }
