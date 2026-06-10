@@ -7,6 +7,12 @@ type Props = {
   nextAction: NextCaseAction;
 };
 
+function marker(stage: CasePipelineStage) {
+  if (stage.status === 'done') return 'Done';
+  if (stage.status === 'blocked') return 'Fix';
+  return String(stage.number).padStart(2, '0');
+}
+
 export default function CasePipelineStatus({ stages, nextAction }: Props) {
   return <section className="panel case-pipeline-shell">
     <div className="case-pipeline-header">
@@ -21,5 +27,14 @@ export default function CasePipelineStatus({ stages, nextAction }: Props) {
       <h3>{nextAction.title}</h3>
       <p>{nextAction.detail}</p>
     </div>
+    <ol className="case-pipeline-steps">
+      {stages.map((stage) => <li key={stage.id} className={`case-pipeline-step ${stage.status}`}>
+        <span>{marker(stage)}</span>
+        <div>
+          <strong>{stage.userLabel}</strong>
+          <small>{stage.detail}</small>
+        </div>
+      </li>)}
+    </ol>
   </section>;
 }
