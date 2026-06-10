@@ -8,6 +8,7 @@ import GuidedSourceDataFlow from './GuidedSourceDataFlow';
 import OutputReviewWorkspace, { type ReviewOutput } from './OutputReviewWorkspace';
 import TemplateProgressiveWorkspace from './TemplateProgressiveWorkspace';
 import WorkspaceSettingsPanel from './WorkspaceSettingsPanel';
+import WorkspacePortabilityPanel from './WorkspacePortabilityPanel';
 import { clearOperationsRecords, exportOperationsRecords, loadClientCases, loadFilings, markFilingSent, upsertClientCase, type ClientCaseRecord, type ClientCaseStatus, type FilingRecord } from '../lib/client-operations-store';
 import { addOrderedPacketFolders } from '../lib/ordered-packet-archive';
 import { isDocx, renderReferenceDisputeDocx } from '../lib/docx-renderer';
@@ -36,7 +37,6 @@ const emptyEvidence = (): PacketAssets => ({ supporting: [], legalPdf: null });
 const emptyTemplates = (): TemplateExhibits => ({ FCRA: null, AFFIDAVIT: null, ATTACHMENT: null, FTC: null });
 const dateNow = () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }).format(new Date());
 const clean = (value: string) => (value || 'CLIENT').replace(/[\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
-const base = (value: string) => clean(value).replace(/[^A-Z0-9]+/g, '_');
 const order = (type: LetterType) => packetOrderLabels(type);
 const GENERATION_TIMEOUT_MS = 90_000;
 const ARCHIVE_TIMEOUT_MS = 120_000;
@@ -225,20 +225,9 @@ export default function LetterGeneratorWorkspaceV2() {
       }
       const context = routes.find((route) => route.type === 'DISPUTE');
       if (context) {
-        // Generate FTC Identity Theft Report through the centralized FTC workflow.
         if (isFtcEnabled()) {
           report('Generating FTC Identity Theft Report…');
-          const ftcWorkflow = await withTimeout(
-            'Generating FTC Identity Theft Report workflow',
-            () => generateFtcWorkflowOutput({
-              round,
-              parsed,
-              date,
-              cleanName: clean,
-              packetSteps: order('DISPUTE')
-            }),
-            75_000
-          );
+          const ftcWorkflow = await withTimeout('Generating FTC Identity Theft Report workflow', () => generateFtcWorkflowOutput({ round, parsed, date, cleanName: clean, packetSteps: order('DISPUTE') }), 75_000);
           notes.push(...ftcWorkflow.notes);
           output.push(ftcWorkflow.output);
         }
@@ -272,7 +261,25 @@ export default function LetterGeneratorWorkspaceV2() {
       setOrderedZip({ name: orderedZip?.name || 'ORDERED_PACKET_PACKAGE.zip', blob: zip }); report('Supporting Documents updated and ordered package rebuilt.', 'success');
     } catch (error) { setOrderedZip(null); report(`Package rebuild failed: ${errorMessage(error)}`, 'error'); }
   }
+  function applyWorkspaceImport(value: { round: Round; caseId: string; source: string; originalSource: string; normalized: boolean; references: LetterReference[]; templates: TemplateExhibits; evidence: PacketAssets; notices: string[] }) {
+    const imported = parseSource(value.source);
+    const detected = detectRoutes(imported);
+    setRound(value.round);
+    setCaseId(value.caseId || crypto.randomUUID());
+    setSource(value.source);
+    setOriginalSource(value.originalSource);
+    setNormalized(value.normalized);
+    setReferences(value.references);
+    setTemplates(value.templates);
+    setEvidence(value.evidence);
+    clearOutputs();
+    if (imported.name) {
+      setCases(upsertClientCase({ id: value.caseId || crypto.randomUUID(), clientName: imported.name, round: value.round, routeCount: detected.length, bureaus: Array.from(new Set(detected.map((route) => route.bureau))), evidenceCount: value.evidence.supporting.length, editableCount: 0, pdfCount: 0, status: value.evidence.supporting.length ? 'EVIDENCE_READY' : 'SOURCE_LOCKED', updatedAt: new Date().toISOString() }));
+    }
+    setPanel('Source Data');
+  }
   function dashboard() { return <DashboardOperationsWorkspace cases={cases} filings={filings} activeCaseId={caseId} onNewCase={begin} onOpenTemplates={() => setPanel('Templates')} onOpenOutputs={() => setPanel(orderedZip ? 'Outputs' : 'Dashboard')} onOpenTracker={() => setPanel('Filing Tracker')} onContinueCase={(item) => setPanel(item.id === caseId && item.status !== 'PDF_READY' ? (item.status === 'REVIEW_READY' ? 'Outputs' : 'Source Data') : 'Filing Tracker')} />; }
-  function sourceView() { return <GuidedSourceDataFlow source={source} originalSource={originalSource} recoveryDraft={recoveryDraft} normalized={normalized} verified={verified} parsed={affidavitRequired ? affidavitSource : parsed} routes={routes} sourceWarnings={sourceWarnings} evidenceKey={evidenceKey} evidence={evidence} canGenerate={canGenerate} missingLetters={missingLetters.map((item) => labels[item])} missingInsertCount={missingNodes.length} affidavitRequired={affidavitRequired} ftcRequired={Boolean(parsed.ftcAccounts.length)} customFields={customFields} strict={preferences.strictValidation} busy={busy} onImportSource={importSource} onStandardizeDraft={standardizeDraft} onStartManualDraft={startManualDraft} onEditSource={(value) => { setSource(value); setNormalized(false); clearOutputs(); }} onSourceFieldChange={setLine} onFtcAccountChange={() => {}} onFtcAccountAdd={() => {}} onFtcAccountRemove={() => {}} onFtcAccountSeed={() => {}} onRestoreOriginal={restoreOriginal} onRecoverDraft={recoverDraft} onEvidenceChanged={(value) => { setEvidence(value); clearOutputs(); saveCase(value.supporting.length ? 'EVIDENCE_READY' : 'SOURCE_LOCKED', { evidenceCount: value.supporting.length, editableCount: 0, pdfCount: 0 }); }} onMessage={(message) => report(message)} onGenerate={generate} />; }
-  return <main className="app-shell"><aside className="sidebar"><div className="brand"><span /><div><strong>LetterGenerator</strong><small>Packet workflow</small></div></div><nav>{panels.map((item) => <button key={item} className={panel === item ? 'active' : ''} disabled={item === 'Outputs' && !orderedZip} onClick={() => setPanel(item)}><strong>{item}</strong></button>)}</nav></aside><section className="main-area"><header className="header"><div><p className="eyebrow">{panel === 'Dashboard' ? 'Client operations' : `${round} workflow`}</p><h1>{panel}</h1></div></header><p className={`workspace-operation-status ${statusTone}`} role={statusTone === 'error' ? 'alert' : 'status'} aria-live="polite">{status}</p>{panel === 'Dashboard' && dashboard()}{panel === 'Templates' && <TemplateProgressiveWorkspace round={round} slots={refs} supportingReady={evidence.supporting.length > 0} onSelectRound={(value) => { setRound(value); clearOutputs(); report(`${value} selected. Templates and generation will use this round.`, 'success'); }} onUploadLetter={uploadRef} onRemoveLetter={removeRef} onExhibitsChange={(value) => { setTemplates(value); clearOutputs(); }} onMessage={(message) => report(message)} onUseRoundForSourceData={() => { clearOutputs(); report(`${round} is active. Source Data generation will use this round's templates.`, 'success'); setPanel('Source Data'); }} />}{panel === 'Source Data' && sourceView()}{panel === 'Outputs' && <OutputReviewWorkspace round={round} outputs={docs} expectedRoutes={routes} zipName={orderedZip?.name} warnings={warnings} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={(value) => void updateOutputEvidence(value)} onMessage={(message) => report(message)} onZip={() => orderedZip && download(orderedZip.name, orderedZip.blob)} onReplace={saveEdited} />}{panel === 'Filing Tracker' && <FilingTrackerWorkspace records={filings} outputsAvailable={Boolean(orderedZip)} onReturnToOutputs={() => setPanel('Outputs')} onStartCase={begin} onMarkSent={(id) => setFilings(markFilingSent(id))} />}{panel === 'Settings' && <WorkspaceSettingsPanel preferences={preferences} caseCount={cases.length} filingCount={filings.length} onChange={(value) => setPreferences(saveWorkspacePreferences(value))} onExportRecords={() => download('LETTERGENERATOR_OPERATIONAL_RECORDS.json', new Blob([JSON.stringify(exportOperationsRecords(), null, 2)], { type: 'application/json' }))} onClearRecords={() => { const value = clearOperationsRecords(); setCases(value.cases); setFilings(value.filings); }} />}</section></main>;
+  function sourceView() { return <GuidedSourceDataFlow source={source} originalSource={originalSource} recoveryDraft={recoveryDraft} normalized={normalized} verified={verified} parsed={affidavitRequired ? affidavitSource : parsed} routes={routes} sourceWarnings={sourceWarnings} evidenceKey={evidenceKey} evidence={evidence} canGenerate={canGenerate} missingLetters={missingLetters.map((item) => labels[item])} missingInsertCount={missingNodes.length} affidavitRequired={affidavitRequired} ftcRequired={Boolean(parsed.ftcAccounts.length)} customFields={customFields} strict={preferences.strictValidation} busy={busy} onImportSource={importSource} onStandardizeDraft={standardizeDraft} onStartManualDraft={startManualDraft} onEditSource={(value) => { setSource(value); setNormalized(false); clearOutputs(); }} onSourceFieldChange={setLine} onFtcAccountChange={() => {}} onFtcAccountAdd={() => {}} onFtcAccountRemove={() => {}} onFtcAccountSeed={() => {}} onRestoreOriginal={restoreOriginal} onRecoverDraft={recoverDraft} onEvidenceChanged={(value) => { setEvidence(value); clearOutputs(); saveCase(value.supporting.length ? 'EVIDENCE_READY' : 'SOURCE_LOCKED', { evidenceCount: value.supporting.length, editableCount: 0 }); }} onMessage={(message) => report(message)} onGenerate={generate} />; }
+  function settingsView() { return <><WorkspaceSettingsPanel preferences={preferences} caseCount={cases.length} filingCount={filings.length} onChange={(value) => setPreferences(saveWorkspacePreferences(value))} onExportRecords={() => download('LETTERGENERATOR_OPERATIONAL_RECORDS.json', new Blob([JSON.stringify(exportOperationsRecords(), null, 2)], { type: 'application/json' }))} onClearRecords={() => { const value = clearOperationsRecords(); setCases(value.cases); setFilings(value.filings); }} /><WorkspacePortabilityPanel round={round} caseId={caseId} clientName={parsed.name} source={source} originalSource={originalSource} normalized={normalized} preferences={preferences} disabled={busy} onImported={applyWorkspaceImport} onMessage={(message, tone) => report(message, tone)} /></>; }
+  return <main className="app-shell"><aside className="sidebar"><div className="brand"><span /><div><strong>LetterGenerator</strong><small>Packet workflow</small></div></div><nav>{panels.map((item) => <button key={item} className={panel === item ? 'active' : ''} disabled={item === 'Outputs' && !orderedZip} onClick={() => setPanel(item)}><strong>{item}</strong></button>)}</nav></aside><section className="main-area"><header className="header"><div><p className="eyebrow">{panel === 'Dashboard' ? 'Client operations' : `${round} workflow`}</p><h1>{panel}</h1></div></header><p className={`workspace-operation-status ${statusTone}`} role={statusTone === 'error' ? 'alert' : 'status'} aria-live="polite">{status}</p>{panel === 'Dashboard' && dashboard()}{panel === 'Templates' && <TemplateProgressiveWorkspace round={round} slots={refs} supportingReady={evidence.supporting.length > 0} onSelectRound={(value) => { setRound(value); clearOutputs(); report(`${value} selected. Templates and generation will use this round.`, 'success'); }} onUploadLetter={uploadRef} onRemoveLetter={removeRef} onExhibitsChange={(value) => { setTemplates(value); clearOutputs(); }} onMessage={(message) => report(message)} onUseRoundForSourceData={() => { clearOutputs(); report(`${round} is active. Source Data generation will use this round's templates.`, 'success'); setPanel('Source Data'); }} />}{panel === 'Source Data' && sourceView()}{panel === 'Outputs' && <OutputReviewWorkspace round={round} outputs={docs} expectedRoutes={routes} zipName={orderedZip?.name} warnings={warnings} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={(value) => void updateOutputEvidence(value)} onMessage={(message) => report(message)} onZip={() => orderedZip && download(orderedZip.name, orderedZip.blob)} onReplace={saveEdited} />}{panel === 'Filing Tracker' && <FilingTrackerWorkspace records={filings} outputsAvailable={Boolean(orderedZip)} onReturnToOutputs={() => setPanel('Outputs')} onStartCase={begin} onMarkSent={(id) => setFilings(markFilingSent(id))} />}{panel === 'Settings' && settingsView()}</section></main>;
 }
