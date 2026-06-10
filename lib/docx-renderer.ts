@@ -4,7 +4,7 @@ import { hardenGeneratedDocx } from './docx-safety';
 import { assertHydrationContract } from './docx-hydration-contract';
 import { buildAccountHydrationBlocks, buildInquiryHydrationBlocks } from './dispute-hydration-blocks';
 import { createStructuralSnapshot, validateStructuralInvariance } from './docx-structural-guard';
-import { applyLetterFlowRules } from './docx-flow';
+import { applyDocxFlowRulesToBlob, applyLetterFlowRules } from './docx-flow';
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -22,7 +22,7 @@ export type TemplateValue = string | number | boolean | Array<Record<string, str
 export type PlaceholderValues = Record<string, TemplateValue>;
 export type ReferenceDisputeValues = { consumerName: string; addressLines: string[]; dob: string; ssn: string; letterDate: string; bureauName: string; bureauAddressLines: string[]; disputeItems?: string[]; hardInquiryItems?: string[]; fraudItems?: string[] };
 
-export async function renderDocxTemplate(template: File, values: PlaceholderValues): Promise<Blob> { const zip = new PizZip(await template.arrayBuffer()); const document = new Docxtemplater(zip, { delimiters: { start: '{{', end: '}}' }, paragraphLoop: true, linebreaks: true, nullGetter: () => '' }); document.render(values); return hardenGeneratedDocx(document.getZip().generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' })); }
+export async function renderDocxTemplate(template: File, values: PlaceholderValues): Promise<Blob> { const zip = new PizZip(await template.arrayBuffer()); const document = new Docxtemplater(zip, { delimiters: { start: '{{', end: '}}' }, paragraphLoop: true, linebreaks: true, nullGetter: () => '' }); document.render(values); const output = hardenGeneratedDocx(document.getZip().generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' })); return applyDocxFlowRulesToBlob(output); }
 function paragraphs(body: Element) { return Array.from(body.children).filter((node) => node.namespaceURI === WORD_NS && node.localName === 'p') as Element[]; }
 function content(paragraph: Element) { return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't')).map((node) => node.textContent || '').join('').trim(); }
 function findParagraph(all: Element[], patterns: RegExp[]) { return all.find((paragraph) => patterns.some((pattern) => pattern.test(content(paragraph)))); }
