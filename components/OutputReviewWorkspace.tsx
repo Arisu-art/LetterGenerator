@@ -32,6 +32,13 @@ interface OutputReviewWorkspaceProps {
   onMessage?: (message: string) => void;
   onZip: () => void;
   onReplace: (output: ReviewOutput, file: File) => void | Promise<void>;
+  finalPackets?: unknown[];
+  finalizing?: boolean;
+  finalZipName?: string;
+  onFinalZip?: () => void;
+  onFinalize?: () => void | Promise<void>;
+  onPreviewPacket?: (output: ReviewOutput, pendingBlob: Blob) => Promise<unknown>;
+  onPdfDownload?: (packet: ReviewOutput) => void;
 }
 
 function packetDocuments(anchor: ReviewOutput, allOutputs: ReviewOutput[]) {
