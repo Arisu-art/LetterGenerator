@@ -7,7 +7,7 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
 type FlowRule = 'keepNext' | 'keepLines' | 'widowControl';
 const FLOW_ORDER: FlowRule[] = ['keepNext', 'keepLines', 'widowControl'];
 const MAJOR_HEADING = /^(FRAUDULENT ACCOUNTS FOR IMMEDIATE BLOCKING AND DELETION|LEGAL DEMAND AND NOTICE OF DUTY|REQUIRED ACTIONS|SUPPORTING DOCUMENTS|ACCOUNT INFORMATION\s*:|AFFECTED ACCOUNTS?|AFFECTED ITEMS?|Subject:\s*Dispute of Inaccurate Late Payment.*)$/i;
-const DYNAMIC_ITEM_GAP = '40';
+const DYNAMIC_ITEM_GAP = '0';
 
 function paragraphText(paragraph: Element): string {
   return Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 't')).map((node) => node.textContent || '').join('').replace(/\s+/g, ' ').trim();
@@ -94,24 +94,47 @@ function dynamicItemLabel(current: string, nextText: string) {
   return Boolean(nextText && /^Pursuant to 15 USC/i.test(nextText));
 }
 
-function removeBlankParagraphsBetweenDynamicItems(body: Element) {
-  const paragraphs = directParagraphs(body);
+function emptySpacerAfter(paragraph: Element): Element {
+  const spacer = paragraph.cloneNode(true) as Element;
+  Array.from(spacer.children).forEach((child) => {
+    if (!(child.namespaceURI === WORD_NS && child.localName === 'pPr')) spacer.removeChild(child);
+  });
+  setSpacing(spacer, '0', '0');
+  return spacer;
+}
+
+function normalizeOneBlankLineBetweenDynamicItems(body: Element) {
+  let paragraphs = directParagraphs(body);
   paragraphs.forEach((paragraph, index) => {
     if (!/^Pursuant to 15 USC/i.test(paragraphText(paragraph))) return;
+
     const blanks: Element[] = [];
+    let nextText = '';
+    let nextParagraph: Element | undefined;
+
     for (let pointer = index + 1; pointer < paragraphs.length; pointer += 1) {
-      const text = paragraphText(paragraphs[pointer]);
-      if (text) break;
-      blanks.push(paragraphs[pointer]);
+      const candidate = paragraphs[pointer];
+      const text = paragraphText(candidate);
+      if (!text) {
+        blanks.push(candidate);
+        continue;
+      }
+      nextText = text;
+      nextParagraph = candidate;
+      break;
     }
+
     blanks.forEach((blank) => blank.parentNode === body && body.removeChild(blank));
+
+    if (nextParagraph && dynamicItemLabel(nextText, paragraphText(nextTextParagraph(paragraphs, paragraphs.indexOf(nextParagraph)) || nextParagraph))) {
+      body.insertBefore(emptySpacerAfter(paragraph), nextParagraph);
+    }
   });
 }
 
 function normalizeDynamicItemSpacing(body: Element) {
   let paragraphs = directParagraphs(body);
   const fraudStatement = /^Pursuant to 15 USC/i;
-  const accountName = /^(Account|Creditor)\s+Name\s*:/i;
   const accountNumber = /^Account\s+Number\s*:/i;
 
   paragraphs.forEach((paragraph, index) => {
@@ -133,7 +156,7 @@ function normalizeDynamicItemSpacing(body: Element) {
     }
   });
 
-  removeBlankParagraphsBetweenDynamicItems(body);
+  normalizeOneBlankLineBetweenDynamicItems(body);
   paragraphs = directParagraphs(body);
   paragraphs.forEach((paragraph, index) => {
     const current = paragraphText(paragraph);
@@ -141,6 +164,7 @@ function normalizeDynamicItemSpacing(body: Element) {
     const nextText = next ? paragraphText(next) : '';
     if (dynamicItemLabel(current, nextText)) setSpacing(paragraph, '0', '0');
     if (fraudStatement.test(current)) setSpacing(paragraph, '0', DYNAMIC_ITEM_GAP);
+    if (!current) setSpacing(paragraph, '0', '0');
   });
 }
 
