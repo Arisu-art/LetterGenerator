@@ -3,7 +3,7 @@ import PizZip from 'pizzip';
 import { hardenGeneratedDocx } from './docx-safety';
 import { assertHydrationContract } from './docx-hydration-contract';
 import { buildAccountHydrationBlocks, buildInquiryHydrationBlocks } from './dispute-hydration-blocks';
-import { anchorLabel } from './docx-anchor-binder';
+import { shouldInventAnchor } from './docx-anchor-binder';
 import { createStructuralSnapshot, validateStructuralInvariance } from './docx-structural-guard';
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -72,7 +72,6 @@ function blankRun(source: Element) {
   Array.from(run.children).forEach((node) => { if (!(node.namespaceURI === WORD_NS && node.localName === 'rPr')) run.removeChild(node); });
   return run;
 }
-/** Replace mapped text within an existing template paragraph while retaining that paragraph's native formatting and spacing properties. */
 function writeLines(paragraph: Element, lines: string[]) {
   const doc = paragraph.ownerDocument;
   const style = styleOf(paragraph);
@@ -87,18 +86,8 @@ function writeLines(paragraph: Element, lines: string[]) {
     paragraph.appendChild(run);
   });
 }
-function cloneWithText(source: Element, lines: string[]) {
-  const paragraph = source.cloneNode(true) as Element;
-  writeLines(paragraph, lines);
-  return paragraph;
-}
-function forceIdentityStatementColor(paragraph: Element) {
-  // Structural hydration mode: statement color is inherited from the template paragraph.
-  return paragraph;
-}
-function cloneStatementWithTemplateStyle(source: Element, lines: string[]) {
-  return forceIdentityStatementColor(cloneWithText(source, lines));
-}
+function cloneWithText(source: Element, lines: string[]) { const paragraph = source.cloneNode(true) as Element; writeLines(paragraph, lines); return paragraph; }
+function cloneStatementWithTemplateStyle(source: Element, lines: string[]) { return cloneWithText(source, lines); }
 function paragraphProperties(paragraph: Element) {
   const existing = Array.from(paragraph.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'pPr') as Element | undefined;
   if (existing) return existing;
@@ -109,41 +98,20 @@ function paragraphProperties(paragraph: Element) {
 function ensureParagraphProperty(paragraph: Element, localName: string) {
   const properties = paragraphProperties(paragraph);
   const existing = Array.from(properties.children).find((node) => node.namespaceURI === WORD_NS && node.localName === localName) as Element | undefined;
-
   if (existing) return existing;
-
   const property = paragraph.ownerDocument.createElementNS(WORD_NS, `w:${localName}`);
   properties.appendChild(property);
   return property;
 }
-
-function keepParagraphLinesTogether(paragraph: Element) {
-  ensureParagraphProperty(paragraph, 'keepLines');
-  ensureParagraphProperty(paragraph, 'widowControl');
-}
-
-function keepWithNextParagraph(paragraph: Element) {
-  keepParagraphLinesTogether(paragraph);
-  ensureParagraphProperty(paragraph, 'keepNext');
-}
-
-function keepDisputeBlockTogether(paragraphs: Element[]) {
-  paragraphs.filter(Boolean).forEach((paragraph, index) => {
-    if (index < paragraphs.length - 1) keepWithNextParagraph(paragraph);
-    else keepParagraphLinesTogether(paragraph);
-  });
-}
-
+function keepParagraphLinesTogether(paragraph: Element) { ensureParagraphProperty(paragraph, 'keepLines'); ensureParagraphProperty(paragraph, 'widowControl'); }
+function keepWithNextParagraph(paragraph: Element) { keepParagraphLinesTogether(paragraph); ensureParagraphProperty(paragraph, 'keepNext'); }
+function keepDisputeBlockTogether(paragraphs: Element[]) { paragraphs.filter(Boolean).forEach((paragraph, index) => { if (index < paragraphs.length - 1) keepWithNextParagraph(paragraph); else keepParagraphLinesTogether(paragraph); }); }
 function setSpacing(paragraph: Element, position: 'before' | 'after') {
   const properties = paragraphProperties(paragraph);
   let spacing = Array.from(properties.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'spacing') as Element | undefined;
-  if (!spacing) {
-    spacing = paragraph.ownerDocument.createElementNS(WORD_NS, 'w:spacing');
-    properties.appendChild(spacing);
-  }
+  if (!spacing) { spacing = paragraph.ownerDocument.createElementNS(WORD_NS, 'w:spacing'); properties.appendChild(spacing); }
   spacing.setAttributeNS(WORD_NS, `w:${position}`, '0');
 }
-/** Compacts only the identity-header boundary; all body and exhibit layout remains template-controlled. */
 function compactSsnDateBoundary(body: Element, ssnParagraph: Element, dateParagraph: Element) {
   const all = paragraphs(body);
   const ssnIndex = all.indexOf(ssnParagraph);
@@ -161,11 +129,7 @@ function findPopulatedHeaderParagraphs(body: Element, values: ReferenceDisputeVa
   const dateParagraph = all.slice(index + 1).find((paragraph) => content(paragraph).includes(values.letterDate));
   return dateParagraph ? { ssnParagraph, dateParagraph } : null;
 }
-/** Suppresses only the inquiry heading; inquiry rows remain in the generated dispute document. */
-function removeHardInquiryLabels(body: Element) {
-  // Keep HARD INQUIRIES headings as anchors for 2nd, 3rd, and Final round templates.
-  return;
-}
+function removeHardInquiryLabels(body: Element) { return; }
 async function finalizeRenderedDisputeTemplate(blob: Blob, values: ReferenceDisputeValues) {
   assertHydrationContract();
   const zip = new PizZip(await blob.arrayBuffer());
@@ -187,81 +151,32 @@ async function finalizeRenderedDisputeTemplate(blob: Blob, values: ReferenceDisp
 function resolved(values: ReferenceDisputeValues) {
   if (values.disputeItems || values.hardInquiryItems) return { accounts: values.disputeItems || [], inquiries: values.hardInquiryItems || [] };
   const combined = values.fraudItems || [];
-  return {
-    accounts: combined.filter((entry) => /^(Account|Creditor)\s+Name\s*:/i.test(entry.trim())),
-    inquiries: combined.filter((entry) => !/^(Account|Creditor)\s+Name\s*:/i.test(entry.trim()))
-  };
+  return { accounts: combined.filter((entry) => /^(Account|Creditor)\s+Name\s*:/i.test(entry.trim())), inquiries: combined.filter((entry) => !/^(Account|Creditor)\s+Name\s*:/i.test(entry.trim())) };
 }
-function disputeAddressLines(values: ReferenceDisputeValues) {
-  return values.addressLines.map((line) => line.trim()).filter(Boolean).filter((line) => !DISPUTE_EXCLUDED_ADDRESS_FIELD.test(line));
-}
+function disputeAddressLines(values: ReferenceDisputeValues) { return values.addressLines.map((line) => line.trim()).filter(Boolean).filter((line) => !DISPUTE_EXCLUDED_ADDRESS_FIELD.test(line)); }
 function accountValues(text: string) {
   const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
   const accountName = (lines.find((line) => /^(?:Account|Creditor)\s+Name\s*:/i.test(line)) || '').replace(/^(?:Account|Creditor)\s+Name\s*:\s*/i, '');
   const accountNumber = (lines.find((line) => /^Account\s+Number\s*:/i.test(line)) || '').replace(/^Account\s+Number\s*:\s*/i, '');
-  return {
-    account_name: accountName,
-    account_number: accountNumber,
-    account_line: [accountName, accountNumber].filter(Boolean).join(' - '),
-    display_text: text,
-    statement_line: IDENTITY_THEFT_DISPUTE_STATEMENT,
-    legal_statement: IDENTITY_THEFT_DISPUTE_STATEMENT,
-    dispute_statement: IDENTITY_THEFT_DISPUTE_STATEMENT
-  };
+  return { account_name: accountName, account_number: accountNumber, account_line: [accountName, accountNumber].filter(Boolean).join(' - '), display_text: text, statement_line: IDENTITY_THEFT_DISPUTE_STATEMENT, legal_statement: IDENTITY_THEFT_DISPUTE_STATEMENT, dispute_statement: IDENTITY_THEFT_DISPUTE_STATEMENT };
 }
-
 function inquiryValues(text: string) {
   const clean = text.replace(/\s*[–—]\s*/g, ' — ').replace(/\s+/g, ' ').trim();
   const match = clean.match(/^(.+?)\s+[—-]\s+(.+)$/);
   const inquiryName = match?.[1]?.trim() || clean;
   const inquiryDate = match?.[2]?.trim() || '';
-
-  return {
-    inquiry_name: inquiryName,
-    inquiry_date: inquiryDate,
-    inquiry_line: clean,
-    display_text: clean,
-    statement_line: IDENTITY_THEFT_DISPUTE_STATEMENT,
-    legal_statement: IDENTITY_THEFT_DISPUTE_STATEMENT,
-    dispute_statement: IDENTITY_THEFT_DISPUTE_STATEMENT
-  };
+  return { inquiry_name: inquiryName, inquiry_date: inquiryDate, inquiry_line: clean, display_text: clean, statement_line: IDENTITY_THEFT_DISPUTE_STATEMENT, legal_statement: IDENTITY_THEFT_DISPUTE_STATEMENT, dispute_statement: IDENTITY_THEFT_DISPUTE_STATEMENT };
 }
 function disputePlaceholderValues(values: ReferenceDisputeValues): PlaceholderValues {
   const source = resolved(values);
   const address = disputeAddressLines(values);
   const accounts = source.accounts.map(accountValues);
   const inquiries = source.inquiries.map(inquiryValues);
-  return {
-    consumer_name: values.consumerName,
-    client_name: values.consumerName,
-    name: values.consumerName,
-    address: address.join('\n'),
-    address_inline: address.join(' '),
-    address_line_1: address[0] || '',
-    address_line_2: address.slice(1).join(' '),
-    dob: values.dob,
-    ssn: values.ssn,
-    ssn_masked: values.ssn,
-    date: values.letterDate,
-    letter_date: values.letterDate,
-    document_date: values.letterDate,
-    bureau_name: values.bureauName,
-    bureau_address: values.bureauAddressLines.join('\n'),
-    bureau_address_line_1: values.bureauAddressLines[0] || '',
-    bureau_address_line_2: values.bureauAddressLines.slice(1).join(' '),
-    accounts,
-    dispute_accounts: accounts,
-    hard_inquiries: inquiries,
-    account_lines: accounts.map((item) => [item.display_text, item.statement_line].join('\n')).join('\n\n'),
-    hard_inquiry_lines: inquiries.map((item) => [item.inquiry_line, item.statement_line].join('\n')).join('\n\n')
-  };
+  return { consumer_name: values.consumerName, client_name: values.consumerName, name: values.consumerName, address: address.join('\n'), address_inline: address.join(' '), address_line_1: address[0] || '', address_line_2: address.slice(1).join(' '), dob: values.dob, ssn: values.ssn, ssn_masked: values.ssn, date: values.letterDate, letter_date: values.letterDate, document_date: values.letterDate, bureau_name: values.bureauName, bureau_address: values.bureauAddressLines.join('\n'), bureau_address_line_1: values.bureauAddressLines[0] || '', bureau_address_line_2: values.bureauAddressLines.slice(1).join(' '), accounts, dispute_accounts: accounts, hard_inquiries: inquiries, account_lines: accounts.map((item) => [item.display_text, item.statement_line].join('\n')).join('\n\n'), hard_inquiry_lines: inquiries.map((item) => [item.inquiry_line, item.statement_line].join('\n')).join('\n\n') };
 }
-function terminalBodyBoundary(body: Element) {
-  return Array.from(body.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'sectPr') || null;
-}
+function terminalBodyBoundary(body: Element) { return Array.from(body.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'sectPr') || null; }
 function insertMappedDisputeItems(body: Element, source: { accounts: string[]; inquiries: string[] }, bureauName: string) {
   if (!source.accounts.length && !source.inquiries.length) throw new Error('No matching account or inquiry records were found.');
-
   const accountBlocks = buildAccountHydrationBlocks({ bureau: bureauName, accounts: source.accounts, statement: IDENTITY_THEFT_DISPUTE_STATEMENT });
   const inquiryBlocks = buildInquiryHydrationBlocks({ bureau: bureauName, inquiries: source.inquiries, statement: IDENTITY_THEFT_DISPUTE_STATEMENT });
   const all = paragraphs(body);
@@ -271,130 +186,49 @@ function insertMappedDisputeItems(body: Element, source: { accounts: string[]; i
   const signatureBoundary = all.find((paragraph) => SIGNATURE_PATTERN.test(content(paragraph)));
   const terminalBoundary = terminalBodyBoundary(body);
   const fallbackBoundary = legalBoundary || signatureBoundary || terminalBoundary;
-
-  function indexOf(paragraph: Element | null | undefined) {
-    return paragraph ? all.indexOf(paragraph) : -1;
-  }
-
+  if (accountBlocks.length && !accountHeading) throw new Error('Disputed accounts anchor was not found in the latest DOCX template.');
+  function indexOf(paragraph: Element | null | undefined) { return paragraph ? all.indexOf(paragraph) : -1; }
   function firstBoundaryAfter(start: Element | null | undefined, fallback: Node | null | undefined) {
     const startIndex = indexOf(start);
     if (startIndex < 0) return fallback || null;
-
-    return all.slice(startIndex + 1).find((paragraph) =>
-      NEXT_SECTION_PATTERNS.some((pattern) => pattern.test(content(paragraph))) ||
-      LEGAL_BOUNDARY_PATTERNS.some((pattern) => pattern.test(content(paragraph))) ||
-      SIGNATURE_PATTERN.test(content(paragraph))
-    ) || fallback || null;
+    return all.slice(startIndex + 1).find((paragraph) => NEXT_SECTION_PATTERNS.some((pattern) => pattern.test(content(paragraph))) || LEGAL_BOUNDARY_PATTERNS.some((pattern) => pattern.test(content(paragraph))) || SIGNATURE_PATTERN.test(content(paragraph))) || fallback || null;
   }
-
   function regionBetween(start: Element | null | undefined, boundary: Node | null | undefined) {
     if (!start || !boundary || !(boundary instanceof Element)) return [];
-
     const startIndex = all.indexOf(start);
     const boundaryIndex = all.indexOf(boundary);
-
     return startIndex >= 0 && boundaryIndex > startIndex ? all.slice(startIndex + 1, boundaryIndex) : [];
   }
-
-  function styleFrom(region: Element[], heading: Element | null | undefined, fallback: Node | null | undefined) {
-    return region.find((paragraph) => content(paragraph) && !content(paragraph).startsWith(STATEMENT_PREFIX))
-      || heading
-      || (fallback instanceof Element ? fallback : undefined)
-      || all.find((paragraph) => content(paragraph))!;
-  }
-
-  function statementStyleFrom(region: Element[], fallback: Element) {
-    return region.find((paragraph) => content(paragraph).startsWith(STATEMENT_PREFIX)) || fallback;
-  }
-
-  function spacerFrom(region: Element[]) {
-    return region.find((paragraph) => !content(paragraph));
-  }
-
-  function insertBefore(boundary: Node | null | undefined, node: Node) {
-    return boundary ? body.insertBefore(node, boundary) : body.appendChild(node);
-  }
-
-  function addSpacer(boundary: Node | null | undefined, sourceSpacer: Element | undefined) {
-    if (sourceSpacer) insertBefore(boundary, sourceSpacer.cloneNode(true));
-  }
-
-  const accountBoundary = accountHeading
-    ? firstBoundaryAfter(accountHeading, hardInquiryHeading || fallbackBoundary)
-    : hardInquiryHeading || fallbackBoundary;
-
+  function styleFrom(region: Element[], heading: Element | null | undefined, fallback: Node | null | undefined) { return region.find((paragraph) => content(paragraph) && !content(paragraph).startsWith(STATEMENT_PREFIX)) || heading || (fallback instanceof Element ? fallback : undefined) || all.find((paragraph) => content(paragraph))!; }
+  function statementStyleFrom(region: Element[], fallback: Element) { return region.find((paragraph) => content(paragraph).startsWith(STATEMENT_PREFIX)) || fallback; }
+  function spacerFrom(region: Element[]) { return region.find((paragraph) => !content(paragraph)); }
+  function insertBefore(boundary: Node | null | undefined, node: Node) { return boundary ? body.insertBefore(node, boundary) : body.appendChild(node); }
+  function addSpacer(boundary: Node | null | undefined, sourceSpacer: Element | undefined) { if (sourceSpacer) insertBefore(boundary, sourceSpacer.cloneNode(true)); }
+  const accountBoundary = accountHeading ? firstBoundaryAfter(accountHeading, hardInquiryHeading || fallbackBoundary) : hardInquiryHeading || fallbackBoundary;
   const accountRegion = regionBetween(accountHeading, accountBoundary);
   const accountStyle = styleFrom(accountRegion, accountHeading, accountBoundary);
   const accountStatementStyle = statementStyleFrom(accountRegion, accountStyle);
   const accountSpacer = spacerFrom(accountRegion);
-
   accountRegion.forEach((paragraph) => paragraph.parentNode?.removeChild(paragraph));
-
-  if (!accountHeading) {
-    insertBefore(accountBoundary, cloneWithText(accountStyle, [anchorLabel('FRAUDULENT_ACCOUNTS')]));
-  }
-
   addSpacer(accountBoundary, accountSpacer);
-
-  accountBlocks.forEach((block) => {
-    const accountParagraph = cloneWithText(accountStyle, block.lines);
-    const statementParagraph = cloneStatementWithTemplateStyle(accountStatementStyle, [block.statement]);
-
-    keepDisputeBlockTogether([accountParagraph, statementParagraph]);
-
-    insertBefore(accountBoundary, accountParagraph);
-    insertBefore(accountBoundary, statementParagraph);
-    addSpacer(accountBoundary, accountSpacer);
-  });
-
-  if (!inquiryBlocks.length) return;
-
-  const refreshedAfterAccounts = paragraphs(body);
-  const liveInquiryHeading = refreshedAfterAccounts.find((paragraph) => HARD_INQUIRY_LABEL.test(content(paragraph)));
-  const inquiryBoundary = liveInquiryHeading
-    ? firstBoundaryAfter(liveInquiryHeading, legalBoundary || signatureBoundary || terminalBoundary)
-    : legalBoundary || signatureBoundary || terminalBoundary;
-
-  const inquiryHeading = liveInquiryHeading || cloneWithText(accountStyle, [anchorLabel('HARD_INQUIRIES')]);
-
-  if (!liveInquiryHeading) {
-    insertBefore(inquiryBoundary, inquiryHeading);
-  }
-
-  const refreshedAfterHeading = paragraphs(body);
-  const finalInquiryHeading = refreshedAfterHeading.find((paragraph) => HARD_INQUIRY_LABEL.test(content(paragraph))) || inquiryHeading;
-  const inquiryRegion = regionBetween(finalInquiryHeading, inquiryBoundary);
-  const inquiryStyle = styleFrom(inquiryRegion, finalInquiryHeading, inquiryBoundary);
+  accountBlocks.forEach((block) => { const accountParagraph = cloneWithText(accountStyle, block.lines); const statementParagraph = cloneStatementWithTemplateStyle(accountStatementStyle, [block.statement]); keepDisputeBlockTogether([accountParagraph, statementParagraph]); insertBefore(accountBoundary, accountParagraph); insertBefore(accountBoundary, statementParagraph); addSpacer(accountBoundary, accountSpacer); });
+  if (!inquiryBlocks.length || !hardInquiryHeading) return;
+  const inquiryBoundary = firstBoundaryAfter(hardInquiryHeading, legalBoundary || signatureBoundary || terminalBoundary);
+  const inquiryRegion = regionBetween(hardInquiryHeading, inquiryBoundary);
+  const inquiryStyle = styleFrom(inquiryRegion, hardInquiryHeading, inquiryBoundary);
   const inquiryStatementStyle = statementStyleFrom(inquiryRegion, inquiryStyle);
   const inquirySpacer = spacerFrom(inquiryRegion);
-
-  inquiryRegion.forEach((paragraph) => {
-    if (paragraph !== finalInquiryHeading) paragraph.parentNode?.removeChild(paragraph);
-  });
-
+  inquiryRegion.forEach((paragraph) => { if (paragraph !== hardInquiryHeading) paragraph.parentNode?.removeChild(paragraph); });
   addSpacer(inquiryBoundary, inquirySpacer);
-
-  inquiryBlocks.forEach((block) => {
-    const inquiryParagraph = cloneWithText(inquiryStyle, block.lines);
-    const statementParagraph = cloneStatementWithTemplateStyle(inquiryStatementStyle, [block.statement]);
-
-    keepDisputeBlockTogether([inquiryParagraph, statementParagraph]);
-
-    insertBefore(inquiryBoundary, inquiryParagraph);
-    insertBefore(inquiryBoundary, statementParagraph);
-    addSpacer(inquiryBoundary, inquirySpacer);
-  });
+  inquiryBlocks.forEach((block) => { const inquiryParagraph = cloneWithText(inquiryStyle, block.lines); const statementParagraph = cloneStatementWithTemplateStyle(inquiryStatementStyle, [block.statement]); keepDisputeBlockTogether([inquiryParagraph, statementParagraph]); insertBefore(inquiryBoundary, inquiryParagraph); insertBefore(inquiryBoundary, statementParagraph); addSpacer(inquiryBoundary, inquirySpacer); });
 }
-
 export async function renderReferenceDisputeDocx(reference: File, values: ReferenceDisputeValues): Promise<Blob> {
   assertHydrationContract();
   const zip = new PizZip(await reference.arrayBuffer());
   const file = zip.file('word/document.xml');
   if (!file) throw new Error('DOCX document XML is unavailable.');
   const documentXml = file.asText();
-  if (/\{\{\s*[#\/^]?[\w.-]+\s*\}\}/.test(documentXml)) {
-    return finalizeRenderedDisputeTemplate(await renderDocxTemplate(reference, disputePlaceholderValues(values)), values);
-  }
+  if (/\{\{\s*[#\/^]?[\w.-]+\s*\}\}/.test(documentXml)) return finalizeRenderedDisputeTemplate(await renderDocxTemplate(reference, disputePlaceholderValues(values)), values);
   const snapshot = createStructuralSnapshot(documentXml);
   const xml = new DOMParser().parseFromString(documentXml, 'application/xml');
   if (xml.getElementsByTagName('parsererror').length) throw new Error('DOCX content could not be read.');
@@ -412,10 +246,7 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   insertMappedDisputeItems(body, source, values.bureauName);
   const renderedParagraphs = paragraphs(body);
   const close = renderedParagraphs.find((paragraph) => SIGNATURE_PATTERN.test(content(paragraph)));
-  if (close) {
-    const signature = renderedParagraphs.slice(renderedParagraphs.indexOf(close) + 1).find((paragraph) => content(paragraph));
-    if (signature) writeLines(signature, [values.consumerName]);
-  }
+  if (close) { const signature = renderedParagraphs.slice(renderedParagraphs.indexOf(close) + 1).find((paragraph) => content(paragraph)); if (signature) writeLines(signature, [values.consumerName]); }
   const outputXml = new XMLSerializer().serializeToString(xml);
   validateStructuralInvariance(snapshot, outputXml);
   zip.file('word/document.xml', outputXml);
