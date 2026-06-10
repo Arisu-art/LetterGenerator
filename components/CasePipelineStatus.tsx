@@ -7,34 +7,17 @@ type Props = {
   nextAction: NextCaseAction;
 };
 
-function marker(stage: CasePipelineStage) {
-  if (stage.status === 'done') return 'Done';
-  if (stage.status === 'blocked') return 'Fix';
-  return String(stage.number).padStart(2, '0');
-}
-
 export default function CasePipelineStatus({ stages, nextAction }: Props) {
-  return <section className="panel case-pipeline-shell">
-    <div className="case-pipeline-header">
-      <div>
-        <p className="eyebrow">Case pipeline</p>
-        <h2>Professional workflow</h2>
-        <p>Follow the packet workflow with a clear next step.</p>
-      </div>
+  const required = stages.filter((stage) => stage.required);
+  const done = required.filter((stage) => stage.done).length;
+  const active = stages.find((stage) => stage.status === 'active' || stage.status === 'blocked') || stages.find((stage) => !stage.done) || stages[0];
+  const ready = required.length > 0 && done === required.length;
+
+  return <div className={`case-pipeline-compact ${ready ? 'done' : active?.status || 'upcoming'}`} aria-label="Case pipeline status">
+    <span>{done}/{required.length}</span>
+    <div>
+      <strong>{ready ? 'Workflow ready' : nextAction.title}</strong>
+      <small>{ready ? 'Review, download, and track filing when ready.' : nextAction.detail}</small>
     </div>
-    <div className="next-action-card">
-      <p className="eyebrow">Next step</p>
-      <h3>{nextAction.title}</h3>
-      <p>{nextAction.detail}</p>
-    </div>
-    <ol className="case-pipeline-steps">
-      {stages.map((stage) => <li key={stage.id} className={`case-pipeline-step ${stage.status}`}>
-        <span>{marker(stage)}</span>
-        <div>
-          <strong>{stage.userLabel}</strong>
-          <small>{stage.detail}</small>
-        </div>
-      </li>)}
-    </ol>
-  </section>;
+  </div>;
 }
