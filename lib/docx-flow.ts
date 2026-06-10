@@ -7,6 +7,7 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
 type FlowRule = 'keepNext' | 'keepLines' | 'widowControl';
 const FLOW_ORDER: FlowRule[] = ['keepNext', 'keepLines', 'widowControl'];
 const MAJOR_HEADING = /^(FRAUDULENT ACCOUNTS FOR IMMEDIATE BLOCKING AND DELETION|LEGAL DEMAND AND NOTICE OF DUTY|REQUIRED ACTIONS|SUPPORTING DOCUMENTS|ACCOUNT INFORMATION\s*:|AFFECTED ACCOUNTS?|AFFECTED ITEMS?|Subject:\s*Dispute of Inaccurate Late Payment.*)$/i;
+const DISPUTE_STATEMENT = /^Pursuant to 15 USC/i;
 const DYNAMIC_ITEM_GAP = '0';
 
 function paragraphText(paragraph: Element): string {
@@ -91,7 +92,7 @@ function normalizeSpacingAfterMajorHeadings(body: Element) {
 function dynamicItemLabel(current: string, nextText: string) {
   if (/^(Account|Creditor)\s+Name\s*:/i.test(current)) return true;
   if (/^Account\s+Number\s*:/i.test(current)) return true;
-  return Boolean(nextText && /^Pursuant to 15 USC/i.test(nextText));
+  return Boolean(nextText && DISPUTE_STATEMENT.test(nextText));
 }
 
 function emptySpacerAfter(paragraph: Element): Element {
@@ -103,13 +104,12 @@ function emptySpacerAfter(paragraph: Element): Element {
   return spacer;
 }
 
-function normalizeOneBlankLineBetweenDynamicItems(body: Element) {
-  let paragraphs = directParagraphs(body);
+function normalizeOneBlankLineAfterDisputeStatements(body: Element) {
+  const paragraphs = directParagraphs(body);
   paragraphs.forEach((paragraph, index) => {
-    if (!/^Pursuant to 15 USC/i.test(paragraphText(paragraph))) return;
+    if (!DISPUTE_STATEMENT.test(paragraphText(paragraph))) return;
 
     const blanks: Element[] = [];
-    let nextText = '';
     let nextParagraph: Element | undefined;
 
     for (let pointer = index + 1; pointer < paragraphs.length; pointer += 1) {
@@ -119,14 +119,13 @@ function normalizeOneBlankLineBetweenDynamicItems(body: Element) {
         blanks.push(candidate);
         continue;
       }
-      nextText = text;
       nextParagraph = candidate;
       break;
     }
 
     blanks.forEach((blank) => blank.parentNode === body && body.removeChild(blank));
 
-    if (nextParagraph && dynamicItemLabel(nextText, paragraphText(nextTextParagraph(paragraphs, paragraphs.indexOf(nextParagraph)) || nextParagraph))) {
+    if (nextParagraph && !DISPUTE_STATEMENT.test(paragraphText(nextParagraph))) {
       body.insertBefore(emptySpacerAfter(paragraph), nextParagraph);
     }
   });
@@ -134,7 +133,6 @@ function normalizeOneBlankLineBetweenDynamicItems(body: Element) {
 
 function normalizeDynamicItemSpacing(body: Element) {
   let paragraphs = directParagraphs(body);
-  const fraudStatement = /^Pursuant to 15 USC/i;
   const accountNumber = /^Account\s+Number\s*:/i;
 
   paragraphs.forEach((paragraph, index) => {
@@ -150,20 +148,20 @@ function normalizeDynamicItemSpacing(body: Element) {
       applyRule(paragraph, 'keepNext');
     }
 
-    if (fraudStatement.test(current)) {
+    if (DISPUTE_STATEMENT.test(current)) {
       setSpacing(paragraph, '0', DYNAMIC_ITEM_GAP);
       if (previous && (accountNumber.test(previousText) || dynamicItemLabel(previousText, current) || !MAJOR_HEADING.test(previousText))) applyRule(previous, 'keepNext');
     }
   });
 
-  normalizeOneBlankLineBetweenDynamicItems(body);
+  normalizeOneBlankLineAfterDisputeStatements(body);
   paragraphs = directParagraphs(body);
   paragraphs.forEach((paragraph, index) => {
     const current = paragraphText(paragraph);
     const next = nextTextParagraph(paragraphs, index);
     const nextText = next ? paragraphText(next) : '';
     if (dynamicItemLabel(current, nextText)) setSpacing(paragraph, '0', '0');
-    if (fraudStatement.test(current)) setSpacing(paragraph, '0', DYNAMIC_ITEM_GAP);
+    if (DISPUTE_STATEMENT.test(current)) setSpacing(paragraph, '0', DYNAMIC_ITEM_GAP);
     if (!current) setSpacing(paragraph, '0', '0');
   });
 }
@@ -188,7 +186,6 @@ export function applyLetterFlowRules(body: Element) {
   protectTables(body);
   const paragraphs = directParagraphs(body);
   const accountNumber = /^Account\s+Number\s*:/i;
-  const fraudStatement = /^Pursuant to 15 USC/i;
   const statutoryParagraph = /^(Under\s+15\s+(U\.S\.\s+Code|USC)|You are not permitted|Any reinvestigation conducted|This letter serves)/i;
 
   paragraphs.forEach((paragraph, index) => {
@@ -200,10 +197,10 @@ export function applyLetterFlowRules(body: Element) {
     const nextText = next ? paragraphText(next) : '';
     if (dynamicItemLabel(content, nextText)) { applyRule(paragraph, 'keepNext'); return; }
     if (accountNumber.test(content)) {
-      if (next && (fraudStatement.test(nextText) || statutoryParagraph.test(nextText))) applyRule(paragraph, 'keepNext');
+      if (next && (DISPUTE_STATEMENT.test(nextText) || statutoryParagraph.test(nextText))) applyRule(paragraph, 'keepNext');
       return;
     }
-    if (fraudStatement.test(content)) {
+    if (DISPUTE_STATEMENT.test(content)) {
       const label = previousTextParagraph(paragraphs, index);
       if (label) applyRule(label, 'keepNext');
     }
