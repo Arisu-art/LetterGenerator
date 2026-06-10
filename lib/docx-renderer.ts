@@ -88,6 +88,30 @@ function cloneWithText(source: Element, lines: string[]) {
   writeLines(paragraph, lines);
   return paragraph;
 }
+function forceIdentityStatementColor(paragraph: Element) {
+  if (!content(paragraph).includes(IDENTITY_THEFT_DISPUTE_STATEMENT)) return paragraph;
+  const doc = paragraph.ownerDocument;
+  Array.from(paragraph.getElementsByTagNameNS(WORD_NS, 'r')).forEach((run) => {
+    let properties = Array.from(run.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'rPr') as Element | undefined;
+    if (!properties) {
+      properties = doc.createElementNS(WORD_NS, 'w:rPr');
+      run.insertBefore(properties, run.firstChild);
+    }
+
+    const currentProperties = properties;
+    Array.from(currentProperties.children)
+      .filter((node) => node.namespaceURI === WORD_NS && node.localName === 'color')
+      .forEach((node) => currentProperties.removeChild(node));
+
+    const color = doc.createElementNS(WORD_NS, 'w:color');
+    color.setAttributeNS(WORD_NS, 'w:val', 'FF0000');
+    currentProperties.appendChild(color);
+  });
+  return paragraph;
+}
+function cloneStatementWithTemplateStyle(source: Element, lines: string[]) {
+  return forceIdentityStatementColor(cloneWithText(source, lines));
+}
 function paragraphProperties(paragraph: Element) {
   const existing = Array.from(paragraph.children).find((node) => node.namespaceURI === WORD_NS && node.localName === 'pPr') as Element | undefined;
   if (existing) return existing;
@@ -165,6 +189,7 @@ async function finalizeRenderedDisputeTemplate(blob: Blob, values: ReferenceDisp
   const header = findPopulatedHeaderParagraphs(body, values);
   if (header) compactSsnDateBoundary(body, header.ssnParagraph, header.dateParagraph);
   removeHardInquiryLabels(body);
+  paragraphs(body).forEach(forceIdentityStatementColor);
   zip.file('word/document.xml', new XMLSerializer().serializeToString(xml));
   return hardenGeneratedDocx(zip.generate({ type: 'blob', mimeType: DOCX_MIME, compression: 'DEFLATE' }));
 }
@@ -320,7 +345,7 @@ function insertMappedDisputeItems(body: Element, source: { accounts: string[]; i
 
   source.accounts.forEach((account) => {
     const accountParagraph = cloneWithText(accountStyle, account.split('\n'));
-    const statementParagraph = cloneWithText(accountStatementStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]);
+    const statementParagraph = cloneStatementWithTemplateStyle(accountStatementStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]);
 
     keepDisputeBlockTogether([accountParagraph, statementParagraph]);
 
@@ -358,7 +383,7 @@ function insertMappedDisputeItems(body: Element, source: { accounts: string[]; i
 
   source.inquiries.forEach((inquiry) => {
     const inquiryParagraph = cloneWithText(inquiryStyle, [inquiry]);
-    const statementParagraph = cloneWithText(inquiryStatementStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]);
+    const statementParagraph = cloneStatementWithTemplateStyle(inquiryStatementStyle, [IDENTITY_THEFT_DISPUTE_STATEMENT]);
 
     keepDisputeBlockTogether([inquiryParagraph, statementParagraph]);
 
@@ -390,6 +415,7 @@ export async function renderReferenceDisputeDocx(reference: File, values: Refere
   compactSsnDateBoundary(body, nonEmpty[0], nonEmpty[1]);
   removeHardInquiryLabels(body);
   insertMappedDisputeItems(body, source);
+  paragraphs(body).forEach(forceIdentityStatementColor);
   const renderedParagraphs = paragraphs(body);
   const close = renderedParagraphs.find((paragraph) => SIGNATURE_PATTERN.test(content(paragraph)));
   if (close) {
