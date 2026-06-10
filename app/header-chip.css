@@ -1,1 +1,4 @@
-.chip{padding:12px}
+.header-next-action{min-width:260px;max-width:420px;min-height:54px;padding:8px 12px;display:flex;align-items:center;gap:10px;border:1px solid #cfd5dd;border-radius:16px;background:#fff;box-shadow:0 10px 24px rgba(15,23,42,.06)}
+.header-next-action>span{width:46px;height:36px;display:grid;place-items:center;border-radius:12px;color:#385d84;background:#edf4fb;border:1px solid #cdddec;font-size:12px;font-weight:760;white-space:nowrap}
+.header-next-action>div{min-width:0}.header-next-action strong,.header-next-action small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.header-next-action strong{color:#111827;font-size:13px;font-weight:760}.header-next-action small{color:#667085;font-size:11px}
+@media(max-width:720px){.header-next-action{min-width:0;width:100%}.header-next-action small{display:none}}
