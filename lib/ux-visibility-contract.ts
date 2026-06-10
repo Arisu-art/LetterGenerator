@@ -18,6 +18,9 @@ export type UxVisibilityRules = {
   showPreflightPanel: boolean;
   showOutputWarnings: boolean;
   showBusyState: boolean;
+  allowGlobalWarningSurface: boolean;
+  compressEmptyAssetContainers: boolean;
+  hideSecondaryManagementTools: boolean;
 };
 
 export function resolveUxVisibility(input: UxVisibilityInput): UxVisibilityRules {
@@ -29,10 +32,17 @@ export function resolveUxVisibility(input: UxVisibilityInput): UxVisibilityRules
     showStatusText: input.statusTone === 'success' || input.statusTone === 'error' || input.busy,
     showPreflightPanel: input.panel === 'Source Data' && input.hasSource && (blockedAfterGenerate || reviewNeededAfterGenerate),
     showOutputWarnings: input.panel === 'Outputs' && input.hasGeneratedOutput,
-    showBusyState: input.busy
+    showBusyState: input.busy,
+    allowGlobalWarningSurface: false,
+    compressEmptyAssetContainers: true,
+    hideSecondaryManagementTools: true
   };
 }
 
 export function shouldKeepMainLayoutQuiet(rules: UxVisibilityRules) {
   return !rules.showStatusText && !rules.showPreflightPanel && !rules.showBusyState;
+}
+
+export function shouldRevealPreflightAfterAction(rules: UxVisibilityRules) {
+  return rules.showPreflightPanel;
 }
