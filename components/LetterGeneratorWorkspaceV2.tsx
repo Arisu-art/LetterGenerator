@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 import DashboardOperationsWorkspace from './DashboardOperationsWorkspace';
 import FilingTrackerWorkspace from './FilingTrackerWorkspace';
 import GuidedSourceDataFlow from './GuidedSourceDataFlow';
+import GenerationPreflightChecklist from './GenerationPreflightChecklist';
 import OutputReviewWorkspace, { type ReviewOutput } from './OutputReviewWorkspace';
 import TemplateProgressiveWorkspace from './TemplateProgressiveWorkspace';
 import WorkspaceSettingsPanel from './WorkspaceSettingsPanel';
@@ -25,6 +26,7 @@ import { exhibitTitles, loadTemplateExhibits, readTemplateExhibit, type ExhibitK
 import { defaultWorkspacePreferences, loadWorkspacePreferences, saveWorkspacePreferences, type WorkspacePreferences } from '../lib/workspace-preferences';
 import { packetOrderLabels, isFtcEnabled } from '../lib/workflow-framework';
 import { activeWorkflowDiagnostics, assessRouteCoverage, requiredGenerationFailureMessage } from '../lib/workflow-execution';
+import { evaluateGenerationPreflight, preflightFailureMessage } from '../lib/preflight-validation';
 
 type Panel = 'Dashboard' | 'Templates' | 'Source Data' | 'Outputs' | 'Filing Tracker' | 'Settings';
 type SourceDraftSnapshot = { text: string; normalized: boolean; label: string; capturedAt: string };
@@ -123,6 +125,7 @@ export default function LetterGeneratorWorkspaceV2() {
   const customReady = customFields.every((item) => !item.required || Boolean(parsed.templateFields[item.key]?.trim()));
   const missingNodes = dispute ? requirements.filter((kind) => !templates[kind]) : [];
   const canGenerate = verified && routes.length > 0;
+  const preflight = useMemo(() => evaluateGenerationPreflight({ source, normalized, parsed: affidavitRequired ? affidavitSource : parsed, routes, references: refs, templates, evidence, affidavitReady, customReady, strictValidation: preferences.strictValidation, preferences }), [source, normalized, parsed, affidavitRequired, affidavitSource, routes, refs, templates, evidence, affidavitReady, customReady, preferences]);
 
   useEffect(() => setEvidence(evidenceKey ? loadPacketAssets(evidenceKey) : emptyEvidence()), [evidenceKey]);
 
@@ -197,10 +200,11 @@ export default function LetterGeneratorWorkspaceV2() {
     return zip.generateAsync({ type: 'blob' });
   }
   async function generate() {
-    if (!canGenerate || !evidence.supporting.length || !affidavitReady || !customReady || missingNodes.length || (preferences.strictValidation && missingLetters.length)) {
-      const detail = missingNodes.length ? ` Required Templates items: ${missingNodes.map((kind) => exhibitTitles[kind]).join(', ')}.` : '';
-      report(`Complete the required ordered-package contract before generation.${detail}`, 'error'); return;
+    if (!preflight.ready) {
+      report(preflightFailureMessage(preflight), 'error');
+      return;
     }
+    if (!canGenerate) { report('Source data is not ready for generation.', 'error'); return; }
     setBusy(true); clearOutputs();
     const date = dateNow();
     const output: ReviewOutput[] = [];
@@ -279,7 +283,7 @@ export default function LetterGeneratorWorkspaceV2() {
     setPanel('Source Data');
   }
   function dashboard() { return <DashboardOperationsWorkspace cases={cases} filings={filings} activeCaseId={caseId} onNewCase={begin} onOpenTemplates={() => setPanel('Templates')} onOpenOutputs={() => setPanel(orderedZip ? 'Outputs' : 'Dashboard')} onOpenTracker={() => setPanel('Filing Tracker')} onContinueCase={(item) => setPanel(item.id === caseId && item.status !== 'PDF_READY' ? (item.status === 'REVIEW_READY' ? 'Outputs' : 'Source Data') : 'Filing Tracker')} />; }
-  function sourceView() { return <GuidedSourceDataFlow source={source} originalSource={originalSource} recoveryDraft={recoveryDraft} normalized={normalized} verified={verified} parsed={affidavitRequired ? affidavitSource : parsed} routes={routes} sourceWarnings={sourceWarnings} evidenceKey={evidenceKey} evidence={evidence} canGenerate={canGenerate} missingLetters={missingLetters.map((item) => labels[item])} missingInsertCount={missingNodes.length} affidavitRequired={affidavitRequired} ftcRequired={Boolean(parsed.ftcAccounts.length)} customFields={customFields} strict={preferences.strictValidation} busy={busy} onImportSource={importSource} onStandardizeDraft={standardizeDraft} onStartManualDraft={startManualDraft} onEditSource={(value) => { setSource(value); setNormalized(false); clearOutputs(); }} onSourceFieldChange={setLine} onFtcAccountChange={() => {}} onFtcAccountAdd={() => {}} onFtcAccountRemove={() => {}} onFtcAccountSeed={() => {}} onRestoreOriginal={restoreOriginal} onRecoverDraft={recoverDraft} onEvidenceChanged={(value) => { setEvidence(value); clearOutputs(); saveCase(value.supporting.length ? 'EVIDENCE_READY' : 'SOURCE_LOCKED', { evidenceCount: value.supporting.length, editableCount: 0 }); }} onMessage={(message) => report(message)} onGenerate={generate} />; }
+  function sourceView() { return <><GenerationPreflightChecklist result={preflight} /><GuidedSourceDataFlow source={source} originalSource={originalSource} recoveryDraft={recoveryDraft} normalized={normalized} verified={verified} parsed={affidavitRequired ? affidavitSource : parsed} routes={routes} sourceWarnings={sourceWarnings} evidenceKey={evidenceKey} evidence={evidence} canGenerate={preflight.ready && canGenerate} missingLetters={missingLetters.map((item) => labels[item])} missingInsertCount={missingNodes.length} affidavitRequired={affidavitRequired} ftcRequired={Boolean(parsed.ftcAccounts.length)} customFields={customFields} strict={preferences.strictValidation} busy={busy} onImportSource={importSource} onStandardizeDraft={standardizeDraft} onStartManualDraft={startManualDraft} onEditSource={(value) => { setSource(value); setNormalized(false); clearOutputs(); }} onSourceFieldChange={setLine} onFtcAccountChange={() => {}} onFtcAccountAdd={() => {}} onFtcAccountRemove={() => {}} onFtcAccountSeed={() => {}} onRestoreOriginal={restoreOriginal} onRecoverDraft={recoverDraft} onEvidenceChanged={(value) => { setEvidence(value); clearOutputs(); saveCase(value.supporting.length ? 'EVIDENCE_READY' : 'SOURCE_LOCKED', { evidenceCount: value.supporting.length, editableCount: 0 }); }} onMessage={(message) => report(message)} onGenerate={generate} /></>; }
   function settingsView() { return <><WorkspaceSettingsPanel preferences={preferences} caseCount={cases.length} filingCount={filings.length} onChange={(value) => setPreferences(saveWorkspacePreferences(value))} onExportRecords={() => download('LETTERGENERATOR_OPERATIONAL_RECORDS.json', new Blob([JSON.stringify(exportOperationsRecords(), null, 2)], { type: 'application/json' }))} onClearRecords={() => { const value = clearOperationsRecords(); setCases(value.cases); setFilings(value.filings); }} /><WorkspacePortabilityPanel round={round} caseId={caseId} clientName={parsed.name} source={source} originalSource={originalSource} normalized={normalized} preferences={preferences} disabled={busy} onImported={applyWorkspaceImport} onMessage={(message, tone) => report(message, tone)} /></>; }
   return <main className="app-shell"><aside className="sidebar"><div className="brand"><span /><div><strong>LetterGenerator</strong><small>Packet workflow</small></div></div><nav>{panels.map((item) => <button key={item} className={panel === item ? 'active' : ''} disabled={item === 'Outputs' && !orderedZip} onClick={() => setPanel(item)}><strong>{item}</strong></button>)}</nav></aside><section className="main-area"><header className="header"><div><p className="eyebrow">{panel === 'Dashboard' ? 'Client operations' : `${round} workflow`}</p><h1>{panel}</h1></div></header><p className={`workspace-operation-status ${statusTone}`} role={statusTone === 'error' ? 'alert' : 'status'} aria-live="polite">{status}</p>{panel === 'Dashboard' && dashboard()}{panel === 'Templates' && <TemplateProgressiveWorkspace round={round} slots={refs} supportingReady={evidence.supporting.length > 0} onSelectRound={(value) => { setRound(value); clearOutputs(); report(`${value} selected. Templates and generation will use this round.`, 'success'); }} onUploadLetter={uploadRef} onRemoveLetter={removeRef} onExhibitsChange={(value) => { setTemplates(value); clearOutputs(); }} onMessage={(message) => report(message)} onUseRoundForSourceData={() => { clearOutputs(); report(`${round} is active. Source Data generation will use this round's templates.`, 'success'); setPanel('Source Data'); }} />}{panel === 'Source Data' && sourceView()}{panel === 'Outputs' && <OutputReviewWorkspace round={round} outputs={docs} expectedRoutes={routes} zipName={orderedZip?.name} warnings={warnings} evidenceKey={evidenceKey} evidence={evidence} onEvidenceChanged={(value) => void updateOutputEvidence(value)} onMessage={(message) => report(message)} onZip={() => orderedZip && download(orderedZip.name, orderedZip.blob)} onReplace={saveEdited} />}{panel === 'Filing Tracker' && <FilingTrackerWorkspace records={filings} outputsAvailable={Boolean(orderedZip)} onReturnToOutputs={() => setPanel('Outputs')} onStartCase={begin} onMarkSent={(id) => setFilings(markFilingSent(id))} />}{panel === 'Settings' && settingsView()}</section></main>;
 }
