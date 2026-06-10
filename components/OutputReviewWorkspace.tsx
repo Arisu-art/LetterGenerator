@@ -53,7 +53,6 @@ function packetTitle(output: ReviewOutput) {
 function packetDocuments(anchor: ReviewOutput, allOutputs: ReviewOutput[]) {
   return allOutputs
     .filter((item) => {
-      // Filter out FTC when the feature is disabled
       if (item.role === 'FTC' && !isFtcEnabled()) return false;
       if (item.bureau === anchor.bureau && item.type === anchor.type) return true;
       return anchor.type === 'DISPUTE' && (item.role === 'AFFIDAVIT' || (item.role === 'FTC' && isFtcEnabled())) && item.bureau === 'CLIENT';
@@ -72,12 +71,11 @@ function packageRows(output: ReviewOutput, supportingCount: number) {
   const rows = [
     { id: '01', label: 'Dispute Letter', detail: 'Editable DOCX' },
     { id: '02', label: 'Supporting Documents', detail: `${supportingCount} evidence file${supportingCount === 1 ? '' : 's'}` },
-    { id: '03', label: 'FCRA Legal Exhibit', detail: 'Configured PDF insert' },
-    { id: '04', label: 'Affidavit', detail: 'Editable DOCX' },
-    { id: '05', label: 'Attachment', detail: 'Configured PDF insert' }
+    { id: '03', label: 'Attachment', detail: 'Configured PDF insert' },
+    { id: '04', label: 'FCRA Legal Exhibit', detail: 'Configured PDF insert' },
+    { id: '05', label: 'Affidavit', detail: 'Editable DOCX' }
   ];
 
-  // Add FTC row only if the feature is enabled
   if (isFtcEnabled()) {
     rows.push({ id: '06', label: 'FTC Identity Theft Report', detail: 'Editable DOCX' });
   }
@@ -100,7 +98,6 @@ export default function OutputReviewWorkspace({
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [reviewedPaths, setReviewedPaths] = useState<string[]>([]);
 
-  // Filter out FTC outputs only when the feature is disabled
   const activeOutputs = useMemo(() => outputs.filter((output) => {
     if (output.role === 'FTC' && !isFtcEnabled()) return false;
     return true;
@@ -126,17 +123,11 @@ export default function OutputReviewWorkspace({
           <div className="output-stage-heading">
             <p className="eyebrow">Review and delivery</p>
             <h2>Complete ordered package</h2>
-            <p>Open each packet for live-proof review, edit generated DOCX documents, then download the ordered ZIP package.</p>
+            <p>{packets.length} packet{packets.length === 1 ? '' : 's'} ready for live-proof review. Open each packet, edit generated DOCX documents, then download the ordered ZIP package.</p>
           </div>
         </header>
 
-        <section className="output-packet-review canonical-package-review">
-          <header className="output-section-heading">
-            <p className="eyebrow">Live-proof packet preview</p>
-            <h3>Review packets before download</h3>
-            <p>{packets.length} packet{packets.length === 1 ? '' : 's'} ready for review.</p>
-          </header>
-
+        <section className="output-packet-review canonical-package-review" aria-label="Live-proof packet review">
           <div className="review-cards output-packet-grid">
             {packets.map((packet) => (
               <article className={`review-card packet-card component-package-card ${reviewedPaths.includes(packet.path) ? 'reviewed' : ''}`} key={packet.path}>
