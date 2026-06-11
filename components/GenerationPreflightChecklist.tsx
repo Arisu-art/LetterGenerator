@@ -18,9 +18,14 @@ function marker(check: PreflightCheck) {
   return 'x';
 }
 
+function visibleChecks(checks: PreflightCheck[]) {
+  return checks.filter((check) => !(check.id === 'source.hard-inquiries' && check.severity === 'warning'));
+}
+
 export default function GenerationPreflightChecklist({ result }: Props) {
-  const blockers = result.blockers.length;
-  const warnings = result.warnings.length;
+  const checks = visibleChecks(result.checks);
+  const blockers = checks.filter((check) => check.severity === 'blocker').length;
+  const warnings = checks.filter((check) => check.severity === 'warning').length;
   let instruction = 'Your workspace has the required items for this document suite.';
   if (!result.ready && blockers) instruction = `${blockers} checklist item${blockers === 1 ? '' : 's'} need attention before the package can be prepared.`;
   if (!result.ready && !blockers) instruction = `${warnings} item${warnings === 1 ? '' : 's'} should be reviewed before continuing.`;
@@ -32,7 +37,7 @@ export default function GenerationPreflightChecklist({ result }: Props) {
       <p>{instruction}</p>
     </div>
     <div className="preflight-check-grid">
-      {result.checks.map((check) => <article className={`preflight-check ${tone(check)}`} key={check.id}>
+      {checks.map((check) => <article className={`preflight-check ${tone(check)}`} key={check.id}>
         <strong><span aria-hidden="true">{marker(check)}</span> {check.label}</strong>
         <p>{check.detail}</p>
       </article>)}
